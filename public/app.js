@@ -1,3 +1,4 @@
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 const $app = document.getElementById('app');
 let me = null;
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -200,3 +201,4 @@ async function render() {
 }
 window.addEventListener('hashchange', render);
 render();
+}
