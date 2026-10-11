@@ -289,11 +289,22 @@ async function handler(req, res) {
       const html = storyPage(url.pathname.slice(3));
       res.writeHead(html ? 200 : 404, { 'Content-Type': 'text/html' }); return res.end(html || 'Story not found');
     }
-    const f = path.join(__dirname, 'public', url.pathname === '/' ? 'index.html' : url.pathname);
-    if (!f.startsWith(path.join(__dirname, 'public')) || !fs.existsSync(f)) { res.writeHead(404); return res.end('Not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'text/plain' }); res.end(fs.readFileSync(f));
+    const rel = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
+    const candidates = [
+      path.join(__dirname, 'public', rel),
+      path.join(__dirname, rel),
+      path.join(process.cwd(), 'public', rel),
+      path.join(process.cwd(), rel)
+    ];
+    let found = null;
+    for (const c of candidates) {
+      if (fs.existsSync(c) && fs.statSync(c).isFile()) { found = c; break; }
+    }
+    if (!found) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(found)] || 'text/plain' }); res.end(fs.readFileSync(found));
   } catch (e) {
-    res.writeHead(e.code || 500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message }));
+    const status = (typeof e.code === 'number' && e.code >= 100 && e.code <= 599) ? e.code : 500;
+    res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message || 'Internal Server Error', stack: e.stack }));
   }
 }
 
