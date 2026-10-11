@@ -2,14 +2,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { createDatabase } = require('./lib/db');
+const { createDatabase, MemoryDB } = require('./lib/db');
 const G = require('./lib/generators');
 
 const PORT = process.env.PORT || 3000;
 const ON_VERCEL = !!process.env.VERCEL;
 // On Vercel the filesystem is read-only except /tmp, and /tmp is ephemeral (demo data only).
-// For real persistence, swap this for a hosted database (Neon/Turso/Supabase).
-const db = createDatabase(ON_VERCEL ? '/tmp/eba.db' : path.join(__dirname, 'eba.db'));
+// In-memory DB on Vercel provides instantaneous zero-dependency startup with zero binary issues.
+const db = ON_VERCEL ? new MemoryDB() : createDatabase(path.join(__dirname, 'eba.db'));
 const SECRET = process.env.SESSION_SECRET || 'dev-only-secret-change-me';
 db.exec('PRAGMA foreign_keys = ON');
 db.exec(`
@@ -268,10 +268,16 @@ async function handler(req, res) {
   try {
     if (url.pathname.startsWith('/api/')) {
       let b = {};
-      if (req.body !== undefined && req.body !== null && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) b = req.body; // pre-parsed by Vercel
-      else {
+      if (req.body !== undefined && req.body !== null && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+        b = req.body; // pre-parsed by Vercel
+      } else if (req.method !== 'GET' && req.method !== 'HEAD') {
         let body = typeof req.body === 'string' ? req.body : '';
-        if (!body && req.body === undefined) for await (const ch of req) { body += ch; if (body.length > 1e6) bad(413, 'Too large'); }
+        if (!body && req.body === undefined) {
+          for await (const ch of req) {
+            body += ch;
+            if (body.length > 1e6) bad(413, 'Too large');
+          }
+        }
         b = body ? JSON.parse(body) : {};
       }
       const ctx = { tok: cookies.tok };
