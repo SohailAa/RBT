@@ -1,13 +1,21 @@
-// Smoke + access-control test. Run with the server up: node test.js
-const base = 'http://localhost:3000';
-async function login(email) {
-  const r = await fetch(base + '/api/login', { method: 'POST', body: JSON.stringify({ email, password: 'password' }) });
-  const cookie = r.headers.get('set-cookie').split(';')[0];
-  return (m, u, b) => fetch(base + u, { method: m, headers: { cookie }, body: b ? JSON.stringify(b) : undefined }).then(async (x) => ({ s: x.status, j: await x.json() }));
-}
+const http = require('http');
+const handler = require('./server');
+
 let fails = 0;
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
+
 (async () => {
+  // Spin up an in-process server on a random available port for tests
+  const server = http.createServer(handler);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const base = `http://127.0.0.1:${port}`;
+
+  async function login(email) {
+    const r = await fetch(base + '/api/login', { method: 'POST', body: JSON.stringify({ email, password: 'password' }) });
+    const cookie = r.headers.get('set-cookie').split(';')[0];
+    return (m, u, b) => fetch(base + u, { method: m, headers: { cookie }, body: b ? JSON.stringify(b) : undefined }).then(async (x) => ({ s: x.status, j: await x.json() }));
+  }
   const { calcUnits } = require('./lib/generators');
   ok(calcUnits(180) === 12 && calcUnits(22) === 1 && calcUnits(23) === 2 && calcUnits(7) === 0, 'unit calc (8-minute rule)');
   const b = await login('bcba@eba.test'), r = await login('rbt@eba.test'), p = await login('parent@eba.test');
@@ -32,5 +40,6 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await r('PUT', `/api/sessions/${sid}/note`, { note });
   ok((await r('POST', `/api/sessions/${sid}/note/sign`)).s === 403, 'RBT cannot sign');
   ok((await b('POST', `/api/sessions/${sid}/note/sign`)).s === 200, 'BCBA signs');
+  server.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED'); process.exit(fails ? 1 : 0);
 })();

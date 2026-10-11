@@ -225,7 +225,7 @@ route('DELETE', '/api/sessions/:id/trials/last', (u, b, p) => {
 });
 route('POST', '/api/sessions/:id/end', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
-  if (s.end) return {};
+  if (s.end) return { units: s.units };
   const end = new Date(); const minutes = Math.max(1, Math.round((end - new Date(s.start)) / 60000));
   const units = G.calcUnits(+b.minutes_override || minutes);
   run('UPDATE sessions SET end=?, units=? WHERE id=?', end.toISOString(), units, s.id); return { units };
