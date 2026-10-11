@@ -2,14 +2,14 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { DatabaseSync } = require('node:sqlite');
+const { createDatabase } = require('./lib/db');
 const G = require('./lib/generators');
 
 const PORT = process.env.PORT || 3000;
 const ON_VERCEL = !!process.env.VERCEL;
 // On Vercel the filesystem is read-only except /tmp, and /tmp is ephemeral (demo data only).
 // For real persistence, swap this for a hosted database (Neon/Turso/Supabase).
-const db = new DatabaseSync(ON_VERCEL ? '/tmp/eba.db' : path.join(__dirname, 'eba.db'));
+const db = createDatabase(ON_VERCEL ? '/tmp/eba.db' : path.join(__dirname, 'eba.db'));
 const SECRET = process.env.SESSION_SECRET || 'dev-only-secret-change-me';
 db.exec('PRAGMA foreign_keys = ON');
 db.exec(`

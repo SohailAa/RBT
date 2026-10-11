@@ -1,9 +1,6 @@
 {
-  "outputDirectory": "public",
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/api/ping", "destination": "/api/ping" },
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/s/:token", "destination": "/api/index" }
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/s/(.*)", "destination": "/api" }
   ]
 }
