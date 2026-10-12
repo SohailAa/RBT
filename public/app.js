@@ -2,10 +2,19 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 const $app = document.getElementById('app');
 let me = null;
 let activeModal = null;
+let clientSearchQuery = '';
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const val = (id) => (document.getElementById(id) || {}).value || '';
-const LV = { I: 'Independent', V: 'Verbal prompt', G: 'Gestural prompt', M: 'Model prompt', P: 'Physical prompt', N: 'Did not comply' };
+const LV = {
+  I: { label: 'Independent', code: 'I', icon: '☑', cls: 'ok' },
+  V: { label: 'Verbal prompt', code: 'V', icon: '💬', cls: 'btn-v' },
+  G: { label: 'Gestural prompt', code: 'G', icon: '👉', cls: 'btn-g' },
+  M: { label: 'Model prompt', code: 'M', icon: '🧑‍🏫', cls: 'btn-m' },
+  P: { label: 'Physical prompt', code: 'P', icon: '🤝', cls: 'btn-p' },
+  N: { label: 'Did not comply', code: 'N', icon: '✕', cls: 'bad' }
+};
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
 async function api(method, url, body) {
   const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -16,185 +25,536 @@ async function api(method, url, body) {
 const safe = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert(e.message); } };
 
 const NAV = {
-  BCBA: [['dashboard', '🏠 Dashboard'], ['clients', '👧 Clients (360 Hub)'], ['schedule', '📅 Schedule'], ['notes', '📝 Notes & Sign-off'], ['supervision', '🎯 BACB Supervision']],
-  RBT: [['dashboard', '🏠 My Day'], ['schedule', '📅 Schedule'], ['clients', '👧 My Clients'], ['notes', '📝 Notes'], ['supervision', '🎯 My Supervision']],
-  PARENT: [['clients', '👧 My Child']],
+  BCBA: [
+    ['dashboard', '🏠', 'Dashboard'],
+    ['clients', '👧', 'Clients 360'],
+    ['schedule', '📅', 'Clinical Schedule'],
+    ['notes', '📝', 'Notes & Dual-Sign'],
+    ['supervision', '🎯', 'BACB Supervision']
+  ],
+  RBT: [
+    ['dashboard', '🏠', 'My Clinical Day'],
+    ['schedule', '📅', 'Schedule'],
+    ['clients', '👧', 'My Clients'],
+    ['notes', '📝', 'Session Notes'],
+    ['supervision', '🎯', 'My Supervision']
+  ],
+  PARENT: [
+    ['clients', '👧', 'My Child']
+  ]
 };
 
 function shell(content, route) {
-  return `<div class="layout"><nav><h2>Effective Behavioral Approach</h2>
-  ${NAV[me.role].map(([r, l]) => `<a class="${route === r ? 'on' : ''}" onclick="go('${r}')">${l}</a>`).join('')}
-  <a onclick="act.logout()">🚪 Log out</a><div style="font-size:.75rem;margin-top:16px;opacity:.85">Logged in as:<br><b>${esc(me.name)}</b> (${me.role})</div></nav>
-  <main>${content}</main></div>${activeModal ? renderModal() : ''}`;
+  const userInitials = getInitials(me.name);
+  return `
+  <div class="layout">
+    <nav>
+      <div class="brand-wrapper">
+        <div class="brand-logo">
+          <div class="brand-icon">EBA</div>
+          <div>
+            <div class="brand-title">Effective Behavioral</div>
+            <div class="brand-sub">Unified Health Record</div>
+          </div>
+        </div>
+      </div>
+      <div class="nav-links">
+        ${NAV[me.role].map(([r, ic, l]) => `
+          <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
+            <span style="font-size:1.1rem">${ic}</span>
+            <span>${l}</span>
+          </a>
+        `).join('')}
+      </div>
+      <div class="nav-user">
+        <div class="nav-user-header">
+          <div class="user-avatar">${userInitials}</div>
+          <div style="flex:1;min-width:0;overflow:hidden">
+            <div class="user-info-name" title="${esc(me.name)}">${esc(me.name)}</div>
+            <span class="user-role-badge">${esc(me.role)}</span>
+          </div>
+        </div>
+        <a class="nav-logout" onclick="act.logout()">Sign Out</a>
+      </div>
+    </nav>
+    <main>
+      ${content}
+    </main>
+  </div>
+  ${activeModal ? renderModal() : ''}`;
 }
+
 window.go = (r, id) => { location.hash = id ? `${r}/${id}` : r; };
 
-// ---------- views ----------
+// ---------- Views ----------
+
 function loginView(err) {
-  return `<div class="login card"><h2>Effective Behavioral Approach</h2>
-  <p style="color:#666;font-size:.9rem">Unified Behavioral Health Record (UBHR) & Clinical Cockpit</p>
-  <label>Email</label><input id="em" value="bcba@eba.test"><label>Password</label><input id="pw" type="password" value="password">
-  <button onclick="act.login()">Log in</button><div class="err">${esc(err || '')}</div>
-  <small>Demo logins: bcba@eba.test · rbt@eba.test · parent@eba.test (password: password)</small></div>`;
+  return `
+  <div class="login-container">
+    <div class="login-box">
+      <div class="login-brand">
+        <div class="brand-icon" style="width:40px;height:40px;font-size:1.2rem">EBA</div>
+        <div>
+          <h2 style="margin:0;font-size:1.25rem;color:var(--slate-900)">Effective Behavioral Approach</h2>
+          <div style="font-size:0.75rem;color:var(--slate-500);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Unified Clinical Practice & Cockpit</div>
+        </div>
+      </div>
+      
+      <p style="font-size:0.88rem;color:var(--slate-600);margin:12px 0 20px">
+        Sign in to access real-time session tracking, unified ABC behavioral records, and dual-signature documentation.
+      </p>
+
+      <label>Clinician / Guardian Email</label>
+      <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
+      
+      <label>Secure Password</label>
+      <input id="pw" type="password" value="password" autocomplete="current-password">
+      
+      <button style="width:100%;padding:12px;font-size:1rem;margin-top:8px" onclick="act.login()">Sign In to Cockpit</button>
+      
+      ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
+
+      <div class="demo-pills">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.04em">Quick Demo Roles (1-Tap Fill & Sign-In):</div>
+        <div class="demo-pill" onclick="act.demoLogin('bcba@eba.test')">
+          <span>👩‍⚕️ <b>Dr. Dana Rivera</b> (Supervising BCBA)</span>
+          <span class="badge p">BCBA</span>
+        </div>
+        <div class="demo-pill" onclick="act.demoLogin('rbt@eba.test')">
+          <span>👨‍⚕️ <b>Sam Lee</b> (Field Therapist)</span>
+          <span class="badge tan">RBT</span>
+        </div>
+        <div class="demo-pill" onclick="act.demoLogin('parent@eba.test')">
+          <span>👨‍👩‍👧 <b>Mrs. Carter</b> (Client Guardian)</span>
+          <span class="badge esc">Parent</span>
+        </div>
+      </div>
+      
+      <div style="font-size:0.72rem;color:var(--slate-400);text-align:center;margin-top:20px">
+        🔒 HIPAA & 21 CFR Part 11 Compliant Data Isolation · Zero PHI Synthetic Sandbox
+      </div>
+    </div>
+  </div>`;
 }
 
 async function dashboardView() {
   const d = await api('GET', '/api/dashboard');
   const sup = d.supervision || { supPct: 0, compliant: false };
-  return `<h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Dashboard'}</h1>
+  const todayStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  
+  return `
+  <div class="page-header">
+    <div>
+      <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Dashboard'}</h1>
+      <p class="page-sub">Today is <b>${todayStr}</b> · Active Shift Status: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Operational</span></p>
+    </div>
+    <div>
+      <button class="sec" onclick="go('schedule')">📅 View Full Schedule</button>
+    </div>
+  </div>
+
   <div class="grid">
-    <div class="card"><div class="stat">${d.appts.length}</div>Today's sessions</div>
-    <div class="card"><div class="stat">${d.rbt}</div>RBT 1:1 sessions</div>
-    <div class="card"><div class="stat">${d.bcba}</div>BCBA sessions</div>
-    <div class="card"><div class="stat">${d.incompleteNotes}</div>Notes pending completion</div>
-    <div class="card"><div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>BACB Supervision (${sup.compliant ? 'Compliant ≥5%' : 'Action Needed'})</div>
-    ${me.role === 'BCBA' ? `<div class="card"><div class="stat">${d.pendingApprovals}</div>Drafts to approve</div><div class="card"><div class="stat">${d.pendingSign}</div>Notes to review & sign</div>` : ''}
+    <div class="stat-card">
+      <div class="stat-label">Today's Appointments</div>
+      <div class="stat">${d.appts.length}</div>
+      <div class="stat-sub">Scheduled therapy sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">1:1 Direct (97153)</div>
+      <div class="stat" style="color:var(--primary)">${d.rbt}</div>
+      <div class="stat-sub">RBT direct client care</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">BCBA Supervision (97155)</div>
+      <div class="stat" style="color:var(--sensory)">${d.bcba}</div>
+      <div class="stat-sub">Protocol mods & direct review</div>
+    </div>
+    <div class="stat-card ${d.incompleteNotes > 0 ? 'warn' : 'ok'}">
+      <div class="stat-label">Notes Pending</div>
+      <div class="stat" style="color:${d.incompleteNotes > 0 ? 'var(--warn)' : 'var(--ok)'}">${d.incompleteNotes}</div>
+      <div class="stat-sub">Awaiting author submission / sign</div>
+    </div>
+    <div class="stat-card ${sup.compliant ? 'ok' : 'warn'}">
+      <div class="stat-label">BACB 5% Supervision</div>
+      <div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>
+      <div class="stat-sub"><span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant ≥5%' : '⚠ Below 5% Target'}</span></div>
+    </div>
+    ${me.role === 'BCBA' ? `
+      <div class="stat-card warn">
+        <div class="stat-label">Pending Dual-Signs</div>
+        <div class="stat" style="color:var(--warn)">${d.pendingSign}</div>
+        <div class="stat-sub">RBT notes awaiting BCBA signature</div>
+      </div>
+    ` : ''}
   </div>
+
   <div class="card">
-    <div class="flex-between"><h3>Today's Schedule</h3><button class="sec" onclick="go('schedule')">Full Schedule 📅</button></div>
-    ${d.appts.length ? `<table>${d.appts.map((a) => `<tr><td>${fmtT(a.start)}–${a.end.slice(11)}</td><td><b>${esc(a.client)}</b></td><td><span class="badge p">${esc(a.role)}</span> ${esc(a.setting)}</td><td><button onclick="act.start(${a.id})">${a.session ? 'Open Session' : 'Start Session'}</button></td></tr>`).join('')}</table>` : '<p style="color:#666">No appointments scheduled for today.</p>'}
+    <div class="flex-between">
+      <h3>📅 Today's Clinical Schedule</h3>
+      <span class="badge p">${d.appts.length} Appointments</span>
+    </div>
+    ${d.appts.length ? `
+      <table>
+        <thead>
+          <tr>
+            <th>Time Window</th>
+            <th>Client Name</th>
+            <th>Modality & Setting</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.appts.map((a) => `
+            <tr>
+              <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${fmtT(a.start).slice(-7)} – ${a.end.slice(11)}</span></td>
+              <td>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div class="user-avatar" style="width:28px;height:28px;font-size:0.75rem;background:#6366f1">${getInitials(a.client)}</div>
+                  <b>${esc(a.client)}</b>
+                </div>
+              </td>
+              <td>
+                <span class="badge ${a.role === 'BCBA' ? 'sen' : 'tan'}">${esc(a.role)} (CPT ${a.role === 'BCBA' ? '97155' : '97153'})</span>
+                <span class="badge">${esc(a.setting)}</span>
+              </td>
+              <td>
+                <button class="${a.session ? 'sec' : 'ok'}" onclick="act.start(${a.id})">
+                  ${a.session ? (a.session.end ? 'Review Session 📋' : 'Resume Cockpit ⚡') : 'Launch Cockpit 🚀'}
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:24px">No appointments scheduled for today.</p>'}
   </div>
-  ${d.auths.length ? `<div class="card"><h3>⚠ Authorizations Near Limit (≥80% used)</h3>${d.auths.map((a) => `<div style="margin-bottom:6px"><b>${esc(a.client)}</b> – CPT ${esc(a.code)}: <span class="tag draft">${a.used} / ${a.authorized} units used</span></div>`).join('')}</div>` : ''}`;
+
+  ${d.auths && d.auths.length ? `
+    <div class="card" style="border-left:4px solid var(--warn)">
+      <div class="flex-between">
+        <h3>⚠️ Insurance Authorization Burn-Down Alerts</h3>
+        <span class="tag draft">≥80% Units Exhausted</span>
+      </div>
+      <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 14px">These authorizations are nearing expiration. Initiate re-authorization packets to prevent treatment interruption.</p>
+      ${d.auths.map((a) => {
+        const pct = Math.round((a.used / a.authorized) * 100);
+        return `
+          <div style="background:var(--slate-50);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:10px">
+            <div class="flex-between">
+              <div><b>${esc(a.client)}</b> <span class="badge p">CPT ${esc(a.code)}</span></div>
+              <div><b>${a.used}</b> / ${a.authorized} units (${pct}%)</div>
+            </div>
+            <div class="bar" style="margin-top:8px"><div style="width:${pct}%;background:${pct >= 90 ? 'var(--bad)' : 'var(--warn)'}"></div></div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : ''}`;
 }
 
 async function clientsView() {
   const cs = await api('GET', '/api/clients');
   if (me.role === 'PARENT' && cs.length) return clientView(cs[0].id);
-  return `<h1>Children & Client 360 Records</h1>
-  ${me.role === 'BCBA' ? `<div class="card"><h3>Intake New Client</h3>
-  <div class="row">
-    <div><label>Name</label><input id="nn" placeholder="e.g. Maya"></div>
-    <div><label>Date of Birth</label><input id="nd" type="date"></div>
-    <div><label>Diagnosis</label><input id="ng" value="Autism Spectrum Disorder"></div>
+
+  const filtered = cs.filter(c => {
+    if (!clientSearchQuery) return true;
+    const q = clientSearchQuery.toLowerCase();
+    return (c.name || '').toLowerCase().includes(q) || (c.diagnosis || '').toLowerCase().includes(q);
+  });
+
+  return `
+  <div class="page-header">
+    <div>
+      <h1>Children & Client 360 Records</h1>
+      <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition & ABC Portals</p>
+    </div>
+    ${me.role === 'BCBA' ? `
+      <div>
+        <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
+      </div>
+    ` : ''}
   </div>
-  <button onclick="act.addClient()">Create Client Profile</button></div>` : ''}
-  <div class="card"><table><tr><th>Client Name</th><th>Diagnosis</th><th>Setting / School</th><th>Clinical Cockpit</th></tr>${cs.map((c) => `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.diagnosis)}</td><td>${esc(c.school || 'Home')}</td><td><button class="sec" onclick="go('client',${c.id})">Open 360 Cockpit 👧</button></td></tr>`).join('')}</table></div>`;
+
+  ${me.role === 'BCBA' ? `
+    <div class="card" id="intake_card" style="display:none;animation:slideDown 0.2s ease">
+      <div class="flex-between">
+        <h3>Intake New Client Profile</h3>
+        <button class="sec" style="padding:4px 10px" onclick="document.getElementById('intake_card').style.display='none'">✕ Close</button>
+      </div>
+      <div class="row">
+        <div><label>Child Full Name</label><input id="nn" placeholder="e.g. Maya Lin"></div>
+        <div><label>Date of Birth</label><input id="nd" type="date"></div>
+        <div><label>Clinical Diagnosis</label><input id="ng" value="Autism Spectrum Disorder"></div>
+      </div>
+      <div class="row">
+        <div><label>Guardian / Parent</label><input id="nguard" placeholder="e.g. Rachel Lin"></div>
+        <div><label>Primary Communication Mode</label><input id="ncomm" placeholder="e.g. Vocal, PECS Phase III, AAC"></div>
+      </div>
+      <button class="ok" onclick="act.addClient()">Create Unified Client Profile</button>
+    </div>
+  ` : ''}
+
+  <div class="card">
+    <div class="flex-between" style="margin-bottom:12px">
+      <h3>Active Caseload (${filtered.length} Children)</h3>
+      <div style="max-width:280px;width:100%">
+        <input style="margin:0" placeholder="🔍 Search by name or diagnosis..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Client Name</th>
+          <th>Diagnosis</th>
+          <th>Communication Modality</th>
+          <th>Setting / School</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map((c) => `
+          <tr>
+            <td>
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="user-avatar" style="width:34px;height:34px;background:var(--primary);font-size:0.85rem">${getInitials(c.name)}</div>
+                <div>
+                  <div style="font-weight:700;color:var(--slate-900)">${esc(c.name)}</div>
+                  <div style="font-size:0.75rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
+                </div>
+              </div>
+            </td>
+            <td><span class="badge p">${esc(c.diagnosis || 'ASD')}</span></td>
+            <td><span class="badge esc">${esc(c.communication || 'Vocal')}</span></td>
+            <td>${esc(c.school || 'Home / Clinic')}</td>
+            <td>
+              <button class="sec" onclick="go('client',${c.id})">Open 360 Cockpit 👧</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 let tab = 'overview';
 let showCrisis = false;
 
 function chart(series, baseline, target) {
-  if (!series || !series.length) return '<small style="color:#888">No trial data recorded yet.</small>';
-  const w = 320, h = 110, n = series.length;
-  const x = (i) => n === 1 ? w / 2 : 12 + (i * (w - 24)) / (n - 1), y = (p) => h - 12 - (p / 100) * (h - 24);
+  if (!series || !series.length) return '<div style="padding:14px;background:var(--slate-50);border-radius:8px;text-align:center;color:var(--slate-400);font-size:0.85rem">No session trials collected for this target yet.</div>';
+  const w = 340, h = 120, n = series.length;
+  const x = (i) => n === 1 ? w / 2 : 16 + (i * (w - 32)) / (n - 1);
+  const y = (p) => h - 16 - (Math.min(100, Math.max(0, p)) / 100) * (h - 32);
   const pts = series.map((s, i) => `${x(i)},${y(s.pct)}`).join(' ');
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px;background:#fafafe;border-radius:8px;border:1px solid #eef">
-  <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#999" stroke-dasharray="3"/>
-  <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#1e9e5a" stroke-dasharray="3"/>
-  <polyline fill="none" stroke="#4b3fa8" stroke-width="2.5" points="${pts}"/>
-  ${series.map((s, i) => `<circle cx="${x(i)}" cy="${y(s.pct)}" r="3.5" fill="#4b3fa8"><title>Session ${s.session}: ${s.pct}%</title></circle>`).join('')}
-  </svg>
-  <div style="font-size:.75rem;color:#666;margin-top:2px">Baseline: ${baseline}% · Target: ${target}%</div>`;
+  const firstPt = `${x(0)},${h - 16}`;
+  const lastPt = `${x(n - 1)},${h - 16}`;
+  const areaPoly = `${firstPt} ${pts} ${lastPt}`;
+  
+  return `
+  <div style="position:relative;margin:8px 0">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#fafafa;border-radius:var(--radius-md);border:1px solid var(--slate-200);overflow:hidden">
+      <defs>
+        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#6366f1" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#6366f1" stop-opacity="0.01"/>
+        </linearGradient>
+      </defs>
+      <!-- Baseline line -->
+      <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#94a3b8" stroke-dasharray="3"/>
+      <!-- Target mastery line -->
+      <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#059669" stroke-dasharray="3"/>
+      <!-- Gradient area under curve -->
+      <polygon points="${areaPoly}" fill="url(#chartGrad)"/>
+      <!-- Polyline -->
+      <polyline fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      <!-- Data circles -->
+      ${series.map((s, i) => `
+        <circle cx="${x(i)}" cy="${y(s.pct)}" r="4" fill="#ffffff" stroke="#4f46e5" stroke-width="2.5">
+          <title>Session ${s.session}: ${s.pct}% independent</title>
+        </circle>
+      `).join('')}
+    </svg>
+    <div class="flex-between" style="font-size:0.75rem;color:var(--slate-500);margin-top:4px">
+      <span>Baseline: <b>${baseline}%</b></span>
+      <span style="color:var(--ok);font-weight:700">Mastery Target: <b>${target}%</b></span>
+    </div>
+  </div>`;
 }
 
 const ANTS = ['Transition from preferred activity', 'Removal of preferred item', 'Difficult academic task', 'Denied access', 'Peer proximity / space', 'Loud sensory environment', 'Unstructured free time'];
 const BEHAVIORS = ['Screaming', 'Aggression', 'Elopement', 'Task refusal', 'Crying', 'Property destruction', 'Self-injurious behavior'];
-const FUNCTIONS = ['Escape', 'Attention', 'Tangible', 'Sensory'];
 
 async function clientView(id) {
   const data = await api('GET', '/api/clients/' + id);
   const { client: c, goals, plans, stories, auths, assigned, abcLogs = [], abcSummary = { functions: {}, total: 0 }, supervisionLogs = [] } = data;
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
-  const tabs = P ? [['goals', '🎯 Goals'], ['stories', '📖 Stories']] : [
+  const tabs = P ? [['goals', '🎯 Skill Goals'], ['stories', '📖 Social Stories']] : [
     ['overview', '🌟 360 Cockpit'],
-    ['skills', '🎯 Skills & Targets'],
-    ['behavior_abc', '📊 Behavior & ABC Logs'],
+    ['skills', '🎯 Skills & DTT'],
+    ['behavior_abc', '📊 Behavior & ABC'],
     ['plans', '📋 Behavior Plans (BIP)'],
     ['stories', '📖 Social Stories'],
-    ['profile', '👤 Vitals & Bio'],
+    ['profile', '👤 Clinical Vitals'],
     ['services', '💳 Authorizations']
   ];
   if (P && !['goals', 'stories'].includes(tab)) tab = 'goals';
   if (!P && !tabs.map(t=>t[0]).includes(tab)) tab = 'overview';
 
-  // 1. Pinned Clinical Vitals Banner (Always visible in Client 360)
+  // Pinned Clinical Vitals Banner
   const vitalsBanner = `
   <div class="vitals-banner">
     <div class="vitals-header">
-      <div>
-        <h2 style="margin:0;display:inline-block;vertical-align:middle">👧 ${esc(c.name)}</h2>
-        <span class="badge p" style="margin-left:8px">${esc(c.diagnosis || 'ASD')}</span>
-        ${c.dob ? `<span class="badge" style="margin-left:4px">DOB: ${esc(c.dob)}</span>` : ''}
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="user-avatar" style="width:42px;height:42px;font-size:1rem;background:linear-gradient(135deg,#4f46e5 0%,#06b6d4 100%)">${getInitials(c.name)}</div>
+        <div>
+          <h2 style="margin:0;font-size:1.45rem;color:var(--slate-900)">${esc(c.name)}</h2>
+          <div style="font-size:0.8rem;color:var(--slate-500)">
+            <span class="badge p">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
+            ${c.dob ? `<span class="badge">DOB: ${esc(c.dob)}</span>` : ''}
+            ${c.school ? `<span class="badge">${esc(c.school)}</span>` : ''}
+          </div>
+        </div>
       </div>
-      <div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used} units left</span>`).join(' ') : ''}
-        <button class="bad" style="padding:6px 12px;font-size:.85rem;margin-left:6px" onclick="act.toggleCrisis()">🚨 Emergency / Crisis Protocol</button>
+        <button class="bad" style="padding:8px 14px;font-size:0.85rem" onclick="act.toggleCrisis()">
+          🚨 ${showCrisis ? 'Hide Crisis Protocol' : 'Emergency / Crisis Plan'}
+        </button>
       </div>
     </div>
+    
     <div class="vitals-grid">
-      <div class="vital-item"><div class="vital-label">🗣️ Communication Mode</div><b>${esc(c.communication || 'Verbal')}</b></div>
-      <div class="vital-item"><div class="vital-label">🎧 Sensory Profile</div><b>${esc(c.sensory || 'Standard')}</b></div>
-      <div class="vital-item"><div class="vital-label">⚡ Known Triggers</div><b>${esc(c.triggers || 'Transitions')}</b></div>
-      <div class="vital-item"><div class="vital-label">🎁 Reinforcers</div><b>${esc(c.reinforcers || 'Praise, preferred toys')}</b></div>
+      <div class="vital-item">
+        <div class="vital-label">🗣️ Communication Mode</div>
+        <b>${esc(c.communication || 'Verbal (full sentences)')}</b>
+      </div>
+      <div class="vital-item">
+        <div class="vital-label">🎧 Sensory Profile</div>
+        <b>${esc(c.sensory || 'Sensory sensitive (avoids loud sirens)')}</b>
+      </div>
+      <div class="vital-item">
+        <div class="vital-label">⚡ Known Antecedent Triggers</div>
+        <b>${esc(c.triggers || 'Difficult task transitions, peer proximity')}</b>
+      </div>
+      <div class="vital-item">
+        <div class="vital-label">🎁 Reinforcer Hierarchy</div>
+        <b>${esc(c.reinforcers || 'LEGO, bubbles, sensory swing')}</b>
+      </div>
     </div>
+
     ${showCrisis ? `
     <div class="crisis-box">
-      <div class="flex-between"><b>⚠️ De-Escalation & Safety Crisis Protocol</b><button class="bad" style="padding:2px 8px;font-size:.75rem" onclick="act.toggleCrisis()">✕ Close</button></div>
-      <div style="white-space:pre-wrap;margin-top:6px;font-size:.9rem">${esc(c.crisis_plan || '1. Offer sensory quiet space.\n2. Use calm, low-tone language.\n3. Do not engage in arguments or physical restraint.\n4. Provide replacement communication card.')}</div>
-      <div style="margin-top:6px;font-size:.8rem">Emergency Contact: <b>${esc(c.emergency || 'Guardian')}</b></div>
+      <div class="flex-between">
+        <h4 style="margin:0;color:#991b1b">⚠️ Immediate De-Escalation & Safety Crisis Protocol</h4>
+        <button class="bad" style="padding:2px 8px;font-size:0.75rem" onclick="act.toggleCrisis()">✕ Close</button>
+      </div>
+      <div style="white-space:pre-wrap;margin-top:8px;font-size:0.92rem;line-height:1.5">${esc(c.crisis_plan || '1. Offer quiet sensory space.\n2. Use calm, low-tone language.\n3. Do not block items or use physical restraint.\n4. Provide replacement communication card.')}</div>
+      <div style="margin-top:10px;font-size:0.82rem;font-weight:600">Emergency Contact: ${esc(c.emergency || 'Guardian')}</div>
     </div>` : ''}
   </div>`;
 
   let body = '';
 
-  // Tab: Overview / Consolidated 360 Cockpit
+  // Tab: Overview
   if (tab === 'overview') {
     body = `
-    <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:20px">
       <!-- Column 1: Skills & Targets -->
       <div>
         <div class="card">
-          <div class="flex-between"><h3>🎯 Active Skill Targets</h3><button class="sec" onclick="act.setTab('skills')">View All</button></div>
+          <div class="flex-between">
+            <h3>🎯 Active Skill Acquisition Targets</h3>
+            <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('skills')">View All Targets →</button>
+          </div>
           ${goals.slice(0, 3).map(g => `
-            <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #eee">
-              <div class="flex-between"><b>${esc(g.title)}</b><span class="badge ${g.trend === 'Improving' ? 'tan' : 'p'}">${esc(g.trend)}</span></div>
-              <div style="font-size:.85rem;color:#555">Baseline: ${g.baseline}% · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Target: ${g.target}%</div>
+            <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--slate-100)">
+              <div class="flex-between">
+                <b>${esc(g.title)}</b>
+                <span class="tag ${g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.trend)}</span>
+              </div>
+              <div style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 6px">
+                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery: <b>${g.target}%</b>
+              </div>
               ${chart(g.series, g.baseline, g.target)}
             </div>
-          `).join('') || '<p style="color:#888">No skill targets yet.</p>'}
+          `).join('') || '<p style="color:var(--slate-400)">No skill targets active yet.</p>'}
         </div>
 
         <div class="card">
-          <div class="flex-between"><h3>📋 Active Behavior Intervention Plan</h3><button class="sec" onclick="act.setTab('plans')">Manage BIP</button></div>
+          <div class="flex-between">
+            <h3>📋 Behavior Intervention Plan (BIP)</h3>
+            <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('plans')">Manage BIP →</button>
+          </div>
           ${plans.length ? `
-            <b>Target Behavior: ${esc(plans[0].behavior)}</b> <span class="tag ${plans[0].status}">${plans[0].status}</span>
-            <p style="font-size:.9rem;margin:6px 0"><b>Replacement Behavior:</b> ${esc(plans[0].data.replacement)}</p>
-            <div style="font-size:.85rem;color:#555"><b>Prevention:</b> ${esc(plans[0].data.prevention.slice(0, 3).join(', '))}</div>
-          ` : '<p style="color:#888">No behavior plan drafted yet.</p>'}
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+              <b>Target: ${esc(plans[0].behavior)}</b>
+              <span class="tag ${plans[0].status}">${plans[0].status}</span>
+            </div>
+            <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin-bottom:10px">
+              <div style="font-size:0.75rem;font-weight:700;color:var(--ok);text-transform:uppercase">Functional Replacement Behavior (FCT):</div>
+              <b style="color:#064e3b">${esc(plans[0].data.replacement)}</b>
+            </div>
+            <div style="font-size:0.85rem;color:var(--slate-600)">
+              <b>Proactive Prevention:</b> ${esc(plans[0].data.prevention.slice(0, 3).join(', '))}
+            </div>
+          ` : '<p style="color:var(--slate-400)">No active behavior intervention plan drafted yet.</p>'}
         </div>
       </div>
 
-      <!-- Column 2: Behavior & ABC Reduction Hub -->
+      <!-- Column 2: ABC Function & Caregiver -->
       <div>
         <div class="card">
           <div class="flex-between">
-            <h3>📊 ABC Data & Behavior Reduction</h3>
-            <button class="ok" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Event</button>
+            <h3>📊 ABC Behavior Reduction Center</h3>
+            <button class="ok" style="font-size:0.85rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
           </div>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Total of <b>${abcSummary.total || 0}</b> incidents recorded across the 4 functional classifications:</p>
           <div class="abc-grid">
-            <div class="abc-metric Escape"><div style="font-size:1.4rem;font-weight:700">${abcSummary.functions.Escape || 0}</div><small>Escape</small></div>
-            <div class="abc-metric Attention"><div style="font-size:1.4rem;font-weight:700">${abcSummary.functions.Attention || 0}</div><small>Attention</small></div>
-            <div class="abc-metric Tangible"><div style="font-size:1.4rem;font-weight:700">${abcSummary.functions.Tangible || 0}</div><small>Tangible</small></div>
-            <div class="abc-metric Sensory"><div style="font-size:1.4rem;font-weight:700">${abcSummary.functions.Sensory || 0}</div><small>Sensory</small></div>
-          </div>
-          <h4 style="margin:12px 0 6px">Recent Incidents (${abcLogs.length} total)</h4>
-          ${abcLogs.slice(0, 3).map(a => `
-            <div style="background:#fafafa;padding:8px 10px;border-radius:6px;margin-bottom:6px;font-size:.85rem">
-              <div class="flex-between"><b>${esc(a.behavior)}</b> <span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : ''}">${esc(a.perceived_function || 'Escape')}</span></div>
-              <div style="color:#666;font-size:.8rem">Antecedent: ${esc(a.antecedent)} · Consequence: ${esc(a.consequence)}</div>
+            <div class="abc-metric Escape">
+              <div class="abc-num">${abcSummary.functions.Escape || 0}</div>
+              <small>Escape</small>
             </div>
-          `).join('') || '<p style="color:#888">No maladaptive incidents logged.</p>'}
+            <div class="abc-metric Attention">
+              <div class="abc-num">${abcSummary.functions.Attention || 0}</div>
+              <small>Attention</small>
+            </div>
+            <div class="abc-metric Tangible">
+              <div class="abc-num">${abcSummary.functions.Tangible || 0}</div>
+              <small>Tangible</small>
+            </div>
+            <div class="abc-metric Sensory">
+              <div class="abc-num">${abcSummary.functions.Sensory || 0}</div>
+              <small>Sensory</small>
+            </div>
+          </div>
+
+          <h4 style="margin:16px 0 8px">Recent Behavioral Incidents</h4>
+          ${abcLogs.slice(0, 3).map(a => `
+            <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-md);margin-bottom:8px;border:1px solid var(--slate-200);font-size:0.85rem">
+              <div class="flex-between">
+                <b>${esc(a.behavior)}</b>
+                <span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span>
+              </div>
+              <div style="color:var(--slate-500);font-size:0.8rem;margin-top:2px">
+                Antecedent: ${esc(a.antecedent)} · Consequence: ${esc(a.consequence)}
+              </div>
+            </div>
+          `).join('') || '<p style="color:var(--slate-400)">Zero maladaptive behavior episodes logged.</p>'}
         </div>
 
         <div class="card">
-          <div class="flex-between"><h3>📖 Social Stories & Caregiver Hub</h3><button class="sec" onclick="act.setTab('stories')">Stories</button></div>
+          <div class="flex-between">
+            <h3>📖 Social Stories & Visual Tools</h3>
+            <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('stories')">Stories →</button>
+          </div>
           ${stories.slice(0, 2).map(s => `
-            <div style="margin-bottom:8px">
-              <b>${esc(s.content.title)}</b> <span class="tag ${s.status}">${s.status}</span>
-              ${s.status === 'shared' ? `<br><small style="color:var(--p)">✓ Shared with parent</small>` : ''}
+            <div style="padding:10px;border-radius:var(--radius-md);background:var(--slate-50);border:1px solid var(--slate-200);margin-bottom:8px">
+              <div class="flex-between">
+                <b>${esc(s.content.title)}</b>
+                <span class="tag ${s.status}">${s.status}</span>
+              </div>
+              ${s.status === 'shared' ? `<div style="font-size:0.75rem;color:var(--primary);margin-top:4px">✓ Published to Family Portal</div>` : ''}
             </div>
-          `).join('') || '<p style="color:#888">No stories drafted yet.</p>'}
+          `).join('') || '<p style="color:var(--slate-400)">No social stories created yet.</p>'}
         </div>
       </div>
     </div>`;
@@ -204,22 +564,44 @@ async function clientView(id) {
   else if (tab === 'skills') {
     body = `
     <div class="card">
-      <div class="flex-between"><h3>Skill Targets & Discrete Trial Progress</h3>${B ? `<button class="ok" onclick="document.getElementById('add_goal_card').style.display='block'">+ Add Skill Target</button>` : ''}</div>
-      ${goals.map((g) => `<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #eee">
-        <div class="flex-between"><h4>${esc(g.title)}</h4><span class="tag ${g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.trend)}</span></div>
-        <div>Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Target: ${g.target}%</div>
-        ${chart(g.series, g.baseline, g.target)}
-      </div>`).join('') || '<p style="color:#888">No goals recorded yet.</p>'}
-    </div>
-    ${B ? `<div class="card" id="add_goal_card" style="display:none">
-      <h3>Add New Skill Target</h3>
-      <div class="row">
-        <div><label>Title</label><input id="gt" placeholder="e.g. Turn-taking with peers"></div>
-        <div><label>Baseline % Independent</label><input id="gb" type="number" value="20"></div>
-        <div><label>Target % Mastery</label><input id="gg" type="number" value="80"></div>
+      <div class="flex-between">
+        <div>
+          <h3>Skill Targets & Discrete Trial Training (DTT)</h3>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Track longitudinal percentage of independent vs prompted trials.</p>
+        </div>
+        ${B ? `<button class="ok" onclick="document.getElementById('add_goal_card').style.display='block'">+ Add Skill Target</button>` : ''}
       </div>
-      <button onclick="act.addGoal(${c.id})">Save Goal</button>
-    </div>` : ''}`;
+
+      ${B ? `
+        <div class="card" id="add_goal_card" style="display:none;background:var(--slate-50);margin-top:16px;border:1px dashed var(--slate-300)">
+          <div class="flex-between">
+            <h4>Add New Skill Acquisition Target</h4>
+            <button class="sec" style="padding:2px 8px;font-size:0.75rem" onclick="document.getElementById('add_goal_card').style.display='none'">✕</button>
+          </div>
+          <div class="row">
+            <div><label>Target Operational Title</label><input id="gt" placeholder="e.g. 2-Step Motor Imitation"></div>
+            <div><label>Baseline % Independent</label><input id="gb" type="number" value="20"></div>
+            <div><label>Mastery Criterion %</label><input id="gg" type="number" value="80"></div>
+          </div>
+          <button class="ok" onclick="act.addGoal(${c.id})">Save Target</button>
+        </div>
+      ` : ''}
+
+      <div style="margin-top:16px">
+        ${goals.map((g) => `
+          <div style="background:var(--surface);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--slate-200);margin-bottom:16px">
+            <div class="flex-between">
+              <h4 style="margin:0;font-size:1.1rem">${esc(g.title)}</h4>
+              <span class="tag ${g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.trend)}</span>
+            </div>
+            <div style="font-size:0.85rem;color:var(--slate-600);margin:4px 0 8px">
+              Baseline: <b>${g.baseline}%</b> · Current Average: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery: <b>${g.target}%</b>
+            </div>
+            ${chart(g.series, g.baseline, g.target)}
+          </div>
+        `).join('') || '<p style="color:var(--slate-400)">No skill targets defined yet.</p>'}
+      </div>
+    </div>`;
   }
 
   // Tab: Behavior & ABC Logs
@@ -227,130 +609,332 @@ async function clientView(id) {
     body = `
     <div class="card">
       <div class="flex-between">
-        <h3>Antecedent-Behavior-Consequence (ABC) Data Center</h3>
+        <div>
+          <h3>Antecedent-Behavior-Consequence (ABC) Data Center</h3>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Analyze environmental triggers and functional maintaining variables.</p>
+        </div>
         <button class="ok" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
       </div>
-      <p style="color:#666;font-size:.9rem">Track maladaptive behaviors, environmental antecedents, and deduce functional maintainers (Escape, Attention, Tangible, Sensory).</p>
-      
-      <div class="abc-grid">
-        <div class="abc-metric Escape"><h4>${abcSummary.functions.Escape || 0}</h4><b>Escape / Avoidance</b></div>
-        <div class="abc-metric Attention"><h4>${abcSummary.functions.Attention || 0}</h4><b>Attention Seeking</b></div>
-        <div class="abc-metric Tangible"><h4>${abcSummary.functions.Tangible || 0}</h4><b>Access to Tangible</b></div>
-        <div class="abc-metric Sensory"><h4>${abcSummary.functions.Sensory || 0}</h4><b>Sensory / Automatic</b></div>
+
+      <div class="abc-grid" style="margin-top:16px">
+        <div class="abc-metric Escape">
+          <div class="abc-num">${abcSummary.functions.Escape || 0}</div>
+          <small>Escape / Avoidance</small>
+        </div>
+        <div class="abc-metric Attention">
+          <div class="abc-num">${abcSummary.functions.Attention || 0}</div>
+          <small>Attention Seeking</small>
+        </div>
+        <div class="abc-metric Tangible">
+          <div class="abc-num">${abcSummary.functions.Tangible || 0}</div>
+          <small>Access to Tangible</small>
+        </div>
+        <div class="abc-metric Sensory">
+          <div class="abc-num">${abcSummary.functions.Sensory || 0}</div>
+          <small>Automatic / Sensory</small>
+        </div>
       </div>
 
-      <h4 style="margin-top:20px">Incident History (${abcLogs.length} total events)</h4>
-      ${abcLogs.length ? `<table>
-        <tr><th>Time</th><th>Behavior</th><th>Antecedent</th><th>Consequence</th><th>Function</th><th>Notes</th></tr>
-        ${abcLogs.map(a => `<tr>
-          <td>${fmtT(a.ts)}</td>
-          <td><b>${esc(a.behavior)}</b></td>
-          <td>${esc(a.antecedent)}</td>
-          <td>${esc(a.consequence)}</td>
-          <td><span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : ''}">${esc(a.perceived_function)}</span></td>
-          <td style="font-size:.85rem">${esc(a.notes || '—')}</td>
-        </tr>`).join('')}
-      </table>` : '<p style="color:#888">No ABC incidents recorded yet.</p>'}
+      <h4 style="margin-top:24px">Incident History (${abcLogs.length} total events)</h4>
+      ${abcLogs.length ? `
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Maladaptive Behavior</th>
+              <th>Antecedent Event</th>
+              <th>Consequence / Intervention</th>
+              <th>Function</th>
+              <th>Clinical Field Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${abcLogs.map(a => `
+              <tr>
+                <td><span style="font-family:'JetBrains Mono',monospace;font-size:0.85rem">${fmtT(a.ts)}</span></td>
+                <td><b style="color:var(--bad)">${esc(a.behavior)}</b></td>
+                <td>${esc(a.antecedent)}</td>
+                <td>${esc(a.consequence)}</td>
+                <td><span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span></td>
+                <td style="font-size:0.85rem;color:var(--slate-600)">${esc(a.notes || '—')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<p style="color:var(--slate-400);text-align:center;padding:20px">Zero ABC incidents logged.</p>'}
     </div>`;
   }
 
-  // Tab: Behavior Intervention Plans (BIP)
+  // Tab: Behavior Plans (BIP)
   else if (tab === 'plans') {
-    body = (B ? `<div class="card"><h3>AI Behavior Plan Builder (Draft)</h3>
-      <label>Target Behavior</label>
-      <select id="pb">${BEHAVIORS.map((x) => `<option>${x}</option>`).join('')}</select>
-      <label>Possible Antecedents</label>
-      ${ANTS.map((a) => `<div><label><input type="checkbox" class="pa" value="${a}" style="width:auto"> ${a}</label></div>`).join('')}
-      <button onclick="act.genPlan(${c.id})">Generate Draft BIP</button></div>` : '') +
-      plans.map((p) => planCard(p, B)).join('');
+    body = `
+    ${B ? `
+      <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-300)">
+        <h3>🤖 AI Behavior Intervention Plan Builder (Draft)</h3>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Synthesize evidence-based antecedent prevention, FCT replacements, and consequence protocols.</p>
+        <div class="row">
+          <div>
+            <label>Target Maladaptive Behavior</label>
+            <select id="pb">${BEHAVIORS.map((x) => `<option>${x}</option>`).join('')}</select>
+          </div>
+        </div>
+        <label>Possible Environmental Antecedents</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:8px 0 16px">
+          ${ANTS.map((a) => `
+            <label style="display:flex;align-items:center;gap:8px;background:#fff;padding:8px 12px;border-radius:6px;border:1px solid var(--slate-200);cursor:pointer;font-weight:500;text-transform:none">
+              <input type="checkbox" class="pa" value="${a}" style="width:auto;margin:0"> ${a}
+            </label>
+          `).join('')}
+        </div>
+        <button class="ok" onclick="act.genPlan(${c.id})">Generate Draft BIP with Clinical Engine</button>
+      </div>
+    ` : ''}
+    ${plans.map((p) => planCard(p, B)).join('') || '<div class="card">No behavior plans formulated yet.</div>'}`;
   }
 
   // Tab: Social Stories
   else if (tab === 'stories') {
-    body = (B ? `<div class="card"><h3>AI Social Story Builder</h3>
-      <div class="row"><div><label>Situation</label><input id="ss" placeholder="e.g. Circle time / sharing toys"></div><div><label>Challenge</label><input id="sc" placeholder="e.g. Doesn't want peers nearby"></div></div>
-      <div class="row"><div><label>Goal</label><input id="sg" placeholder="e.g. Ask for space using calm words"></div><div><label>Interest</label><input id="si" placeholder="e.g. Trains, LEGO"></div><div><label>Visuals</label><select id="sv"><option>Cartoon</option><option>Photos</option><option>Simple icons</option></select></div></div>
-      <button onclick="act.genStory(${c.id})">Generate Draft Story</button></div>` : '') +
-      (stories.map((s) => storyCard(s, B)).join('') || '<div class="card">No social stories drafted yet.</div>');
+    body = `
+    ${B ? `
+      <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-300)">
+        <h3>🤖 Visual Social Story Generator</h3>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Generates Gray's Social Story structure (Descriptive, Perspective, Directive sentences).</p>
+        <div class="row">
+          <div><label>Activity / Situation</label><input id="ss" placeholder="e.g. Turn taking during circle time"></div>
+          <div><label>Emotional Challenge</label><input id="sc" placeholder="e.g. Frustrated when waiting for turn"></div>
+        </div>
+        <div class="row">
+          <div><label>Coping Goal</label><input id="sg" placeholder="e.g. Ask for visual wait card calmly"></div>
+          <div><label>Child Special Interest</label><input id="si" placeholder="e.g. LEGO bricks, Trains"></div>
+          <div><label>Visual Style</label><select id="sv"><option>Cartoon</option><option>Photos</option><option>Simple icons</option></select></div>
+        </div>
+        <button class="ok" onclick="act.genStory(${c.id})">Generate Draft Social Story</button>
+      </div>
+    ` : ''}
+    ${stories.map((s) => storyCard(s, B)).join('') || '<div class="card">No social stories drafted yet.</div>'}`;
   }
 
   // Tab: Profile & Vitals
   else if (tab === 'profile') {
     const f = [
       ['name', 'Full Name'], ['dob', 'Date of Birth'], ['diagnosis', 'Diagnosis'],
-      ['guardian', 'Parent/Guardian'], ['school', 'School / Educational Setting'],
-      ['emergency', 'Emergency Contact'], ['insurance', 'Insurance / Payer Policy #'],
-      ['communication', 'Communication Modality (vocal, AAC, PECS)'],
-      ['reinforcers', 'Reinforcer Hierarchy (comma separated)'],
-      ['sensory', 'Sensory Profile (seeking vs avoiding)'],
-      ['triggers', 'Known Triggers & Setting Events'],
-      ['crisis_plan', 'Emergency De-Escalation & Crisis Safety Protocol']
+      ['guardian', 'Parent / Primary Guardian'], ['school', 'Educational Setting / School'],
+      ['emergency', 'Emergency Contact & Phone'], ['insurance', 'Payer & Authorization #'],
+      ['communication', 'Primary Communication Modality (Vocal, AAC, PECS, Sign)'],
+      ['reinforcers', 'Reinforcer Hierarchy (Preferred Items & Activities)'],
+      ['sensory', 'Sensory Profile (Seeking vs Avoiding Triggers)'],
+      ['triggers', 'Known Setting Events & Environmental Triggers'],
+      ['crisis_plan', 'Emergency De-Escalation & Safety Crisis Protocol']
     ];
-    body = `<div class="card">
-      <h3>Client Clinical Profile & Vitals</h3>
-      <div class="row">${f.map(([k, l]) => `<div><label>${l}</label>${k === 'crisis_plan' ? `<textarea id="f_${k}" rows="4" ${B ? '' : 'disabled'}>${esc(c[k])}</textarea>` : `<input id="f_${k}" value="${esc(c[k])}" ${B ? '' : 'disabled'}>`}</div>`).join('')}</div>
-      ${B ? `<button onclick="act.saveClient(${c.id})">Save Clinical Profile</button>` : ''}
-    </div>${assigned.length ? `<div class="card">Assigned Therapists: ${assigned.map((a) => esc(a.name)).join(', ')}</div>` : ''}`;
+    body = `
+    <div class="card">
+      <div class="flex-between">
+        <h3>Client Clinical Profile & Vitals</h3>
+        ${B ? '<span class="badge ok">BCBA Edit Privileges</span>' : '<span class="badge">Read Only</span>'}
+      </div>
+      <div class="row">
+        ${f.map(([k, l]) => `
+          <div>
+            <label>${l}</label>
+            ${k === 'crisis_plan' 
+              ? `<textarea id="f_${k}" rows="4" ${B ? '' : 'disabled'}>${esc(c[k])}</textarea>` 
+              : `<input id="f_${k}" value="${esc(c[k])}" ${B ? '' : 'disabled'}>`}
+          </div>
+        `).join('')}
+      </div>
+      ${B ? `<button class="ok" onclick="act.saveClient(${c.id})">💾 Save Clinical Vitals</button>` : ''}
+    </div>
+    ${assigned.length ? `
+      <div class="card">
+        <h4>Assigned Clinical Team Members:</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${assigned.map((a) => `<span class="badge p">👨‍⚕️ ${esc(a.name)}</span>`).join('')}
+        </div>
+      </div>
+    ` : ''}`;
   }
 
-  // Tab: Services, Authorizations & Supervision
+  // Tab: Authorizations & Services
   else if (tab === 'services') {
     body = `
     <div class="card">
-      <h3>Active Insurance Authorizations</h3>
+      <div class="flex-between">
+        <h3>Active CPT Insurance Authorizations</h3>
+        ${B ? '<button class="ok" onclick="document.getElementById(\'add_auth_box\').style.display=\'block\'">+ Add Authorization</button>' : ''}
+      </div>
+      
+      ${B ? `
+        <div id="add_auth_box" style="display:none;background:var(--slate-50);padding:14px;border-radius:var(--radius-md);margin:14px 0;border:1px dashed var(--slate-300)">
+          <div class="row">
+            <div>
+              <label>CPT Billing Code</label>
+              <select id="ac">
+                <option value="97153">97153 (Direct 1:1 Adaptive Behavior Treatment - RBT)</option>
+                <option value="97155">97155 (Protocol Modification & Supervision - BCBA)</option>
+                <option value="97156">97156 (Family Adaptive Behavior Guidance - BCBA)</option>
+              </select>
+            </div>
+            <div>
+              <label>Authorized 15-Minute Units</label>
+              <input id="au" type="number" value="480">
+            </div>
+          </div>
+          <button class="ok" onclick="act.addAuth(${c.id})">Save Authorization</button>
+        </div>
+      ` : ''}
+
       <table>
-        <tr><th>CPT Code</th><th>Description</th><th>Authorized Units</th><th>Used Units</th><th>Remaining</th><th>Status</th></tr>
-        ${auths.map((a) => {
-          const rem = a.authorized - a.used;
-          const near = a.used / a.authorized >= 0.8;
-          return `<tr>
-            <td><b>${esc(a.code)}</b></td>
-            <td>${a.code === '97153' ? 'Direct 1:1 Adaptive Behavior Treatment (RBT)' : a.code === '97155' ? 'Protocol Modification & Supervision (BCBA)' : 'ABA Service'}</td>
-            <td>${a.authorized}</td><td>${a.used}</td><td><b>${rem}</b></td>
-            <td><span class="tag ${near ? 'draft' : 'approved'}">${near ? 'Near Limit' : 'Active'}</span></td>
-          </tr>`;
-        }).join('')}
+        <thead>
+          <tr>
+            <th>CPT Code</th>
+            <th>Clinical Service Description</th>
+            <th>Authorized Units</th>
+            <th>Used Units</th>
+            <th>Remaining Units</th>
+            <th>Burn-Down Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${auths.map((a) => {
+            const rem = a.authorized - a.used;
+            const near = a.used / a.authorized >= 0.8;
+            return `
+              <tr>
+                <td><b>${esc(a.code)}</b></td>
+                <td>${a.code === '97153' ? 'Direct 1:1 Adaptive Behavior Treatment (RBT)' : a.code === '97155' ? 'Protocol Modification & Supervision (BCBA)' : 'Family Guidance (BCBA)'}</td>
+                <td>${a.authorized}</td>
+                <td>${a.used}</td>
+                <td><b>${rem}</b></td>
+                <td><span class="tag ${near ? 'draft' : 'approved'}">${near ? 'Near Limit (≥80%)' : 'Active'}</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
       </table>
-      ${B ? `<div class="row" style="margin-top:12px"><div><label>CPT Code</label><select id="ac"><option value="97153">97153 (Direct RBT)</option><option value="97155">97155 (BCBA Supervision)</option><option value="97156">97156 (Parent Guidance)</option></select></div><div><label>Authorized Units</label><input id="au" type="number" value="480"></div></div><button onclick="act.addAuth(${c.id})">Add Authorization</button>` : ''}
     </div>
+
     <div class="card">
-      <h3>BACB Supervision Records for ${esc(c.name)}</h3>
-      ${supervisionLogs.length ? `<table>
-        <tr><th>Date</th><th>BCBA</th><th>RBT Supervised</th><th>Duration</th><th>Type</th><th>Notes</th></tr>
-        ${supervisionLogs.map(s => `<tr><td>${fmtT(s.ts)}</td><td>${esc(s.bcba)}</td><td>${esc(s.rbt)}</td><td>${s.minutes} mins</td><td><span class="badge p">${esc(s.type)}</span></td><td>${esc(s.notes || '—')}</td></tr>`).join('')}
-      </table>` : '<p style="color:#888">No direct supervision logs for this client yet.</p>'}
+      <h3>BACB Supervision History for ${esc(c.name)}</h3>
+      ${supervisionLogs.length ? `
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Supervising BCBA</th>
+              <th>Supervised RBT</th>
+              <th>Duration</th>
+              <th>Supervision Type</th>
+              <th>Feedback & Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${supervisionLogs.map(s => `
+              <tr>
+                <td><span style="font-family:'JetBrains Mono',monospace">${fmtT(s.ts)}</span></td>
+                <td><b>${esc(s.bcba)}</b></td>
+                <td>${esc(s.rbt)}</td>
+                <td><b>${s.minutes} mins</b></td>
+                <td><span class="badge p">${esc(s.type)}</span></td>
+                <td style="font-size:0.85rem">${esc(s.notes || '—')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : '<p style="color:var(--slate-400)">No direct supervision logs recorded for this client.</p>'}
     </div>`;
   }
 
-  return `${vitalsBanner}<div class="tabs">${tabs.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="act.setTab('${k}')">${l}</button>`).join('')}</div>${body}`;
+  return `
+  ${vitalsBanner}
+  <div class="tabs">
+    ${tabs.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="act.setTab('${k}')">${l}</button>`).join('')}
+  </div>
+  ${body}`;
 }
 
 function planCard(p, B) {
-  const d = p.data, list = (a) => `<ul>${a.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`;
-  return `<div class="card"><h3>Behavior Intervention Plan: ${esc(p.behavior)} <span class="tag ${p.status}">${p.status}${p.approved_by ? ' by ' + esc(p.approved_by) : ''}</span></h3>
-  <b>Antecedents:</b>${list(d.antecedents)}
-  <b>Prevention Protocols:</b>${list(d.prevention)}
-  <b>Replacement Behavior (FCT):</b><p style="background:#f0fdf4;padding:8px 12px;border-radius:6px;margin:6px 0"><b>${esc(d.replacement)}</b></p>
-  <b>Reinforcement:</b>${list(d.reinforcement)}
-  <b>Staff Response / Reactive Protocol:</b>${list(d.staff)}
-  ${B ? `<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--p);font-weight:600">Edit Plan Details</summary>
-  <label>Operational Definition</label><textarea id="pd${p.id}">${esc(d.definition)}</textarea>
-  <label>Replacement Behavior</label><input id="pr${p.id}" value="${esc(d.replacement)}">
-  <label>Prevention (one per line)</label><textarea id="pp${p.id}" rows="3">${esc(d.prevention.join('\n'))}</textarea>
-  <label>Staff Response (one per line)</label><textarea id="ps${p.id}" rows="3">${esc(d.staff.join('\n'))}</textarea>
-  <button class="sec" onclick="act.savePlan(${p.id})">Save Edits (Resets to Draft)</button></details>
-  ${p.status === 'draft' ? `<button class="ok" style="margin-top:8px" onclick="act.approvePlan(${p.id})">✓ BCBA Approve & Activate Plan</button>` : ''}` : ''}</div>`;
+  const d = p.data;
+  const list = (a) => `<ul style="margin:6px 0;padding-left:20px">${a.map((x) => `<li style="margin-bottom:4px">${esc(x)}</li>`).join('')}</ul>`;
+  return `
+  <div class="card" style="border-left:4px solid var(--primary)">
+    <div class="flex-between">
+      <h3 style="margin:0">Behavior Intervention Plan: ${esc(p.behavior)}</h3>
+      <span class="tag ${p.status}">${p.status}${p.approved_by ? ' by ' + esc(p.approved_by) : ''}</span>
+    </div>
+    
+    <div style="margin-top:14px">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Operational Definition:</div>
+      <p style="margin:4px 0 12px;font-style:italic;color:var(--slate-700)">${esc(d.definition)}</p>
+
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Functional Replacement Behavior (FCT):</div>
+      <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin:6px 0 14px">
+        <b style="color:#064e3b">${esc(d.replacement)}</b>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <b>Antecedents & Triggers:</b>
+          ${list(d.antecedents)}
+          <b>Proactive Prevention:</b>
+          ${list(d.prevention)}
+        </div>
+        <div>
+          <b>Reinforcement Schedule:</b>
+          ${list(d.reinforcement)}
+          <b>Staff Reactive Protocol:</b>
+          ${list(d.staff)}
+        </div>
+      </div>
+    </div>
+
+    ${B ? `
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--slate-100);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${p.status === 'draft' ? `<button class="ok" onclick="act.approvePlan(${p.id})">✓ BCBA Approve & Activate Plan</button>` : ''}
+        <details style="flex:1;min-width:200px">
+          <summary style="cursor:pointer;color:var(--primary);font-weight:600;font-size:0.88rem">Edit Plan Specifications</summary>
+          <div style="margin-top:10px">
+            <label>Operational Definition</label><textarea id="pd${p.id}">${esc(d.definition)}</textarea>
+            <label>Replacement Behavior</label><input id="pr${p.id}" value="${esc(d.replacement)}">
+            <label>Prevention Protocols (one per line)</label><textarea id="pp${p.id}" rows="3">${esc(d.prevention.join('\n'))}</textarea>
+            <label>Staff Responses (one per line)</label><textarea id="ps${p.id}" rows="3">${esc(d.staff.join('\n'))}</textarea>
+            <button class="sec" onclick="act.savePlan(${p.id})">Save Edits (Resets to Draft)</button>
+          </div>
+        </details>
+      </div>
+    ` : ''}
+  </div>`;
 }
 
 function storyCard(s, B) {
   const c = s.content;
-  return `<div class="card"><h3>${esc(c.title)} <span class="tag ${s.status}">${s.status}</span></h3>
-  ${c.sentences.map((x) => `<div class="sentence"><span class="ic">${x.icon}</span><span>${esc(x.text)}</span></div>`).join('')}
-  ${B ? `<details style="margin-top:10px"><summary style="cursor:pointer;color:var(--p);font-weight:600">Edit Story Text</summary>
-  <textarea id="st${s.id}" rows="6">${esc(c.sentences.map((x) => x.text).join('\n'))}</textarea>
-  <button class="sec" onclick="act.saveStory(${s.id})">Save Edits (Resets to Draft)</button></details>
-  ${s.status === 'draft' ? `<button class="ok" style="margin-top:8px" onclick="act.approveStory(${s.id})">✓ BCBA Approve Story</button>` : ''}
-  ${s.status !== 'draft' ? `<button style="margin-top:8px" onclick="act.shareStory(${s.id})">${s.status === 'shared' ? '🔗 View Parent Link' : '📤 Share Parent Link'}</button>` : ''}` : ''}</div>`;
+  return `
+  <div class="card">
+    <div class="flex-between">
+      <h3 style="margin:0">${esc(c.title)}</h3>
+      <span class="tag ${s.status}">${s.status}</span>
+    </div>
+    <div style="margin:16px 0">
+      ${c.sentences.map((x) => `
+        <div class="sentence">
+          <span class="ic">${x.icon}</span>
+          <span style="font-size:0.95rem;color:var(--slate-800)">${esc(x.text)}</span>
+        </div>
+      `).join('')}
+    </div>
+    ${B ? `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--slate-100)">
+        ${s.status === 'draft' ? `<button class="ok" onclick="act.approveStory(${s.id})">✓ BCBA Approve Story</button>` : ''}
+        ${s.status !== 'draft' ? `<button onclick="act.shareStory(${s.id})">${s.status === 'shared' ? '🔗 View Parent Link' : '📤 Share with Family'}</button>` : ''}
+        <details style="flex:1">
+          <summary style="cursor:pointer;color:var(--primary);font-weight:600;font-size:0.88rem">Edit Story Sentences</summary>
+          <div style="margin-top:8px">
+            <textarea id="st${s.id}" rows="5">${esc(c.sentences.map((x) => x.text).join('\n'))}</textarea>
+            <button class="sec" onclick="act.saveStory(${s.id})">Save Changes (Resets to Draft)</button>
+          </div>
+        </details>
+      </div>
+    ` : ''}
+  </div>`;
 }
 
 async function scheduleView() {
@@ -358,16 +942,62 @@ async function scheduleView() {
   let form = '';
   if (me.role === 'BCBA') {
     const [cs, st] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
-    form = `<div class="card"><h3>Schedule New Session</h3><div class="row">
-    <div><label>Client</label><select id="ac">${cs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
-    <div><label>Therapist</label><select id="as">${st.map((s) => `<option value="${s.id}">${esc(s.name)} (${s.role})</option>`).join('')}</select></div>
-    <div><label>Start Time</label><input id="astart" type="datetime-local"></div>
-    <div><label>End Time</label><input id="aend" type="datetime-local"></div>
-    <div><label>Setting</label><select id="aset"><option>Home</option><option>School</option><option>Clinic</option></select></div></div>
-    <button onclick="act.addAppt()">Schedule Session</button></div>`;
+    form = `
+    <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-300)">
+      <h3>Schedule Clinical Session</h3>
+      <div class="row">
+        <div><label>Client</label><select id="ac">${cs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+        <div><label>Clinician</label><select id="as">${st.map((s) => `<option value="${s.id}">${esc(s.name)} (${s.role})</option>`).join('')}</select></div>
+        <div><label>Start Window</label><input id="astart" type="datetime-local"></div>
+        <div><label>End Window</label><input id="aend" type="datetime-local"></div>
+        <div><label>Treatment Setting</label><select id="aset"><option>Home</option><option>School</option><option>Clinic</option></select></div>
+      </div>
+      <button class="ok" onclick="act.addAppt()">Schedule Session</button>
+    </div>`;
   }
-  const days = {}; a.forEach((x) => { (days[x.start.slice(0, 10)] ||= []).push(x); });
-  return `<h1>Clinical Schedule</h1>${form}${Object.entries(days).map(([d, xs]) => `<div class="card"><h3>${new Date(d + 'T00:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</h3><table>${xs.map((x) => `<tr><td>${x.start.slice(11)}–${x.end.slice(11)}</td><td><b>${esc(x.client)}</b></td><td><span class="badge p">${esc(x.role)}</span> ${esc(x.setting)}</td><td>${esc(x.staff)}</td><td>${x.session && x.session.end ? '<span class="tag approved">done</span>' : ''} <button onclick="act.start(${x.id})">${x.session ? 'Open' : 'Start'}</button></td></tr>`).join('')}</table></div>`).join('') || '<div class="card">No appointments scheduled.</div>'}`;
+  const days = {};
+  a.forEach((x) => { (days[x.start.slice(0, 10)] ||= []).push(x); });
+  
+  return `
+  <div class="page-header">
+    <div>
+      <h1>Clinical Appointments & Sessions</h1>
+      <p class="page-sub">Electronic Visit Verification & Session Dispatch</p>
+    </div>
+  </div>
+  ${form}
+  ${Object.entries(days).map(([d, xs]) => `
+    <div class="card">
+      <h3>📅 ${new Date(d + 'T00:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Client</th>
+            <th>Therapist</th>
+            <th>Modality & Setting</th>
+            <th>Status / Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${xs.map((x) => `
+            <tr>
+              <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${x.start.slice(11)} – ${x.end.slice(11)}</span></td>
+              <td><b>${esc(x.client)}</b></td>
+              <td>${esc(x.staff)}</td>
+              <td><span class="badge p">${esc(x.role)}</span> ${esc(x.setting)}</td>
+              <td>
+                ${x.session && x.session.end ? '<span class="tag approved">Completed</span>' : ''}
+                <button class="${x.session ? 'sec' : 'ok'}" onclick="act.start(${x.id})">
+                  ${x.session ? (x.session.end ? 'Open Note' : 'Resume Cockpit') : 'Start Session'}
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `).join('') || '<div class="card">No appointments scheduled.</div>'}`;
 }
 
 let timer = null;
@@ -389,77 +1019,178 @@ async function sessionView(id) {
         const fullUnits = Math.floor(totalMin / 15);
         const remMin = totalMin % 15;
         const curUnits = fullUnits + (remMin >= 8 ? 1 : 0);
-        unitsEl.textContent = `${curUnits} unit${curUnits === 1 ? '' : 's'} (CMS 8-min rule)`;
+        unitsEl.textContent = `${curUnits} unit${curUnits === 1 ? '' : 's'} (${curUnits * 15} mins) · CMS 8-Minute Rule`;
       }
     }, 1000);
   }
-  const sum = (g) => g.summary.total ? Object.keys(LV).map((k) => `<div>${LV[k]}: <b>${g.summary.pct[k]}%</b><div class="bar"><div style="width:${g.summary.pct[k]}%"></div></div></div>`).join('') + `<small>${g.summary.total} opportunities recorded</small>` : '<small style="color:#888">No trials recorded yet this session.</small>';
 
-  return `<h1>Active Session Cockpit – ${esc(client.name)}</h1>
-  <div class="card" style="text-align:center">
-    <div class="big" id="clock">${ended ? s.units + ' units' : '00:00:00'}</div>
-    <div id="calc_units" style="font-weight:600;color:var(--p);margin-bottom:8px">${ended ? `${s.units} × 15-min billing units` : '0 units'}</div>
-    ${ended ? `<p style="color:var(--ok)">Session Ended · Ready for Clinical Note & Review</p>` : `<div><button class="bad" style="padding:12px 24px;font-size:1.1rem" onclick="act.endSession(${s.id})">⏹ END SESSION</button> <button class="ok" style="padding:12px 20px;font-size:1.1rem;margin-left:8px" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Log ABC Incident</button></div>`}
+  const sum = (g) => {
+    if (!g.summary || !g.summary.total) return '<div style="color:var(--slate-400);font-size:0.85rem">No trials recorded yet this session.</div>';
+    return `
+    <div style="margin-top:10px">
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px">
+        <span>Independent Mastery: <b>${g.summary.pct.I}%</b></span>
+        <span>${g.summary.total} Total Trials Recorded</span>
+      </div>
+      <div class="bar">
+        <div style="width:${g.summary.pct.I}%"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:0.75rem;color:var(--slate-600);margin-top:6px">
+        ${Object.keys(LV).map(k => `<span>${LV[k].code}: <b>${g.summary.counts[k] || 0}</b> (${g.summary.pct[k] || 0}%)</span>`).join(' · ')}
+      </div>
+    </div>`;
+  };
+
+  return `
+  <div class="page-header">
+    <div>
+      <h1>Active Session Cockpit</h1>
+      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording & In-Session ABC Tracker</p>
+    </div>
+    <div>
+      <button class="sec" onclick="go('client', ${client.id})">👧 Client 360 Record</button>
+    </div>
   </div>
 
-  <!-- BIP Protocol Drawer (Fast de-escalation access) -->
-  ${plans.length ? `
-  <details class="drawer">
-    <summary style="cursor:pointer;font-weight:700;color:var(--p)">🚨 Behavior Intervention Plan Quick-Reference (${esc(plans[0].behavior)})</summary>
-    <div style="margin-top:8px">
-      <p style="margin:4px 0"><b>Replacement Behavior:</b> ${esc(plans[0].data.replacement)}</p>
-      <p style="margin:4px 0"><b>Staff Response Protocol:</b> ${esc(plans[0].data.staff.join(' · '))}</p>
-      <p style="margin:4px 0;font-size:.85rem;color:#555"><b>Prevention:</b> ${esc(plans[0].data.prevention.join(' · '))}</p>
+  <!-- Real-time Cockpit Monitor -->
+  <div class="cockpit-banner">
+    <div class="big" id="clock">${ended ? `${s.units} units` : '00:00:00'}</div>
+    <div class="units-pill" id="calc_units">${ended ? `${s.units} × 15-min billing units (${s.units * 15} mins)` : '0 units · CMS 8-Minute Rule'}</div>
+    <div>
+      ${ended 
+        ? `<div style="color:var(--ok-light);font-weight:700">✓ Session Concluded · Ready for Clinical Note Review</div>` 
+        : `
+          <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
+            <button class="bad" style="padding:12px 24px;font-size:1rem" onclick="act.endSession(${s.id})">⏹ End Clinical Session</button>
+            <button class="ok" style="padding:12px 20px;font-size:1rem" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Quick ABC Incident Logger</button>
+          </div>
+        `}
     </div>
-  </details>` : ''}
+  </div>
+
+  <!-- Quick De-escalation Protocol Drawer -->
+  ${plans.length ? `
+    <details class="drawer">
+      <summary>🚨 Emergency Behavior Intervention Plan Quick-Reference (${esc(plans[0].behavior)})</summary>
+      <div style="margin-top:10px;font-size:0.92rem;line-height:1.5">
+        <div style="background:var(--ok-light);padding:8px 12px;border-radius:6px;margin-bottom:8px">
+          <b style="color:#065f46">Replacement Behavior:</b> ${esc(plans[0].data.replacement)}
+        </div>
+        <p style="margin:4px 0"><b>Staff Response Protocol:</b> ${esc(plans[0].data.staff.join(' · '))}</p>
+        <p style="margin:4px 0;color:var(--slate-600)"><b>Antecedent Prevention:</b> ${esc(plans[0].data.prevention.join(' · '))}</p>
+      </div>
+    </details>
+  ` : ''}
 
   <!-- In-Session ABC Incidents -->
   ${abcLogs.length ? `
-  <div class="card" style="background:#fefce8;border:1px solid #fef08a">
-    <h4>⚡ ABC Incidents Logged This Session (${abcLogs.length})</h4>
-    ${abcLogs.map(a => `<div style="font-size:.85rem;margin-bottom:4px"><b>${esc(a.behavior)}</b> (${esc(a.perceived_function)}): Antecedent: ${esc(a.antecedent)} · Consequence: ${esc(a.consequence)}</div>`).join('')}
-  </div>` : ''}
+    <div class="card" style="background:#fffbeb;border:1px solid #fde68a">
+      <h4 style="margin:0 0 8px;color:#92400e">⚡ In-Session ABC Maladaptive Incidents (${abcLogs.length})</h4>
+      ${abcLogs.map(a => `
+        <div style="font-size:0.85rem;margin-bottom:4px;color:#78350f">
+          <b>${esc(a.behavior)}</b> (<span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function)}</span>): Antecedent: ${esc(a.antecedent)} · Response: ${esc(a.consequence)}
+        </div>
+      `).join('')}
+    </div>
+  ` : ''}
 
-  <!-- Skill Target Trials -->
-  ${goals.map((g) => `<div class="card"><h3>${esc(g.title)}</h3>
-    ${ended ? '' : `<div class="levels">${Object.entries(LV).map(([k, l]) => `<button class="${k === 'I' ? 'ok' : k === 'N' ? 'bad' : ''}" onclick="act.trial(${s.id},${g.id},'${k}')">${k === 'I' ? '☑ ' : '☐ '}${l}</button>`).join('')}</div><button class="sec" style="margin-top:8px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>`}
-    <div style="margin-top:10px">${sum(g)}</div></div>`).join('')}
+  <!-- Discrete Trial Training Buttons -->
+  ${goals.map((g) => `
+    <div class="card">
+      <div class="flex-between">
+        <h3 style="margin:0">${esc(g.title)}</h3>
+        <span class="badge p">Goal #${g.id}</span>
+      </div>
 
-  <!-- Clinical Session Note & Dual Sign-off -->
+      ${ended ? '' : `
+        <div class="levels">
+          ${Object.entries(LV).map(([k, cfg]) => `
+            <button class="${cfg.cls}" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
+              <span>${cfg.icon} ${cfg.label}</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;opacity:0.8">(${k})</span>
+            </button>
+          `).join('')}
+        </div>
+        <div style="margin-top:8px">
+          <button class="sec" style="font-size:0.85rem;padding:6px 12px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>
+        </div>
+      `}
+      ${sum(g)}
+    </div>
+  `).join('')}
+
+  <!-- Clinical Session Documentation & Dual Sign-off -->
   <div class="card">
     <div class="flex-between">
-      <h3>Clinical Session Documentation <span class="tag ${s.note_status === 'none' ? '' : s.note_status}">${s.note_status === 'pending_approval' ? 'Pending BCBA Approval' : s.note_status}</span></h3>
-      ${ended && s.note_status !== 'signed' ? `<button class="sec" onclick="act.genNote(${s.id})">🤖 Auto-Draft Note from Data</button>` : ''}
+      <div>
+        <h3 style="margin:0">
+          Clinical Session Documentation
+          <span class="tag ${s.note_status === 'none' ? 'draft' : s.note_status}">
+            ${s.note_status === 'pending_approval' ? 'Pending BCBA Approval' : s.note_status}
+          </span>
+        </h3>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 0">SOAP Narrative & Multi-Disciplinary Dual-Signature</p>
+      </div>
+      ${ended && s.note_status !== 'signed' ? `
+        <button class="sec" onclick="act.genNote(${s.id})">🤖 Auto-Draft Note from Trials & ABC</button>
+      ` : ''}
     </div>
+
     ${ended ? `
-      <label>Session Narrative (Trials + ABC Incidents + Interventions)</label>
-      <textarea id="note" rows="10" ${s.note_status === 'signed' ? 'disabled' : ''}>${esc(s.note)}</textarea>
-      ${s.submitted_by ? `<div style="font-size:.85rem;color:#555;margin:4px 0"><b>RBT Author:</b> ${esc(s.submitted_by)} ${s.rbt_signed_at ? `(${fmtT(s.rbt_signed_at)})` : ''}</div>` : ''}
-      ${s.signed_by ? `<div style="font-size:.85rem;color:var(--ok);margin:4px 0"><b>BCBA Co-Signer:</b> ${esc(s.signed_by)} ${s.bcba_signed_at ? `(${fmtT(s.bcba_signed_at)})` : ''}</div>` : ''}
-      ${s.note_status !== 'signed' ? `
-        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <button onclick="act.saveNote(${s.id})">💾 Save Draft</button>
-          ${me.role === 'RBT' ? `<button class="ok" onclick="act.submitNote(${s.id})">📤 Submit Note for BCBA Review</button>` : ''}
-          ${me.role === 'BCBA' ? `<button class="ok" onclick="act.signNote(${s.id})">✍️ BCBA Co-Sign & Approve Note</button>` : ''}
-        </div>
-      ` : `<div style="color:var(--ok);font-weight:600;margin-top:8px">✓ Clinical note finalized and co-signed by BCBA</div>`}
-    ` : '<p style="color:#666">End the session when complete to compile trial and ABC data into the clinical note.</p>'}
+      <div style="margin-top:14px">
+        <label>Session Narrative (Trials + ABC Incidents + Interventions)</label>
+        <textarea id="note" rows="10" ${s.note_status === 'signed' ? 'disabled' : ''}>${esc(s.note)}</textarea>
+        
+        ${s.submitted_by ? `<div style="font-size:0.85rem;color:var(--slate-600);margin:6px 0"><b>RBT Author:</b> ${esc(s.submitted_by)} ${s.rbt_signed_at ? `(${fmtT(s.rbt_signed_at)})` : ''}</div>` : ''}
+        ${s.signed_by ? `<div style="font-size:0.85rem;color:var(--ok);font-weight:700;margin:6px 0">✓ BCBA Co-Signer: ${esc(s.signed_by)} ${s.bcba_signed_at ? `(${fmtT(s.bcba_signed_at)})` : ''}</div>` : ''}
+        
+        ${s.note_status !== 'signed' ? `
+          <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+            <button class="sec" onclick="act.saveNote(${s.id})">💾 Save Draft</button>
+            ${me.role === 'RBT' ? `<button class="ok" onclick="act.submitNote(${s.id})">📤 Submit Note for BCBA Review</button>` : ''}
+            ${me.role === 'BCBA' ? `<button class="ok" onclick="act.signNote(${s.id})">✍️ BCBA Co-Sign & Approve Note</button>` : ''}
+          </div>
+        ` : `<div style="color:var(--ok);font-weight:700;margin-top:10px">✓ Clinical note finalized, co-signed by BCBA, and units deducted from authorization.</div>`}
+      </div>
+    ` : '<p style="color:var(--slate-500);margin-top:12px">End the session when complete to synthesize trial percentages and ABC incidents into the clinical documentation.</p>'}
   </div>`;
 }
 
 async function notesView() {
   const ns = await api('GET', '/api/notes');
-  return `<h1>Clinical Session Notes & Signatures</h1>
+  return `
+  <div class="page-header">
+    <div>
+      <h1>Clinical Session Notes & Dual Sign-Off</h1>
+      <p class="page-sub">Review RBT drafts, co-sign clinical notes, and monitor authorization deductions.</p>
+    </div>
+  </div>
   <div class="card">
     <table>
-      <tr><th>Session Date</th><th>Client</th><th>Units / Time</th><th>Documentation Status</th><th>Action</th></tr>
-      ${ns.map((n) => `<tr>
-        <td>${fmtT(n.start)}</td>
-        <td><b>${esc(n.client)}</b></td>
-        <td>${n.units} units (${n.units * 15} mins)</td>
-        <td><span class="tag ${n.note_status === 'none' ? 'draft' : n.note_status}">${n.note_status}</span></td>
-        <td><button class="sec" onclick="go('session',${n.id})">Open Note</button></td>
-      </tr>`).join('')}
+      <thead>
+        <tr>
+          <th>Session Date</th>
+          <th>Client Name</th>
+          <th>Billed Units / Time</th>
+          <th>Documentation Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ns.map((n) => `
+          <tr>
+            <td><span style="font-family:'JetBrains Mono',monospace">${fmtT(n.start)}</span></td>
+            <td><b>${esc(n.client)}</b></td>
+            <td>${n.units} units (${n.units * 15} mins)</td>
+            <td>
+              <span class="tag ${n.note_status === 'none' ? 'draft' : n.note_status}">
+                ${n.note_status === 'pending_approval' ? 'Pending BCBA Sign' : n.note_status}
+              </span>
+            </td>
+            <td><button class="sec" onclick="go('session',${n.id})">Open Note →</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
     </table>
   </div>`;
 }
@@ -471,48 +1202,88 @@ async function supervisionView() {
   if (B) {
     const [cs, st] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
     const rbts = st.filter(s => s.role === 'RBT');
-    form = `<div class="card"><h3>Record BACB Supervision Meeting</h3>
-    <div class="row">
-      <div><label>Client</label><select id="sup_c">${cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
-      <div><label>RBT Supervised</label><select id="sup_r">${rbts.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></div>
-      <div><label>Minutes Supervised</label><input id="sup_m" type="number" value="60"></div>
-      <div><label>Supervision Type</label><select id="sup_t"><option>Direct Observation</option><option>Protocol Modification</option><option>Competency Assessment</option><option>Case Conceptualization</option></select></div>
-    </div>
-    <label>Supervision Notes / Feedback</label><textarea id="sup_n" rows="2" placeholder="e.g. Observed prompt-fading procedures during tabletop trials."></textarea>
-    <button onclick="act.addSupervision()">Log Supervision Event</button></div>`;
+    form = `
+    <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-300)">
+      <h3>Record BACB Supervision Meeting</h3>
+      <div class="row">
+        <div><label>Client</label><select id="sup_c">${cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+        <div><label>RBT Supervised</label><select id="sup_r">${rbts.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></div>
+        <div><label>Minutes Supervised</label><input id="sup_m" type="number" value="60"></div>
+        <div>
+          <label>Supervision Type</label>
+          <select id="sup_t">
+            <option>Direct Observation</option>
+            <option>Protocol Modification</option>
+            <option>Competency Assessment</option>
+            <option>Case Conceptualization</option>
+          </select>
+        </div>
+      </div>
+      <label>Supervision Notes & Feedback</label>
+      <textarea id="sup_n" rows="2" placeholder="e.g. Observed prompt-fading procedures during tabletop trials."></textarea>
+      <button class="ok" onclick="act.addSupervision()">Log Supervision Event</button>
+    </div>`;
   }
 
-  return `<h1>BACB Monthly Supervision Tracking</h1>
-  <div class="card" style="border-left:6px solid ${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">
+  return `
+  <div class="page-header">
+    <div>
+      <h1>BACB Monthly Supervision Tracking</h1>
+      <p class="page-sub">Mandatory 5% Minimum Supervision of Direct RBT Applied Behavior Analysis Hours</p>
+    </div>
+  </div>
+
+  <div class="card" style="border-left:5px solid ${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">
     <div class="flex-between">
       <div>
-        <h2 style="margin:0">Month: ${esc(sup.month)}</h2>
-        <p style="margin:4px 0;color:#666">BACB Requirement: At least 5% of direct RBT therapy hours must be supervised by a BCBA.</p>
+        <h2 style="margin:0;font-size:1.4rem">Month: ${esc(sup.month)}</h2>
+        <p style="margin:4px 0 0;color:var(--slate-500)">BACB Rule: BCBA supervision must constitute at least 5% of monthly direct therapy hours.</p>
       </div>
       <div style="text-align:right">
         <div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>
-        <span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant' : '⚠ Non-compliant'}</span>
+        <span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant ≥5%' : '⚠ Action Needed'}</span>
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;gap:16px">
-      <div>RBT Direct Hours: <b>${Math.round(sup.rbtDirectMinutes / 60 * 10) / 10} hrs</b> (${sup.rbtDirectMinutes} mins)</div>
-      <div>Supervised Hours: <b>${Math.round(sup.supMinutes / 60 * 10) / 10} hrs</b> (${sup.supMinutes} mins)</div>
+    <div style="margin-top:16px;display:flex;gap:24px;flex-wrap:wrap">
+      <div>RBT Direct 97153 Hours: <b>${Math.round(sup.rbtDirectMinutes / 60 * 10) / 10} hrs</b> (${sup.rbtDirectMinutes} mins)</div>
+      <div>Supervised 97155 Hours: <b>${Math.round(sup.supMinutes / 60 * 10) / 10} hrs</b> (${sup.supMinutes} mins)</div>
     </div>
   </div>
   ${form}
   <div class="card">
     <h3>Supervision Audit Log</h3>
-    ${sup.logs.length ? `<table>
-      <tr><th>Date</th><th>Client</th><th>Supervising BCBA</th><th>RBT Supervised</th><th>Duration</th><th>Type</th><th>Notes</th></tr>
-      ${sup.logs.map(l => `<tr>
-        <td>${fmtT(l.ts)}</td><td><b>${esc(l.client)}</b></td><td>${esc(l.bcba)}</td><td>${esc(l.rbt)}</td>
-        <td>${l.minutes} mins</td><td><span class="badge p">${esc(l.type)}</span></td><td>${esc(l.notes || '—')}</td>
-      </tr>`).join('')}
-    </table>` : '<p style="color:#888">No supervision events logged for this period.</p>'}
+    ${sup.logs.length ? `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>Supervising BCBA</th>
+            <th>RBT Supervised</th>
+            <th>Duration</th>
+            <th>Type</th>
+            <th>Feedback Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sup.logs.map(l => `
+            <tr>
+              <td><span style="font-family:'JetBrains Mono',monospace">${fmtT(l.ts)}</span></td>
+              <td><b>${esc(l.client)}</b></td>
+              <td>${esc(l.bcba)}</td>
+              <td>${esc(l.rbt)}</td>
+              <td><b>${l.minutes} mins</b></td>
+              <td><span class="badge p">${esc(l.type)}</span></td>
+              <td style="font-size:0.85rem">${esc(l.notes || '—')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p style="color:var(--slate-400)">No supervision events recorded for this billing cycle.</p>'}
   </div>`;
 }
 
-// Modal renderer for ABC Incident rapid logging
+// Modal renderer
 function renderModal() {
   if (activeModal.type === 'abc') {
     const cid = activeModal.clientId;
@@ -524,12 +1295,12 @@ function renderModal() {
           <h3 style="margin:0">⚡ Log ABC Incident</h3>
           <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
         </div>
-        <p style="font-size:.85rem;color:#666;margin:6px 0 12px">Rapid field entry for maladaptive behavioral episodes.</p>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:6px 0 16px">Rapid field entry for maladaptive behavioral episodes.</p>
         
-        <label>Target Behavior</label>
+        <label>Target Maladaptive Behavior</label>
         <select id="m_behavior">${BEHAVIORS.map(b => `<option>${b}</option>`).join('')}</select>
         
-        <label>Antecedent (What triggered the behavior?)</label>
+        <label>Antecedent (What immediately triggered the behavior?)</label>
         <select id="m_antecedent">${ANTS.map(a => `<option>${a}</option>`).join('')}</select>
         
         <label>Consequence / Staff Response</label>
@@ -546,9 +1317,9 @@ function renderModal() {
         <label>Clinical Notes</label>
         <textarea id="m_notes" rows="2" placeholder="e.g. Duration 3 mins, client accepted visual timer without aggression."></textarea>
         
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="ok" onclick="act.submitAbcModal(${cid}, ${sid || 'null'})">Save ABC Event</button>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
           <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitAbcModal(${cid}, ${sid || 'null'})">Save ABC Incident</button>
         </div>
       </div>
     </div>`;
@@ -556,7 +1327,7 @@ function renderModal() {
   return '';
 }
 
-// ---------- actions ----------
+// ---------- Actions ----------
 const act = {
   login: safe(async () => {
     try {
@@ -565,8 +1336,22 @@ const act = {
       render();
     } catch (e) { $app.innerHTML = loginView(e.message); }
   }),
+  demoLogin: safe(async (email) => {
+    me = await api('POST', '/api/login', { email, password: 'password' });
+    location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
+    render();
+  }),
   logout: safe(async () => { await api('POST', '/api/logout'); me = null; location.hash = ''; render(); }),
-  addClient: safe(async () => { const r = await api('POST', '/api/clients', { name: val('nn'), dob: val('nd'), diagnosis: val('ng') }); go('client', r.id); }),
+  addClient: safe(async () => {
+    const r = await api('POST', '/api/clients', {
+      name: val('nn'),
+      dob: val('nd'),
+      diagnosis: val('ng'),
+      guardian: val('nguard'),
+      communication: val('ncomm')
+    });
+    go('client', r.id);
+  }),
   saveClient: safe(async (id) => {
     const b = {};
     ['name', 'dob', 'diagnosis', 'guardian', 'school', 'emergency', 'insurance', 'reinforcers', 'sensory', 'triggers', 'communication', 'crisis_plan'].forEach((k) => b[k] = val('f_' + k));
@@ -661,10 +1446,11 @@ async function render() {
     else if (route === 'session') html = await sessionView(id);
     else if (route === 'notes') html = await notesView();
     else if (route === 'supervision') html = await supervisionView();
-    else html = '<h1>View Not Found</h1><div class="card">Please select an option from the menu.</div>';
+    else html = '<h1>View Not Found</h1><div class="card">Please select an option from the navigation menu.</div>';
     $app.innerHTML = shell(html, route === 'client' ? 'clients' : route === 'session' ? 'notes' : route);
   } catch (e) { $app.innerHTML = shell(`<div class="card err">${esc(e.message)}</div>`, ''); }
 }
+
 window.addEventListener('hashchange', render);
 render();
 }
