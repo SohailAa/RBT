@@ -14,18 +14,29 @@ const SECRET = process.env.SESSION_SECRET || 'dev-only-secret-change-me';
 db.exec('PRAGMA foreign_keys = ON');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, pw TEXT, role TEXT);
-CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY, name TEXT, dob TEXT, diagnosis TEXT, guardian TEXT, school TEXT, emergency TEXT, insurance TEXT, reinforcers TEXT, sensory TEXT, triggers TEXT, parent_id INTEGER);
+CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY, name TEXT, dob TEXT, diagnosis TEXT, guardian TEXT, school TEXT, emergency TEXT, insurance TEXT, reinforcers TEXT, sensory TEXT, triggers TEXT, communication TEXT, crisis_plan TEXT, parent_id INTEGER);
 CREATE TABLE IF NOT EXISTS assignments(client_id INTEGER, user_id INTEGER);
 CREATE TABLE IF NOT EXISTS goals(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, baseline INTEGER, target INTEGER, status TEXT DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS plans(id INTEGER PRIMARY KEY, client_id INTEGER, behavior TEXT, data TEXT, status TEXT DEFAULT 'draft', approved_by TEXT);
 CREATE TABLE IF NOT EXISTS stories(id INTEGER PRIMARY KEY, client_id INTEGER, inputs TEXT, content TEXT, status TEXT DEFAULT 'draft', approved_by TEXT, token TEXT);
 CREATE TABLE IF NOT EXISTS appointments(id INTEGER PRIMARY KEY, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, role TEXT, setting TEXT);
-CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT);
+CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT, submitted_by TEXT, rbt_signed_at TEXT, bcba_signed_at TEXT);
 CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, goal_id INTEGER, level TEXT, ts TEXT);
 CREATE TABLE IF NOT EXISTS authorizations(id INTEGER PRIMARY KEY, client_id INTEGER, code TEXT, authorized INTEGER, used INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT);
+CREATE TABLE IF NOT EXISTS supervision_logs(id INTEGER PRIMARY KEY, client_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, session_id INTEGER, ts TEXT, minutes INTEGER, type TEXT, notes TEXT);
 `);
+try { db.exec('ALTER TABLE clients ADD COLUMN communication TEXT'); } catch (e) {}
+try { db.exec('ALTER TABLE clients ADD COLUMN crisis_plan TEXT'); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN submitted_by TEXT'); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN rbt_signed_at TEXT'); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN bcba_signed_at TEXT'); } catch (e) {}
 
 // ---------- helpers ----------
+const getLocalDate = (d = new Date()) => {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 const hash = (p) => { const s = crypto.randomBytes(8).toString('hex'); return s + ':' + crypto.scryptSync(p, s, 32).toString('hex'); };
 const verify = (p, h) => { const [s, k] = h.split(':'); return crypto.scryptSync(p, s, 32).toString('hex') === k; };
 const all = (sql, ...a) => db.prepare(sql).all(...a);
@@ -47,10 +58,18 @@ function seed() {
   const rbt = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Sam Lee, RBT', 'rbt@eba.test', hash('password'), 'RBT').lastInsertRowid;
   const rbt2 = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Jo Park, RBT', 'rbt2@eba.test', hash('password'), 'RBT').lastInsertRowid;
   const par = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Mrs. Carter (Eleanor\'s parent)', 'parent@eba.test', hash('password'), 'PARENT').lastInsertRowid;
-  const el = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,parent_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-    'Eleanor', '2018-03-12', 'Autism Spectrum Disorder', 'Mrs. Carter', 'Maple Elementary', 'Grandma – 555-0101', 'Sample Insurance #A123', 'LEGO, stickers, tablet time', 'Dislikes loud noises', 'Transitions, peers touching her creations', par).lastInsertRowid;
-  const le = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    'Leon', '2017-08-02', 'Autism Spectrum Disorder', 'Mr. Okafor', 'Home program', 'Aunt – 555-0102', 'Sample Insurance #B456', 'Trains, bubbles', 'Seeks deep pressure', 'Denied access').lastInsertRowid;
+  const el = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan,parent_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    'Eleanor', '2018-03-12', 'Autism Spectrum Disorder', 'Mrs. Carter', 'Maple Elementary', 'Grandma – 555-0101', 'Sample Insurance #A123',
+    'LEGO, stickers, tablet time', 'Dislikes loud noises, seeks soft textures', 'Transitions, peers touching her creations',
+    'Verbal (full sentences, needs 5s processing time)',
+    '1. Provide visual countdown card\n2. Escort to calm sensory corner\n3. Do not block items or use physical restraint\n4. Re-introduce task using First/Then board',
+    par).lastInsertRowid;
+  const le = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    'Leon', '2017-08-02', 'Autism Spectrum Disorder', 'Mr. Okafor', 'Home program', 'Aunt – 555-0102', 'Sample Insurance #B456',
+    'Trains, bubbles, spin toys', 'Seeks deep pressure, vestibular movement', 'Denied access to preferred items',
+    'PECS Phase III & 2-word vocal requests ("train please")',
+    '1. Offer deep pressure pillow\n2. Provide choice of 2 alternative preferred toys\n3. Maintain neutral facial tone',
+    ).lastInsertRowid;
   run('INSERT INTO assignments VALUES(?,?)', el, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt2);
   const g1 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Following teacher directions', 32, 80).lastInsertRowid;
   run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Waiting for a turn', 20, 80);
@@ -59,7 +78,7 @@ function seed() {
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', el, '97155', 40, 12);
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', le, '97153', 400, 120);
   // appointments today
-  const d = new Date(); const day = d.toISOString().slice(0, 10);
+  const day = getLocalDate();
   const mk = (cid, uid, s, e, role, setting) => run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', cid, uid, `${day}T${s}`, `${day}T${e}`, role, setting);
   mk(el, rbt, '09:00', '12:00', 'RBT', 'School'); mk(le, rbt, '15:00', '17:00', 'RBT', 'Home'); mk(el, bcba, '17:00', '18:00', 'BCBA', 'Home');
   // past session with data so progress shows
@@ -69,8 +88,34 @@ function seed() {
     const mix = [['I', 4], ['V', 4], ['P', 2], ['N', 1]].map(([l, n]) => Array(n + i * 1).fill(l)).flat();
     mix.forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sid, g1, l, t));
   }
+  // Seed sample ABC data
+  const tRecent = new Date().toISOString();
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, tRecent, 'Transition from preferred play', 'Screaming', 'Offered visual countdown & calm breathing', 'Escape', 'De-escalated in 3 mins without physical intervention');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, tRecent, 'Peer reached for LEGO creation', 'Screaming', 'Prompted "My turn" replacement card', 'Tangible', 'Accepted replacement phrase');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    le, 2, rbt, tRecent, 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set');
+  // Seed sample supervision log
+  run('INSERT INTO supervision_logs(client_id,bcba_id,rbt_id,session_id,ts,minutes,type,notes) VALUES(?,?,?,?,?,?,?,?)',
+    el, bcba, rbt, 1, tRecent, 60, 'Direct Observation', 'Observed DTT trials on turn-taking. RBT demonstrated excellent prompt fading.');
 }
 seed();
+
+function upgradeExistingData() {
+  const el = get('SELECT id, communication FROM clients WHERE name=?', 'Eleanor');
+  if (el && !el.communication) {
+    run('UPDATE clients SET communication=?, crisis_plan=? WHERE name=?',
+      'Verbal (full sentences, needs 5s processing time)',
+      '1. Provide visual countdown card\n2. Escort to calm sensory corner\n3. Do not block items or use physical restraint\n4. Re-introduce task using First/Then board',
+      'Eleanor');
+    run('UPDATE clients SET communication=?, crisis_plan=? WHERE name=?',
+      'PECS Phase III & 2-word vocal requests ("train please")',
+      '1. Offer deep pressure pillow\n2. Provide choice of 2 alternative preferred toys\n3. Maintain neutral facial tone',
+      'Leon');
+  }
+}
+upgradeExistingData();
 
 // ---------- access control ----------
 function canSeeClient(u, cid) {
@@ -114,20 +159,34 @@ route('POST', '/api/logout', (u, b, p, ctx) => { ctx.setCookie = 'tok=; Max-Age=
 route('GET', '/api/me', (u) => ({ id: u.id, name: u.name, role: u.role }));
 
 route('GET', '/api/dashboard', (u) => {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = getLocalDate();
   let appts = all(`SELECT a.*, c.name client FROM appointments a JOIN clients c ON c.id=a.client_id WHERE a.start LIKE ? ORDER BY a.start`, day + '%');
   appts = appts.filter((a) => canSeeClient(u, a.client_id) && (u.role !== 'RBT' || a.user_id === u.id));
-  const incompleteNotes = all('SELECT s.id FROM sessions s WHERE s.note_status IN (\'none\',\'draft\') AND s.end IS NOT NULL').filter((s) => u.role === 'BCBA' || true).length;
-  const auths = all('SELECT a.*, c.name client FROM authorizations a JOIN clients c ON c.id=a.client_id').filter((a) => canSeeClient(u, a.client_id) && a.used / a.authorized >= 0.8);
-  const pendingApprovals = u.role === 'BCBA' ? all('SELECT COUNT(*) c FROM plans WHERE status=\'draft\'')[0].c + all('SELECT COUNT(*) c FROM stories WHERE status=\'draft\'')[0].c : 0;
-  const pendingSign = u.role === 'BCBA' ? get('SELECT COUNT(*) c FROM sessions WHERE note_status=\'draft\'').c : 0;
-  return { appts, rbt: appts.filter((a) => a.role === 'RBT').length, bcba: appts.filter((a) => a.role === 'BCBA').length, incompleteNotes, auths, pendingApprovals, pendingSign };
+  const incompleteNotes = all('SELECT s.id, s.client_id, s.user_id FROM sessions s WHERE s.note_status IN (\'none\',\'draft\',\'pending_approval\') AND s.end IS NOT NULL')
+    .filter((s) => canSeeClient(u, s.client_id) && (u.role === 'BCBA' || s.user_id === u.id)).length;
+  const auths = all('SELECT a.*, c.name client FROM authorizations a JOIN clients c ON c.id=a.client_id')
+    .filter((a) => canSeeClient(u, a.client_id) && a.used / a.authorized >= 0.8);
+  const pendingApprovals = u.role === 'BCBA' ? (all('SELECT COUNT(*) c FROM plans WHERE status=\'draft\'')[0].c + all('SELECT COUNT(*) c FROM stories WHERE status=\'draft\'')[0].c) : 0;
+  const pendingSign = u.role === 'BCBA' ? (all('SELECT COUNT(*) c FROM sessions WHERE note_status IN (\'draft\',\'pending_approval\')')[0].c) : 0;
+  
+  // Supervision metrics (current month)
+  const monthPrefix = day.slice(0, 7);
+  const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
+  const rbtSessions = all('SELECT * FROM sessions WHERE start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
+  const rbtDirectMinutes = rbtSessions.reduce((sum, s) => sum + (s.units ? s.units * 15 : 0), 0);
+  const supLogs = all('SELECT * FROM supervision_logs WHERE ts LIKE ?', monthPrefix + '%');
+  const supMinutes = supLogs.reduce((sum, s) => sum + (s.minutes || 0), 0);
+  const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
+  const supervision = { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5 };
+
+  return { appts, rbt: appts.filter((a) => a.role === 'RBT').length, bcba: appts.filter((a) => a.role === 'BCBA').length, incompleteNotes, auths, pendingApprovals, pendingSign, supervision };
 }, {});
 
 route('GET', '/api/clients', (u) => visibleClients(u));
 route('POST', '/api/clients', (u, b) => {
   need(u, 'BCBA'); if (!b.name) bad(400, 'Name required');
-  const r = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers) VALUES(?,?,?,?,?,?,?,?,?,?)', b.name, b.dob || '', b.diagnosis || '', b.guardian || '', b.school || '', b.emergency || '', b.insurance || '', b.reinforcers || '', b.sensory || '', b.triggers || '');
+  const r = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    b.name, b.dob || '', b.diagnosis || '', b.guardian || '', b.school || '', b.emergency || '', b.insurance || '', b.reinforcers || '', b.sensory || '', b.triggers || '', b.communication || '', b.crisis_plan || '');
   return { id: Number(r.lastInsertRowid) };
 });
 route('GET', '/api/clients/:id', (u, b, p) => {
@@ -140,11 +199,23 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   if (isParent) { plans = []; stories = stories.filter((s) => s.status === 'shared'); }
   const auths = isParent ? [] : all('SELECT * FROM authorizations WHERE client_id=?', c.id);
   const assigned = u.role === 'BCBA' ? all('SELECT u.id,u.name FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.client_id=?', c.id) : [];
-  return { client: isParent ? { id: c.id, name: c.name } : c, goals, plans, stories, auths, assigned };
+  
+  // ABC logs & analytics (unified clinical hub)
+  const rawAbc = isParent ? [] : all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+  const abcFunctions = { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
+  const abcBehaviors = {};
+  rawAbc.forEach((a) => {
+    if (a.perceived_function && abcFunctions[a.perceived_function] !== undefined) abcFunctions[a.perceived_function]++;
+    if (a.behavior) abcBehaviors[a.behavior] = (abcBehaviors[a.behavior] || 0) + 1;
+  });
+  const abcSummary = { total: rawAbc.length, functions: abcFunctions, behaviors: abcBehaviors };
+  const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
+
+  return { client: isParent ? { id: c.id, name: c.name } : c, goals, plans, stories, auths, assigned, abcLogs: rawAbc, abcSummary, supervisionLogs };
 });
 route('PUT', '/api/clients/:id', (u, b, p) => {
   need(u, 'BCBA');
-  const f = ['name', 'dob', 'diagnosis', 'guardian', 'school', 'emergency', 'insurance', 'reinforcers', 'sensory', 'triggers'];
+  const f = ['name', 'dob', 'diagnosis', 'guardian', 'school', 'emergency', 'insurance', 'reinforcers', 'sensory', 'triggers', 'communication', 'crisis_plan'];
   run(`UPDATE clients SET ${f.map((x) => x + '=?').join(',')} WHERE id=?`, ...f.map((x) => b[x] ?? ''), +p.id); return {};
 });
 route('POST', '/api/clients/:id/goals', (u, b, p) => {
@@ -153,6 +224,42 @@ route('POST', '/api/clients/:id/goals', (u, b, p) => {
 });
 route('POST', '/api/clients/:id/auths', (u, b, p) => {
   need(u, 'BCBA'); run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', +p.id, b.code, +b.authorized || 0); return {};
+});
+
+// ABC Data collection
+route('POST', '/api/clients/:id/abc', (u, b, p) => {
+  clientOr403(u, p.id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (!b.behavior) bad(400, 'Behavior required');
+  const ts = b.ts || new Date().toISOString();
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    +p.id, b.session_id ? +b.session_id : null, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '');
+  return { id: Number(r.lastInsertRowid) };
+});
+route('GET', '/api/clients/:id/abc', (u, b, p) => {
+  clientOr403(u, p.id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  return all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', +p.id);
+});
+
+// Supervision tracking
+route('GET', '/api/supervision', (u) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const monthPrefix = getLocalDate().slice(0, 7);
+  const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
+  const rbtSessions = all('SELECT s.*, c.name client, u.name rbt FROM sessions s JOIN clients c ON c.id=s.client_id JOIN users u ON u.id=s.user_id WHERE s.start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
+  const rbtDirectMinutes = rbtSessions.reduce((sum, s) => sum + (s.units ? s.units * 15 : 0), 0);
+  const logs = all('SELECT s.*, c.name client, b.name bcba, r.name rbt FROM supervision_logs s JOIN clients c ON c.id=s.client_id JOIN users b ON b.id=s.bcba_id JOIN users r ON r.id=s.rbt_id ORDER BY s.id DESC');
+  const currentMonthLogs = logs.filter((l) => (l.ts || '').startsWith(monthPrefix));
+  const supMinutes = currentMonthLogs.reduce((sum, l) => sum + (l.minutes || 0), 0);
+  const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
+  return { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5, logs, month: monthPrefix };
+});
+route('POST', '/api/supervision', (u, b) => {
+  need(u, 'BCBA');
+  if (!b.client_id || !b.rbt_id || !b.minutes) bad(400, 'Client, RBT, and minutes required');
+  const ts = b.ts || new Date().toISOString();
+  run('INSERT INTO supervision_logs(client_id,bcba_id,rbt_id,session_id,ts,minutes,type,notes) VALUES(?,?,?,?,?,?,?,?)',
+    +b.client_id, u.id, +b.rbt_id, b.session_id ? +b.session_id : null, ts, +b.minutes, b.type || 'Direct Observation', b.notes || '');
+  return {};
 });
 
 // plans
@@ -189,9 +296,9 @@ route('GET', '/api/schedule', (u, b, p, ctx) => {
 route('POST', '/api/appointments', (u, b) => {
   need(u, 'BCBA'); if (!b.client_id || !b.user_id || !b.start || !b.end) bad(400, 'All fields required');
   const staff = get('SELECT * FROM users WHERE id=?', +b.user_id);
-  run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +b.user_id, b.start, b.end, staff.role, b.setting || 'Home');
+  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +b.user_id, b.start, b.end, staff.role, b.setting || 'Home');
   if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
-  return {};
+  return { id: Number(r.lastInsertRowid) };
 });
 route('GET', '/api/staff', (u) => { need(u, 'BCBA'); return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\')'); });
 
@@ -210,7 +317,8 @@ function sessionView(u, sid) {
   const plans = all('SELECT * FROM plans WHERE client_id=? AND status=\'approved\'', s.client_id).map((x) => ({ ...x, data: parse(x.data) }));
   const stories = all('SELECT * FROM stories WHERE client_id=? AND status IN (\'approved\',\'shared\')', s.client_id).map((x) => ({ ...x, content: parse(x.content) }));
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
-  return { session: s, client, goals, plans, stories, appt };
+  const abcLogs = all('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC', s.id);
+  return { session: s, client, goals, plans, stories, appt, abcLogs };
 }
 route('GET', '/api/sessions/:id', (u, b, p) => { if (u.role === 'PARENT') bad(403, 'Not allowed'); return sessionView(u, p.id); });
 route('POST', '/api/sessions/:id/trials', (u, b, p) => {
@@ -223,6 +331,14 @@ route('DELETE', '/api/sessions/:id/trials/last', (u, b, p) => {
   if (s.end) bad(400, 'Session ended');
   const t = get('SELECT id FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id); if (t) run('DELETE FROM trials WHERE id=?', t.id); return {};
 });
+route('POST', '/api/sessions/:id/abc', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (!b.behavior) bad(400, 'Behavior required');
+  const ts = b.ts || new Date().toISOString();
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    s.client_id, s.id, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '');
+  return { id: Number(r.lastInsertRowid) };
+});
 route('POST', '/api/sessions/:id/end', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (s.end) return { units: s.units };
@@ -233,7 +349,7 @@ route('POST', '/api/sessions/:id/end', (u, b, p) => {
 route('POST', '/api/sessions/:id/note/generate', (u, b, p) => {
   const v = sessionView(u, p.id); const s = v.session;
   const minutes = s.end ? Math.max(1, Math.round((new Date(s.end) - new Date(s.start)) / 60000)) : Math.round((Date.now() - new Date(s.start)) / 60000);
-  const note = G.generateNote({ client: v.client, session: { setting: v.appt && v.appt.setting }, minutes: b.minutes || minutes, units: s.units || G.calcUnits(minutes), goalSummaries: v.goals.map((g) => ({ title: g.title, ...g.summary })), plan: v.plans[0] && v.plans[0].data, story: v.stories[0] && v.stories[0].content });
+  const note = G.generateNote({ client: v.client, session: { setting: v.appt && v.appt.setting }, minutes: b.minutes || minutes, units: s.units || G.calcUnits(minutes), goalSummaries: v.goals.map((g) => ({ title: g.title, ...g.summary })), plan: v.plans[0] && v.plans[0].data, story: v.stories[0] && v.stories[0].content, abcLogs: v.abcLogs });
   return { note };
 });
 route('PUT', '/api/sessions/:id/note', (u, b, p) => {
@@ -241,11 +357,28 @@ route('PUT', '/api/sessions/:id/note', (u, b, p) => {
   if (s.note_status === 'signed') bad(400, 'Note already signed'); if (u.role === 'PARENT') bad(403, 'Not allowed');
   run('UPDATE sessions SET note=?, note_status=\'draft\' WHERE id=?', b.note || '', s.id); return {};
 });
+route('POST', '/api/sessions/:id/note/submit', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found'); clientOr403(u, s.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const note = b.note !== undefined ? b.note : s.note;
+  if (!note) bad(400, 'Note is empty');
+  if (s.note_status === 'signed') bad(400, 'Note already signed by BCBA');
+  const now = new Date().toISOString();
+  run('UPDATE sessions SET note=?, note_status=\'pending_approval\', submitted_by=?, rbt_signed_at=? WHERE id=?', note, u.name, now, s.id);
+  return { status: 'pending_approval', submitted_by: u.name, rbt_signed_at: now };
+});
 route('POST', '/api/sessions/:id/note/sign', (u, b, p) => {
-  need(u, 'BCBA'); const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s.note) bad(400, 'Note is empty');
-  run('UPDATE sessions SET note_status=\'signed\', signed_by=? WHERE id=?', u.name, s.id);
-  // deduct units from the 97153 authorization (RBT session) – phase 2 will expand to claims
-  run('UPDATE authorizations SET used = used + ? WHERE client_id=? AND code=\'97153\'', (s.units || 0) , s.client_id); return {};
+  need(u, 'BCBA'); const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  const note = b.note !== undefined ? b.note : s.note;
+  if (!note) bad(400, 'Note is empty');
+  if (!s.end) bad(400, 'Session must be ended before signing note');
+  const now = new Date().toISOString();
+  run('UPDATE sessions SET note=?, note_status=\'signed\', signed_by=?, bcba_signed_at=? WHERE id=?', note, u.name, now, s.id);
+  // Deduct units from authorization: 97155 for BCBA appointment, 97153 for RBT appointment
+  const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
+  const code = (appt && appt.role === 'BCBA') ? '97155' : '97153';
+  run('UPDATE authorizations SET used = used + ? WHERE client_id=? AND code=?', (s.units || 0), s.client_id, code);
+  return { status: 'signed', signed_by: u.name, bcba_signed_at: now };
 });
 route('GET', '/api/notes', (u) => {
   return all('SELECT s.*, c.name client FROM sessions s JOIN clients c ON c.id=s.client_id WHERE s.end IS NOT NULL ORDER BY s.id DESC').filter((s) => u.role !== 'PARENT' && canSeeClient(u, s.client_id));
@@ -310,7 +443,7 @@ async function handler(req, res) {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(found)] || 'text/plain' }); res.end(fs.readFileSync(found));
   } catch (e) {
     const status = (typeof e.code === 'number' && e.code >= 100 && e.code <= 599) ? e.code : 500;
-    res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message || 'Internal Server Error', stack: e.stack }));
+    res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message || 'Internal Server Error' }));
   }
 }
 

@@ -16,30 +16,130 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     const cookie = r.headers.get('set-cookie').split(';')[0];
     return (m, u, b) => fetch(base + u, { method: m, headers: { cookie }, body: b ? JSON.stringify(b) : undefined }).then(async (x) => ({ s: x.status, j: await x.json() }));
   }
+
   const { calcUnits } = require('./lib/generators');
   ok(calcUnits(180) === 12 && calcUnits(22) === 1 && calcUnits(23) === 2 && calcUnits(7) === 0, 'unit calc (8-minute rule)');
+  
   const b = await login('bcba@eba.test'), r = await login('rbt@eba.test'), p = await login('parent@eba.test');
+  
+  // 1. Core RBAC checks
   ok((await b('GET', '/api/clients')).j.length >= 2, 'BCBA sees all clients');
   ok((await r('GET', '/api/clients')).j.length === 2, 'RBT sees assigned clients');
   ok((await r('POST', '/api/clients', { name: 'x' })).s === 403, 'RBT cannot add client');
   ok((await p('GET', '/api/clients/2')).s === 403, 'Parent blocked from other child');
-  const pc = (await p('GET', '/api/clients/1')).j; ok(!pc.plans.length && !pc.auths.length, 'Parent sees no plans/auths');
+  
+  // 2. Client 360 Consolidated Data Check
+  const c360 = (await b('GET', '/api/clients/1')).j;
+  ok(c360.client && c360.client.communication && c360.client.crisis_plan, 'Client 360 includes communication & crisis vitals');
+  ok(Array.isArray(c360.abcLogs) && c360.abcSummary && typeof c360.abcSummary.functions === 'object', 'Client 360 includes ABC logs & function matrix');
+  ok(Array.isArray(c360.supervisionLogs), 'Client 360 includes supervision audit history');
+
+  // Parent privacy
+  const pc = (await p('GET', '/api/clients/1')).j;
+  ok(!pc.plans.length && !pc.auths.length && !pc.abcLogs.length, 'Parent sees no raw plans, auths, or internal ABC logs');
+
+  // 3. Social Stories Workflow
   const g = await b('POST', '/api/clients/1/stories/generate', { situation: 'LEGO class', challenge: "Doesn't want others touching her creation", goal: 'Accept others working nearby', interest: 'LEGO' });
   ok((await b('POST', `/api/stories/${g.j.id}/share`)).s === 400, 'cannot share unapproved story');
   await b('POST', `/api/stories/${g.j.id}/approve`);
-  const sh = await b('POST', `/api/stories/${g.j.id}/share`); ok(sh.j.url, 'share after approve');
+  const sh = await b('POST', `/api/stories/${g.j.id}/share`);
+  ok(sh.j.url, 'share after approve');
   ok((await fetch(base + sh.j.url).then((x) => x.text())).includes('LEGO'), 'parent story page renders');
-  const pl = await b('POST', '/api/clients/1/plans/generate', { behavior: 'Screaming', antecedents: ['Transition'] });
+
+  // 4. Behavior Plan (BIP)
+  const pl = await b('POST', '/api/clients/1/plans/generate', { behavior: 'Screaming', antecedents: ['Transition from preferred activity'] });
   await b('POST', `/api/plans/${pl.j.id}/approve`);
-  const appts = (await r('GET', '/api/schedule')).j; const st = await r('POST', `/api/appointments/${appts[0].id}/start`);
-  const sid = st.j.id; const goal = (await r('GET', '/api/sessions/' + sid)).j.goals[0];
-  for (const l of ['I', 'V', 'I', 'P']) await r('POST', `/api/sessions/${sid}/trials`, { goal_id: goal.id, level: l });
-  const sv = (await r('GET', '/api/sessions/' + sid)).j; ok(sv.goals[0].summary.pct.I === 50, 'summary % independent = 50');
+
+  // 5. ABC Data Collection
+  const abcRes = await r('POST', '/api/clients/1/abc', {
+    antecedent: 'Difficult academic task',
+    behavior: 'Task refusal',
+    consequence: 'Prompted break card',
+    perceived_function: 'Escape',
+    notes: 'Accepted replacement communication'
+  });
+  ok(abcRes.s === 200 && abcRes.j.id, 'RBT can log ABC event on client');
+  const updated360 = (await b('GET', '/api/clients/1')).j;
+  ok(updated360.abcSummary.functions.Escape >= 1, 'ABC summary function matrix updates with Escape count');
+
+  // 6. Active Session Cockpit
+  const apptRes = await b('POST', '/api/appointments', {
+    client_id: 1,
+    user_id: 2,
+    start: new Date().toISOString().slice(0, 10) + 'T13:00',
+    end: new Date().toISOString().slice(0, 10) + 'T16:00',
+    setting: 'School'
+  });
+  const st = await r('POST', `/api/appointments/${apptRes.j.id}/start`);
+  const sid = st.j.id;
+  const sView = (await r('GET', '/api/sessions/' + sid)).j;
+  const goal = sView.goals[0];
+
+  // In-session ABC logging
+  const sessAbc = await r('POST', `/api/sessions/${sid}/abc`, {
+    antecedent: 'Peer proximity / space',
+    behavior: 'Screaming',
+    consequence: 'Offered quiet corner',
+    perceived_function: 'Escape'
+  });
+  ok(sessAbc.s === 200, 'in-session ABC event logged');
+
+  // Trial collection (including Model 'M' prompt level)
+  for (const l of ['I', 'V', 'M', 'I', 'P']) await r('POST', `/api/sessions/${sid}/trials`, { goal_id: goal.id, level: l });
+  const sv = (await r('GET', '/api/sessions/' + sid)).j;
+  ok(sv.goals[0].summary.counts.M === 1, 'Model prompt trial recorded');
+  ok(sv.goals[0].summary.pct.I === 40, 'summary % independent = 40');
+
+  // End session
   ok((await r('POST', `/api/sessions/${sid}/end`, { minutes_override: 180 })).j.units === 12, '3h = 12 units');
-  const note = (await r('POST', `/api/sessions/${sid}/note/generate`, {})).j.note; ok(note.includes('12 units') || note.includes('units'), 'note drafted');
-  await r('PUT', `/api/sessions/${sid}/note`, { note });
-  ok((await r('POST', `/api/sessions/${sid}/note/sign`)).s === 403, 'RBT cannot sign');
-  ok((await b('POST', `/api/sessions/${sid}/note/sign`)).s === 200, 'BCBA signs');
+
+  // Note generation with trials AND ABC incidents
+  const noteRes = await r('POST', `/api/sessions/${sid}/note/generate`, {});
+  const note = noteRes.j.note;
+  ok(note.includes('12 units') && (note.includes('Behavior incidents recorded') || note.includes('Screaming')), 'note includes both units and ABC incident data');
+
+  // Dual-signature workflow
+  ok((await r('POST', `/api/sessions/${sid}/note/sign`)).s === 403, 'RBT cannot sign directly');
+  const subRes = await r('POST', `/api/sessions/${sid}/note/submit`, { note });
+  ok(subRes.s === 200 && subRes.j.status === 'pending_approval' && subRes.j.submitted_by.includes('RBT'), 'RBT submits note for BCBA review');
+  
+  const pendView = (await b('GET', '/api/sessions/' + sid)).j;
+  ok(pendView.session.note_status === 'pending_approval' && pendView.session.submitted_by, 'session reflects pending_approval with author stamp');
+
+  const signRes = await b('POST', `/api/sessions/${sid}/note/sign`);
+  ok(signRes.s === 200 && signRes.j.status === 'signed' && signRes.j.signed_by.includes('BCBA'), 'BCBA co-signs and finalizes note');
+
+  // 7. Supervision tracking
+  const supGet = await b('GET', '/api/supervision');
+  ok(supGet.s === 200 && typeof supGet.j.supPct === 'number', 'supervision metrics retrieved');
+  const supPost = await b('POST', '/api/supervision', {
+    client_id: 1,
+    rbt_id: 2,
+    minutes: 45,
+    type: 'Direct Observation',
+    notes: 'Observed DTT table trials and ABC data collection.'
+  });
+  ok(supPost.s === 200, 'BCBA logs supervision meeting');
+
+  // 8. Error response sanitization check
+  const badReq = await b('GET', '/api/sessions/999999');
+  ok(badReq.s === 404 && !badReq.j.stack, 'error responses do not leak internal stack traces');
+
+  // 9. MemoryDB In-Memory Parity Verification
+  const { MemoryDB } = require('./lib/db');
+  const mem = new MemoryDB();
+  mem.tables.users.push({ id: 1, name: 'Dana BCBA', role: 'BCBA' }, { id: 2, name: 'Sam RBT', role: 'RBT' });
+  mem.tables.clients.push({ id: 1, name: 'Eleanor' });
+  mem.prepare('INSERT INTO sessions(appointment_id, client_id, user_id, start, end, units, note, note_status) VALUES(?,?,?,?,?,?,?,?)')
+    .run(1, 1, 2, '2026-10-12T10:00:00Z', '2026-10-12T12:00:00Z', 8, 'Trial note', 'draft');
+  const memSess = mem.prepare('SELECT * FROM sessions WHERE id=?').get(1);
+  ok(memSess && memSess.units === 8, 'MemoryDB stores and retrieves session');
+  mem.prepare('UPDATE sessions SET note=?, note_status=\'pending_approval\', submitted_by=?, rbt_signed_at=? WHERE id=?')
+    .run('Updated note', 'Sam RBT', '2026-10-12T12:05:00Z', 1);
+  const memUpdated = mem.prepare('SELECT * FROM sessions WHERE id=?').get(1);
+  ok(memUpdated.note_status === 'pending_approval' && memUpdated.submitted_by === 'Sam RBT', 'MemoryDB handles multi-param UPDATE with literals');
+
   server.close();
-  console.log(fails ? fails + ' FAILED' : 'ALL PASSED'); process.exit(fails ? 1 : 0);
+  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record Verified)');
+  process.exit(fails ? 1 : 0);
 })();
