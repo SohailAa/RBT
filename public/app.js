@@ -3,6 +3,10 @@ const $app = document.getElementById('app');
 let me = null;
 let activeModal = null;
 let clientSearchQuery = '';
+let showKidMode = false;
+let tokenCount = 0;
+let targetTokens = 5;
+let sessionMode = 'dtt';
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const val = (id) => (document.getElementById(id) || {}).value || '';
 const LV = {
@@ -415,6 +419,7 @@ async function clientView(id) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${B ? `<button class="sec" style="padding:8px 14px;font-size:0.85rem" onclick="act.openReauthReportModal(${c.id})">📄 6-Month Re-Auth Report</button>` : ''}
         ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used} units left</span>`).join(' ') : ''}
         <button class="bad" style="padding:8px 14px;font-size:0.85rem" onclick="act.toggleCrisis()">
           🚨 ${showCrisis ? 'Hide Crisis Protocol' : 'Emergency / Crisis Plan'}
@@ -469,11 +474,19 @@ async function clientView(id) {
             <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--slate-100)">
               <div class="flex-between">
                 <b>${esc(g.title)}</b>
-                <span class="tag ${g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.trend)}</span>
+                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
               </div>
               <div style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 6px">
                 Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery: <b>${g.target}%</b>
               </div>
+              ${g.mastery_met && g.status !== 'mastered' ? `
+                <div class="mastery-banner">
+                  <span>${esc(g.recommendation)}</span>
+                  ${B ? `<button class="ok" style="font-size:0.75rem;padding:3px 8px" onclick="act.setGoalStatus(${g.id}, 'mastered')">✓ Advance Target</button>` : ''}
+                </div>
+              ` : g.stalled ? `
+                <div class="stalled-banner">${esc(g.recommendation)}</div>
+              ` : ''}
               ${chart(g.series, g.baseline, g.target)}
             </div>
           `).join('') || '<p style="color:var(--slate-400)">No skill targets active yet.</p>'}
@@ -588,18 +601,37 @@ async function clientView(id) {
       ` : ''}
 
       <div style="margin-top:16px">
-        ${goals.map((g) => `
+        ${goals.map((g) => {
+          const lastSession = g.series && g.series.length ? g.series[g.series.length - 1] : null;
+          return `
           <div style="background:var(--surface);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--slate-200);margin-bottom:16px">
             <div class="flex-between">
-              <h4 style="margin:0;font-size:1.1rem">${esc(g.title)}</h4>
-              <span class="tag ${g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.trend)}</span>
+              <div>
+                <h4 style="margin:0;font-size:1.1rem;display:inline-block">${esc(g.title)}</h4>
+                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}" style="margin-left:8px">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
+              </div>
+              ${B && g.status !== 'mastered' && g.mastery_met ? `<button class="ok" style="font-size:0.8rem;padding:4px 10px" onclick="act.setGoalStatus(${g.id}, 'mastered')">🎯 Mark Mastered</button>` : ''}
             </div>
             <div style="font-size:0.85rem;color:var(--slate-600);margin:4px 0 8px">
-              Baseline: <b>${g.baseline}%</b> · Current Average: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery: <b>${g.target}%</b>
+              Baseline: <b>${g.baseline}%</b> · Current Average: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b>
             </div>
+            ${g.mastery_met && g.status !== 'mastered' ? `
+              <div class="mastery-banner">
+                <span><b>Clinical Intelligence:</b> ${esc(g.recommendation)}</span>
+                ${B ? `<button class="ok" style="font-size:0.75rem;padding:3px 8px" onclick="act.setGoalStatus(${g.id}, 'mastered')">Advance Target</button>` : ''}
+              </div>
+            ` : g.stalled ? `
+              <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)}</div>
+            ` : ''}
             ${chart(g.series, g.baseline, g.target)}
-          </div>
-        `).join('') || '<p style="color:var(--slate-400)">No skill targets defined yet.</p>'}
+            ${lastSession && lastSession.prompts ? `
+              <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-size:0.8rem;color:var(--slate-600);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-weight:700">Prompt Hierarchy Fading (Latest Session):</span>
+                ${Object.entries(lastSession.prompts).map(([code, cnt]) => cnt > 0 ? `<span class="badge ${code==='I'?'tan':'p'}">${code} (${LV[code]?.label || code}): <b>${cnt}</b></span>` : '').join('')}
+              </div>
+            ` : ''}
+          </div>`;
+        }).join('') || '<p style="color:var(--slate-400)">No skill targets defined yet.</p>'}
       </div>
     </div>`;
   }
@@ -632,6 +664,38 @@ async function clientView(id) {
         <div class="abc-metric Sensory">
           <div class="abc-num">${abcSummary.functions.Sensory || 0}</div>
           <small>Automatic / Sensory</small>
+        </div>
+      </div>
+
+      <!-- Temporal Scatterplot & Setting Event Heatmap (CentralReach Improvement) -->
+      <div style="margin-top:20px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-lg);padding:16px">
+        <div class="flex-between">
+          <div>
+            <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">🕒 Temporal Behavior Scatterplot & Hourly Setting Event Heatmap</h4>
+            <p style="font-size:0.8rem;color:var(--slate-500);margin:2px 0 0">Distribution of incidents across clinic operational hours (8:00 AM – 5:00 PM) for Functional Behavior Assessments.</p>
+          </div>
+          <span class="badge p">FBA Scatterplot Analysis</span>
+        </div>
+
+        ${abcSummary.scatterplot && abcSummary.scatterplot.peakWindow ? `
+          <div class="stalled-banner" style="margin-top:12px;background:#fef2f2;border-color:#fecaca;color:#991b1b">
+            ⚡ <b>Peak Behavioral Disruption Window:</b> <b>${esc(abcSummary.scatterplot.peakWindow.label)}</b> (${abcSummary.scatterplot.peakWindow.count} incident${abcSummary.scatterplot.peakWindow.count === 1 ? '' : 's'}). Primary Trigger: <b>${esc(abcSummary.scatterplot.peakWindow.primaryAntecedent)}</b>. Recommend antecedent visual schedules & high-density reinforcement prior to this transition window.
+          </div>
+        ` : ''}
+
+        <div class="heatmap-track" style="margin-top:14px">
+          ${(abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map(h => {
+            const count = h.count;
+            const bgClass = count >= 4 ? 'heat-4' : count >= 2 ? 'heat-2' : count === 1 ? 'heat-1' : 'heat-0';
+            const topAnt = Object.entries(h.antecedents).sort((a,b) => b[1] - a[1])[0];
+            return `
+              <div class="heat-slot ${bgClass}" title="${h.label}: ${count} incident(s)${topAnt ? ` (Primary: ${topAnt[0]})` : ''}">
+                <div class="heat-label">${h.label.replace(':00 ', ' ')}</div>
+                <div class="heat-count">${count}</div>
+                <div class="heat-sub">${count === 1 ? 'event' : 'events'}</div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
 
@@ -1063,10 +1127,52 @@ async function sessionView(id) {
           <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
             <button class="bad" style="padding:12px 24px;font-size:1rem" onclick="act.endSession(${s.id})">⏹ End Clinical Session</button>
             <button class="ok" style="padding:12px 20px;font-size:1rem" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Quick ABC Incident Logger</button>
+            <button class="btn" style="background:#7c3aed;padding:12px 20px;font-size:1rem" onclick="act.toggleKidMode()">🌟 ${showKidMode ? 'Hide Kid Mode' : 'Open Kid Mode (Token Board)'}</button>
           </div>
         `}
     </div>
   </div>
+
+  <!-- Interactive Kid Mode & Token Board (CentralReach Enhancement) -->
+  ${showKidMode ? `
+    <div class="token-board">
+      <div class="flex-between">
+        <div>
+          <h3 style="margin:0;color:#6b21a8">🌟 ${esc(client.name)}'s Token Board</h3>
+          <div style="font-size:0.85rem;color:#7e22ce;margin-top:2px">Working for: <b>🎁 ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Preferred Activity')}</b></div>
+        </div>
+        <div>
+          <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.resetTokens()">Reset Tokens</button>
+        </div>
+      </div>
+      
+      <div class="token-track">
+        ${Array.from({ length: targetTokens }).map((_, idx) => `
+          <div class="token-slot ${idx < tokenCount ? 'earned' : ''}" onclick="act.toggleToken(${idx})">
+            ${idx < tokenCount ? '⭐' : '⚪'}
+          </div>
+        `).join('')}
+      </div>
+
+      ${tokenCount >= targetTokens ? `
+        <div class="token-reward-msg">
+          🎉 ALL ${targetTokens} TOKENS EARNED! Time for ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Reward')}! 🎈
+        </div>
+      ` : `<div style="text-align:center;font-size:0.85rem;color:#7e22ce">Tap tokens as client completes trials (${tokenCount}/${targetTokens} earned)</div>`}
+
+      <!-- Digital First/Then Visual Schedule -->
+      <div class="first-then-grid">
+        <div class="first-box">
+          <div class="ft-label" style="color:#2563eb">1. First (Task)</div>
+          <b style="font-size:1.05rem;color:#1e40af">📚 ${esc(goals[0] ? goals[0].title : 'Tabletop Trials')}</b>
+        </div>
+        <div class="then-box">
+          <div class="ft-label" style="color:#16a34a">2. Then (Reward)</div>
+          <b style="font-size:1.05rem;color:#15803d">🎁 ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Break Time')}</b>
+        </div>
+      </div>
+    </div>
+  ` : ''}
 
   <!-- Quick De-escalation Protocol Drawer -->
   ${plans.length ? `
@@ -1094,8 +1200,49 @@ async function sessionView(id) {
     </div>
   ` : ''}
 
-  <!-- Discrete Trial Training Buttons -->
-  ${goals.map((g) => `
+  <!-- Teaching Mode Switcher (CentralReach Enhancement: DTT vs NET) -->
+  <div class="flex-between" style="margin:16px 0 12px;background:var(--slate-100);padding:8px 12px;border-radius:var(--radius-md)">
+    <div style="font-weight:700;font-size:0.9rem;color:var(--slate-700)">
+      ${sessionMode === 'net' ? '🎲 Natural Environment Teaching (NET Multi-Target Grid)' : '🎯 Discrete Trial Training (DTT Single Focus)'}
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.8rem;padding:4px 10px" onclick="act.setSessionMode('dtt')">🎯 DTT View</button>
+      <button class="${sessionMode === 'net' ? 'ok' : 'sec'}" style="font-size:0.8rem;padding:4px 10px" onclick="act.setSessionMode('net')">🎲 NET Multi-Target View</button>
+    </div>
+  </div>
+
+  ${sessionMode === 'net' ? `
+    <div class="net-grid">
+      ${goals.map((g) => `
+        <div class="net-card">
+          <div class="flex-between" style="margin-bottom:6px">
+            <h4 style="margin:0;font-size:0.95rem;line-height:1.2">${esc(g.title)}</h4>
+            <span class="badge p" style="font-size:0.7rem">#${g.id}</span>
+          </div>
+          <div style="font-size:0.75rem;color:var(--slate-500);margin-bottom:8px">
+            Trials: <b>${g.summary ? g.summary.total : 0}</b> · Indep: <b style="color:var(--ok)">${g.summary ? g.summary.pct.I : 0}%</b>
+          </div>
+          ${ended ? '' : `
+            <div class="net-actions">
+              <button class="net-btn btn-i" title="Independent" onclick="act.trial(${s.id}, ${g.id}, 'I')">⭐ Ind</button>
+              <button class="net-btn btn-v" title="Verbal Prompt" onclick="act.trial(${s.id}, ${g.id}, 'V')">🗣️ Verb</button>
+              <button class="net-btn btn-g" title="Gestural Prompt" onclick="act.trial(${s.id}, ${g.id}, 'G')">👉 Gest</button>
+              <button class="net-btn btn-p" title="Physical Prompt" onclick="act.trial(${s.id}, ${g.id}, 'P')">🤝 Phys</button>
+              <button class="net-btn btn-n" title="Refusal / Non-compliant" onclick="act.trial(${s.id}, ${g.id}, 'N')">⛔ Ref</button>
+            </div>
+          `}
+          <div class="bar" style="height:4px;margin-top:8px">
+            <div style="width:${g.summary ? g.summary.pct.I : 0}%"></div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    ${ended ? '' : `
+      <div style="margin:8px 0 16px;text-align:right">
+        <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>
+      </div>
+    `}
+  ` : goals.map((g) => `
     <div class="card">
       <div class="flex-between">
         <h3 style="margin:0">${esc(g.title)}</h3>
@@ -1324,6 +1471,40 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'reauth_report') {
+    const report = activeModal.report;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:820px;width:95%;max-height:90vh;overflow-y:auto">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">CPT 97151 / 97155 Insurance Progress Report</span>
+            <h3 style="margin:4px 0 0">${esc(report.title)}</h3>
+            <div style="font-size:0.85rem;color:var(--slate-500)">Client: <b>${esc(report.client_name)}</b> · Date: ${esc(report.date)}</div>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin:14px 0">
+          <div style="font-weight:700;color:#065f46">🎯 Clinical Progress Summary:</div>
+          <div style="font-size:0.85rem;color:#047857">${report.masteredCount} of ${report.totalGoals} skill acquisition targets have reached mastery or criteria-met during this 6-month period.</div>
+        </div>
+
+        <div class="report-content" id="report_text_body" style="background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:16px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap;font-family:system-ui;color:var(--slate-800)">${esc(report.text)}</div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+          <div style="font-size:0.8rem;color:var(--slate-500)">
+            🔒 Official BACB Treatment Plan Draft · Supervising BCBA Review & Co-signature Required
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="sec" onclick="act.copyReport()">📋 Copy to Clipboard</button>
+            <button class="ok" onclick="window.print()">🖨️ Print / Save as PDF</button>
+            <button class="sec" onclick="act.closeModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
@@ -1431,6 +1612,33 @@ const act = {
     alert('Note successfully co-signed and finalized');
     render();
   }),
+  setGoalStatus: safe(async (gid, status) => {
+    await api('POST', `/api/goals/${gid}/status`, { status });
+    alert(`Goal marked as: ${status}`);
+    render();
+  }),
+  toggleKidMode: () => { showKidMode = !showKidMode; render(); },
+  toggleToken: (idx) => {
+    if (idx < tokenCount) {
+      tokenCount = idx;
+    } else {
+      tokenCount = idx + 1;
+    }
+    render();
+  },
+  resetTokens: () => { tokenCount = 0; render(); },
+  setSessionMode: (m) => { sessionMode = m; render(); },
+  openReauthReportModal: safe(async (cid) => {
+    const report = await api('GET', `/api/clients/${cid}/reauth-report`);
+    activeModal = { type: 'reauth_report', report };
+    render();
+  }),
+  copyReport: () => {
+    if (activeModal && activeModal.report) {
+      navigator.clipboard.writeText(activeModal.report.text);
+      alert('✓ 6-Month Re-Authorization Progress Report copied to clipboard!');
+    }
+  },
 };
 window.act = act;
 

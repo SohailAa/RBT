@@ -139,7 +139,57 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const memUpdated = mem.prepare('SELECT * FROM sessions WHERE id=?').get(1);
   ok(memUpdated.note_status === 'pending_approval' && memUpdated.submitted_by === 'Sam RBT', 'MemoryDB handles multi-param UPDATE with literals');
 
+  // 10. CentralReach Enhancement: Clinical Mastery & Plateau Intelligence
+  const clientData = (await b('GET', '/api/clients/1')).j;
+  const g1 = clientData.goals[0];
+  ok(g1 && typeof g1.mastery_met === 'boolean' && typeof g1.stalled === 'boolean', 'goal includes mastery_met and stalled flags');
+  ok(Array.isArray(g1.series) && g1.series[0].prompts, 'goal series includes prompt fading hierarchy breakdown');
+
+  // Test 1-tap transition to mastered by BCBA
+  const masterRes = await b('POST', `/api/goals/${g1.id}/status`, { status: 'mastered' });
+  ok(masterRes.s === 200 && masterRes.j.status === 'mastered', 'BCBA can advance goal to mastered');
+  const rbtBlock = await r('POST', `/api/goals/${g1.id}/status`, { status: 'active' });
+  ok(rbtBlock.s === 403, 'RBT blocked from changing goal clinical status');
+
+  const reCheck = (await b('GET', '/api/clients/1')).j;
+  const g1Updated = reCheck.goals.find(g => g.id === g1.id);
+  ok(g1Updated.status === 'mastered' && g1Updated.recommendation.includes('Mastered'), 'goal reflects mastered status and maintenance recommendation');
+
+  // 11. CentralReach Enhancement: Temporal Scatterplot & Hourly Heatmap
+  ok(clientData.abcSummary.scatterplot && Array.isArray(clientData.abcSummary.scatterplot.hourly), 'client ABC includes hourly scatterplot array');
+  ok(clientData.abcSummary.scatterplot.hourly.length === 10, 'scatterplot covers 8:00 AM to 5:00 PM operational window');
+
+  // 12. CentralReach Enhancement: 6-Month Re-Authorization Progress Report (CPT 97151/97155)
+  const reauthRbt = await r('GET', '/api/clients/1/reauth-report');
+  ok(reauthRbt.s === 403, 'RBT blocked from generating re-authorization clinical report');
+  const reauthParent = await p('GET', '/api/clients/1/reauth-report');
+  ok(reauthParent.s === 403, 'Parent blocked from generating re-authorization clinical report');
+
+  const reauthBcba = await b('GET', '/api/clients/1/reauth-report');
+  ok(reauthBcba.s === 200, 'BCBA can generate re-authorization progress report');
+  const rep = reauthBcba.j;
+  ok(rep.title.includes('Treatment Plan & Progress Report') && rep.client_name === 'Eleanor', 'report contains client metadata');
+  ok(rep.sections.length === 5, 'report structured into 5 BACB/insurance clinical sections');
+  ok(rep.text.includes('MEDICAL NECESSITY') && rep.text.includes('CPT 97153'), 'report includes medical necessity justification and CPT service recommendations');
+
+  // 13. CentralReach Enhancement: Natural Environment Teaching (NET) Multi-Target Session Logging
+  // Reactivate goal 1 so both goal 1 and goal 2 are active for NET training
+  await b('POST', '/api/goals/1/status', { status: 'active' });
+  const appt2 = (await b('POST', '/api/appointments', {
+    client_id: 1, user_id: 2, start: '2026-10-14T09:00:00', end: '2026-10-14T11:00:00', setting: 'Clinic'
+  })).j;
+  const sess2 = (await r('POST', `/api/appointments/${appt2.id}/start`)).j;
+  // Log trials across Goal 1 and Goal 2 in rapid succession
+  await r('POST', `/api/sessions/${sess2.id}/trials`, { goal_id: 1, level: 'I' });
+  await r('POST', `/api/sessions/${sess2.id}/trials`, { goal_id: 2, level: 'V' });
+  await r('POST', `/api/sessions/${sess2.id}/trials`, { goal_id: 1, level: 'G' });
+  const sess2View = (await r('GET', `/api/sessions/${sess2.id}`)).j;
+  const s2g1 = sess2View.goals.find(g => g.id === 1);
+  const s2g2 = sess2View.goals.find(g => g.id === 2);
+  ok(s2g1 && s2g1.summary && s2g1.summary.total === 2, 'NET multi-target trials recorded for Goal 1');
+  ok(s2g2 && s2g2.summary && s2g2.summary.total === 1, 'NET multi-target trials recorded for Goal 2');
+
   server.close();
-  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record Verified)');
+  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record & CentralReach Enhancements Verified)');
   process.exit(fails ? 1 : 0);
 })();

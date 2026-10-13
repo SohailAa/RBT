@@ -128,17 +128,50 @@ const visibleClients = (u) => u.role === 'BCBA' ? all('SELECT * FROM clients ORD
   : u.role === 'RBT' ? all('SELECT c.* FROM clients c JOIN assignments a ON a.client_id=c.id WHERE a.user_id=? ORDER BY name', u.id)
   : all('SELECT * FROM clients WHERE parent_id=?', u.id);
 
-// ---------- progress ----------
+// ---------- progress & clinical mastery intelligence ----------
 function goalProgress(goal) {
   const rows = all('SELECT session_id, level FROM trials WHERE goal_id=? ORDER BY session_id', goal.id);
   const bySession = {};
   rows.forEach((r) => { (bySession[r.session_id] ||= []).push(r.level); });
-  const series = Object.entries(bySession).map(([sid, ls]) => ({ session: +sid, pct: Math.round(ls.filter((l) => l === 'I').length / ls.length * 100), n: ls.length }));
+  const series = Object.entries(bySession).map(([sid, ls]) => {
+    const total = ls.length;
+    const counts = { I: 0, V: 0, G: 0, P: 0, N: 0 };
+    ls.forEach((l) => { if (counts[l] !== undefined) counts[l]++; });
+    return {
+      session: +sid,
+      pct: total ? Math.round(counts.I / total * 100) : 0,
+      n: total,
+      prompts: counts
+    };
+  });
   const recent = series.slice(-3);
   const current = recent.length ? Math.round(recent.reduce((a, b) => a + b.pct, 0) / recent.length) : null;
   let trend = 'Not enough data';
   if (current !== null) trend = current > goal.baseline + 5 ? 'Improving' : current < goal.baseline - 5 ? 'Declining' : 'Flat';
-  return { ...goal, series, current, trend };
+
+  // Automated Mastery & Plateau Detection (CentralReach Improvement)
+  const targetThreshold = goal.target || 80;
+  const isMasteredCriteriaMet = recent.length >= 3 && recent.every((s) => s.pct >= targetThreshold);
+  const isStalled = series.length >= 3 && current !== null && current <= (goal.baseline + 3);
+
+  let recommendation = null;
+  if (goal.status === 'mastered') {
+    recommendation = 'Goal Mastered — Active in Maintenance & Generalization';
+  } else if (isMasteredCriteriaMet) {
+    recommendation = `🎯 Mastery Criteria Met (${current}% avg across last 3 sessions). Recommend advancing to maintenance.`;
+  } else if (isStalled) {
+    recommendation = `⚠️ Target Stalled (${current}% vs ${goal.baseline}% baseline). Recommend reviewing prompt hierarchy or environmental adaptations.`;
+  }
+
+  return {
+    ...goal,
+    series,
+    current,
+    trend,
+    mastery_met: isMasteredCriteriaMet,
+    stalled: isStalled,
+    recommendation
+  };
 }
 
 // ---------- API ----------
@@ -204,14 +237,63 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   const rawAbc = isParent ? [] : all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
   const abcFunctions = { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
   const abcBehaviors = {};
+  const hourlyDistribution = {};
+  for (let h = 8; h <= 17; h++) {
+    hourlyDistribution[h] = { hour: h, label: `${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}`, count: 0, antecedents: {} };
+  }
   rawAbc.forEach((a) => {
     if (a.perceived_function && abcFunctions[a.perceived_function] !== undefined) abcFunctions[a.perceived_function]++;
     if (a.behavior) abcBehaviors[a.behavior] = (abcBehaviors[a.behavior] || 0) + 1;
+    if (a.ts) {
+      const hour = new Date(a.ts).getHours();
+      if (hourlyDistribution[hour]) {
+        hourlyDistribution[hour].count++;
+        const ant = a.antecedent || 'Other';
+        hourlyDistribution[hour].antecedents[ant] = (hourlyDistribution[hour].antecedents[ant] || 0) + 1;
+      }
+    }
   });
-  const abcSummary = { total: rawAbc.length, functions: abcFunctions, behaviors: abcBehaviors };
+
+  let peakHour = null;
+  let maxCount = 0;
+  Object.values(hourlyDistribution).forEach((h) => {
+    if (h.count > maxCount) {
+      maxCount = h.count;
+      peakHour = h;
+    }
+  });
+  const scatterplot = {
+    hourly: Object.values(hourlyDistribution),
+    peakWindow: peakHour && maxCount > 0 ? {
+      hour: peakHour.hour,
+      label: peakHour.label,
+      count: peakHour.count,
+      primaryAntecedent: Object.entries(peakHour.antecedents).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Transition'
+    } : null
+  };
+  const abcSummary = { total: rawAbc.length, functions: abcFunctions, behaviors: abcBehaviors, scatterplot };
   const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
 
   return { client: isParent ? { id: c.id, name: c.name } : c, goals, plans, stories, auths, assigned, abcLogs: rawAbc, abcSummary, supervisionLogs };
+});
+route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
+  need(u, 'BCBA');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
+  const abcLogs = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+  const auths = all('SELECT * FROM authorizations WHERE client_id=?', c.id);
+  const monthPrefix = getLocalDate().slice(0, 7);
+  const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
+  const rbtSessions = all('SELECT * FROM sessions WHERE start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
+  const rbtDirectMinutes = rbtSessions.reduce((sum, s) => sum + (s.units ? s.units * 15 : 0), 0);
+  const supLogs = all('SELECT * FROM supervision_logs WHERE ts LIKE ?', monthPrefix + '%');
+  const supMinutes = supLogs.reduce((sum, s) => sum + (s.minutes || 0), 0);
+  const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
+  const supervision = { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5 };
+
+  return G.generateReauthReport({ client: c, goals, abcLogs, auths, supervision });
 });
 route('PUT', '/api/clients/:id', (u, b, p) => {
   need(u, 'BCBA');
@@ -221,6 +303,12 @@ route('PUT', '/api/clients/:id', (u, b, p) => {
 route('POST', '/api/clients/:id/goals', (u, b, p) => {
   need(u, 'BCBA'); if (!b.title) bad(400, 'Title required');
   run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', +p.id, b.title, +b.baseline || 0, +b.target || 80); return {};
+});
+route('POST', '/api/goals/:id/status', (u, b, p) => {
+  need(u, 'BCBA');
+  if (!b.status) bad(400, 'Status required');
+  run('UPDATE goals SET status=? WHERE id=?', b.status, +p.id);
+  return { id: +p.id, status: b.status };
 });
 route('POST', '/api/clients/:id/auths', (u, b, p) => {
   need(u, 'BCBA'); run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', +p.id, b.code, +b.authorized || 0); return {};
