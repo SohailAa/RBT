@@ -137,23 +137,41 @@ function seed() {
   run('INSERT INTO stories(client_id,inputs,content,status) VALUES(?,?,?,?)',
     el, JSON.stringify(storyDraftInput), JSON.stringify(storyDraftContent), 'draft');
 
-  // Seed ABC data with specific daytime hours (09:00, 11:00 peak cluster, 14:00) so the Hourly Scatterplot Heatmap shines
+  // Seed ABC data across 5 observation days (Baseline Days 5-4 -> BIP/FCT Intervention Days 3-1) with 11:00 AM peak cluster
   const mkTime = (daysAgo, hhmm) => {
     const d = new Date(Date.now() - daysAgo * 86400000);
     const [hh, mm] = hhmm.split(':');
     d.setHours(+hh, +mm, 0, 0);
     return d.toISOString();
   };
+  // Day 5 (Baseline Phase — 4 episodes)
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '09:10'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Baseline observation prior to visual countdown schedule');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '11:05'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'High intensity vocal protest when asked to clean up LEGO bricks');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '11:40'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Required gestural prompt to hand FCT card to peer');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '14:10'), 'Presented multi-step tabletop sorting worksheet', 'Task refusal', 'Offered First/Then token board & task modification', 'Escape', 'Completed 3 tokens after demand was chunked');
+  // Day 4 (Baseline Phase — 3 episodes)
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '09:25'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Settled within 90 seconds after reviewing visual schedule');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '11:15'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Used save-build tray with verbal reminder');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '13:30'), 'Therapist conversing with classroom teacher', 'Crying', 'Prompted "Excuse me" tap card for attention', 'Attention', 'Used tap card and received immediate praise');
+  // Day 3 (BIP / FCT Intervention Phase — 2 episodes)
   run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
     el, 1, rbt, mkTime(3, '09:15'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'De-escalated in 2 mins after seeing visual schedule');
   run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
     el, 1, rbt, mkTime(3, '11:10'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Placed LEGO build on safe shelf and washed hands');
+  // Day 2 (BIP / FCT Intervention Phase — 1 episode)
   run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
     el, 2, rbt, mkTime(2, '11:25'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Independent vocal follow-up after card prompt');
+  // Day 1 (BIP / FCT Intervention Phase — 1 episode)
   run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
     el, 3, rbt, mkTime(1, '11:45'), 'Loud cafeteria line transition before lunch', 'Task refusal', 'Offered noise-reducing headphones & sensory squeeze', 'Sensory', 'Entered cafeteria calmly with headphones on');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 3, rbt, mkTime(1, '14:20'), 'End of afternoon tablet reinforcement interval', 'Crying', 'Reviewed token board & next earned choice', 'Tangible', 'Transitioned to sticker book within 45 seconds');
+  // Leon ABC log
   run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
     le, sidLeon, rbt, mkTime(1, '15:30'), 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set');
 
@@ -249,6 +267,187 @@ function goalProgress(goal) {
   };
 }
 
+// ---------- FBA & ABC Behavioral Analytics Engine ----------
+function buildAbcSummary(rawAbc) {
+  const total = rawAbc.length;
+  const abcFunctions = { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
+  const abcBehaviors = {};
+  const hourlyDistribution = {};
+  for (let h = 8; h <= 17; h++) {
+    hourlyDistribution[h] = {
+      hour: h,
+      label: `${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}`,
+      count: 0,
+      antecedents: {},
+      functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 }
+    };
+  }
+
+  const byDay = {};
+  const byAntecedent = {};
+  const byConsequence = {};
+  const byBehaviorDetail = {};
+
+  rawAbc.forEach((a) => {
+    const fn = a.perceived_function && abcFunctions[a.perceived_function] !== undefined ? a.perceived_function : 'Escape';
+    if (a.perceived_function && abcFunctions[a.perceived_function] !== undefined) abcFunctions[a.perceived_function]++;
+    const beh = a.behavior || 'Unspecified';
+    abcBehaviors[beh] = (abcBehaviors[beh] || 0) + 1;
+
+    if (!byBehaviorDetail[beh]) {
+      byBehaviorDetail[beh] = { behavior: beh, count: 0, functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 } };
+    }
+    byBehaviorDetail[beh].count++;
+    byBehaviorDetail[beh].functions[fn] = (byBehaviorDetail[beh].functions[fn] || 0) + 1;
+
+    const ant = a.antecedent || 'Unstructured / Other';
+    if (!byAntecedent[ant]) {
+      byAntecedent[ant] = { antecedent: ant, count: 0, functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 }, behaviors: {} };
+    }
+    byAntecedent[ant].count++;
+    byAntecedent[ant].functions[fn] = (byAntecedent[ant].functions[fn] || 0) + 1;
+    byAntecedent[ant].behaviors[beh] = (byAntecedent[ant].behaviors[beh] || 0) + 1;
+
+    const con = a.consequence || 'Standard Redirection';
+    if (!byConsequence[con]) {
+      byConsequence[con] = { consequence: con, count: 0, functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 }, deescalatedCount: 0 };
+    }
+    byConsequence[con].count++;
+    byConsequence[con].functions[fn] = (byConsequence[con].functions[fn] || 0) + 1;
+    if (/calm|de-escalat|safe|independent|redirected|washed|transitioned|within|settled|completed|praise/i.test(a.notes || '') || /card|timer|schedule|choice|headphone|first\/then|pecs/i.test(con)) {
+      byConsequence[con].deescalatedCount++;
+    }
+
+    if (a.ts) {
+      const dt = new Date(a.ts);
+      const hour = dt.getHours();
+      if (hourlyDistribution[hour]) {
+        hourlyDistribution[hour].count++;
+        hourlyDistribution[hour].antecedents[ant] = (hourlyDistribution[hour].antecedents[ant] || 0) + 1;
+        hourlyDistribution[hour].functions[fn] = (hourlyDistribution[hour].functions[fn] || 0) + 1;
+      }
+      const dayKey = String(a.ts).slice(0, 10);
+      if (!byDay[dayKey]) {
+        byDay[dayKey] = {
+          date: dayKey,
+          label: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          count: 0,
+          functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 },
+          behaviors: {}
+        };
+      }
+      byDay[dayKey].count++;
+      byDay[dayKey].functions[fn] = (byDay[dayKey].functions[fn] || 0) + 1;
+      byDay[dayKey].behaviors[beh] = (byDay[dayKey].behaviors[beh] || 0) + 1;
+    }
+  });
+
+  let peakHour = null;
+  let maxCount = 0;
+  Object.values(hourlyDistribution).forEach((h) => {
+    if (h.count > maxCount) {
+      maxCount = h.count;
+      peakHour = h;
+    }
+  });
+  const scatterplot = {
+    hourly: Object.values(hourlyDistribution),
+    peakWindow: peakHour && maxCount > 0 ? {
+      hour: peakHour.hour,
+      label: peakHour.label,
+      count: peakHour.count,
+      primaryAntecedent: Object.entries(peakHour.antecedents).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Transition'
+    } : null
+  };
+
+  const dailySeries = Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date));
+  const phaseSplitIdx = dailySeries.length >= 3 ? Math.max(1, Math.floor(dailySeries.length * 0.4)) : 1;
+  dailySeries.forEach((d, idx) => {
+    d.phase = idx < phaseSplitIdx ? 'Baseline' : 'BIP / FCT Intervention';
+  });
+
+  const baselineDays = dailySeries.slice(0, phaseSplitIdx);
+  const interventionDays = dailySeries.slice(phaseSplitIdx);
+  const baselineRate = baselineDays.length
+    ? +(baselineDays.reduce((s, d) => s + d.count, 0) / baselineDays.length).toFixed(1)
+    : (total ? +total.toFixed(1) : 0);
+  const currentRate = interventionDays.length
+    ? +(interventionDays.reduce((s, d) => s + d.count, 0) / interventionDays.length).toFixed(1)
+    : baselineRate;
+  const pctChange = baselineRate > 0 ? Math.round(((currentRate - baselineRate) / baselineRate) * 100) : 0;
+  const trendDirection = pctChange <= -15 ? 'Decreasing (Improving)' : pctChange >= 15 ? 'Increasing (Needs Review)' : 'Stable';
+
+  const fnEntries = Object.entries(abcFunctions).sort((a, b) => b[1] - a[1]);
+  const topFn = fnEntries[0] || ['Escape', 0];
+  const dominantFunction = {
+    name: topFn[0],
+    count: topFn[1],
+    pct: total ? Math.round((topFn[1] / total) * 100) : 0,
+    secondaryName: fnEntries[1] && fnEntries[1][1] > 0 ? fnEntries[1][0] : null,
+    secondaryPct: fnEntries[1] && total ? Math.round((fnEntries[1][1] / total) * 100) : 0
+  };
+
+  const antecedentMatrix = Object.values(byAntecedent)
+    .sort((a, b) => b.count - a.count)
+    .map((item) => {
+      const primaryFn = Object.entries(item.functions).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Escape';
+      const primaryBeh = Object.entries(item.behaviors).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Behavior';
+      return {
+        ...item,
+        pct: total ? Math.round((item.count / total) * 100) : 0,
+        primaryFunction: primaryFn,
+        primaryBehavior: primaryBeh
+      };
+    });
+
+  const consequenceMatrix = Object.values(byConsequence)
+    .sort((a, b) => b.count - a.count)
+    .map((item) => {
+      const primaryFn = Object.entries(item.functions).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Escape';
+      return {
+        ...item,
+        pct: total ? Math.round((item.count / total) * 100) : 0,
+        primaryFunction: primaryFn,
+        deescalationRate: item.count ? Math.round((item.deescalatedCount / item.count) * 100) : 100
+      };
+    });
+
+  const behaviorMatrix = Object.values(byBehaviorDetail)
+    .sort((a, b) => b.count - a.count)
+    .map((item) => {
+      const primaryFn = Object.entries(item.functions).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Escape';
+      return {
+        ...item,
+        pct: total ? Math.round((item.count / total) * 100) : 0,
+        primaryFunction: primaryFn
+      };
+    });
+
+  const totalDeescalated = consequenceMatrix.reduce((s, c) => s + c.deescalatedCount, 0);
+  const replacementSuccessRate = total ? Math.round((totalDeescalated / total) * 100) : 100;
+
+  return {
+    total,
+    functions: abcFunctions,
+    behaviors: abcBehaviors,
+    scatterplot,
+    dailySeries,
+    dominantFunction,
+    reductionMetrics: {
+      baselineRate,
+      currentRate,
+      pctChange,
+      trendDirection,
+      observationDays: dailySeries.length,
+      phaseSplitIdx,
+      replacementSuccessRate
+    },
+    antecedentMatrix,
+    consequenceMatrix,
+    behaviorMatrix
+  };
+}
+
 // ---------- API ----------
 const routes = [];
 const route = (m, p, fn, opts = {}) => routes.push({ m, re: new RegExp('^' + p.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), fn, ...opts });
@@ -310,46 +509,20 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   
   // ABC logs & analytics (unified clinical hub)
   const rawAbc = isParent ? [] : all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
-  const abcFunctions = { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
-  const abcBehaviors = {};
-  const hourlyDistribution = {};
-  for (let h = 8; h <= 17; h++) {
-    hourlyDistribution[h] = { hour: h, label: `${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}`, count: 0, antecedents: {} };
-  }
-  rawAbc.forEach((a) => {
-    if (a.perceived_function && abcFunctions[a.perceived_function] !== undefined) abcFunctions[a.perceived_function]++;
-    if (a.behavior) abcBehaviors[a.behavior] = (abcBehaviors[a.behavior] || 0) + 1;
-    if (a.ts) {
-      const hour = new Date(a.ts).getHours();
-      if (hourlyDistribution[hour]) {
-        hourlyDistribution[hour].count++;
-        const ant = a.antecedent || 'Other';
-        hourlyDistribution[hour].antecedents[ant] = (hourlyDistribution[hour].antecedents[ant] || 0) + 1;
-      }
-    }
-  });
-
-  let peakHour = null;
-  let maxCount = 0;
-  Object.values(hourlyDistribution).forEach((h) => {
-    if (h.count > maxCount) {
-      maxCount = h.count;
-      peakHour = h;
-    }
-  });
-  const scatterplot = {
-    hourly: Object.values(hourlyDistribution),
-    peakWindow: peakHour && maxCount > 0 ? {
-      hour: peakHour.hour,
-      label: peakHour.label,
-      count: peakHour.count,
-      primaryAntecedent: Object.entries(peakHour.antecedents).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Transition'
-    } : null
-  };
-  const abcSummary = { total: rawAbc.length, functions: abcFunctions, behaviors: abcBehaviors, scatterplot };
+  const abcSummary = buildAbcSummary(rawAbc);
   const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
 
   return { client: isParent ? { id: c.id, name: c.name } : c, goals, plans, stories, auths, assigned, abcLogs: rawAbc, abcSummary, supervisionLogs };
+});
+route('GET', '/api/clients/:id/fba-report', (u, b, p) => {
+  need(u, 'BCBA', 'RBT');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const rawAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+  const abcSummary = buildAbcSummary(rawAbc);
+  const plans = all('SELECT * FROM plans WHERE client_id=?', c.id).map((x) => ({ ...x, data: parse(x.data) }));
+  return G.generateFbaReport({ client: c, abcLogs: rawAbc, abcSummary, plans });
 });
 route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
   need(u, 'BCBA');

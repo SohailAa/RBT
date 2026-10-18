@@ -2037,5 +2037,177 @@ tr:hover td {
   .pitch-title {
     font-size: 1.4rem;
   }
+  .fba-two-col {
+    grid-template-columns: 1fr !important;
+  }
+  .fba-donut-layout {
+    flex-direction: column;
+  }
 }
 
+/* ============================================================================
+   FUNCTIONAL BEHAVIOR ASSESSMENT (FBA) & BEHAVIOR REDUCTION ANALYTICS SUITE
+   ============================================================================ */
+.fba-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 12px;
+}
+
+.fba-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fba-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fba-kpi-val {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--slate-900);
+  margin: 4px 0 3px;
+  line-height: 1.2;
+}
+
+.fba-kpi-sub {
+  font-size: 0.76rem;
+  color: var(--slate-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fba-filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.fba-chip {
+  background: #ffffff;
+  color: var(--slate-700);
+  border: 1px solid var(--slate-300);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fba-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.fba-chip.active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 4px 10px -2px rgba(79, 70, 229, 0.35);
+}
+
+.fba-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.fba-panel {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fba-donut-layout {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.fba-fn-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.fba-fn-row {
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 8px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fba-fn-row:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.fba-fn-row.selected {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.fba-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--slate-100);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.fba-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+.fba-prob-row {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.heat-bar-well {
+  height: 44px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: 6px;
+  padding: 0 6px;
+}
+
+.heat-bar-col {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 5px 5px 2px 2px;
+  background: currentColor;
+  opacity: 0.72;
+  transition: height 0.2s ease;
+}
+
+.heat-slot.selected-hour {
+  outline: 2.5px solid var(--primary);
+  outline-offset: 2px;
+  transform: translateY(-2px);
+}

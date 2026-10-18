@@ -19,6 +19,9 @@ let pitchSlide = 0;
 let pitchTourActive = false;
 let roiBcba = 3;
 let roiRbt = 12;
+let fbaFilterBehavior = 'ALL';
+let fbaFilterFunction = 'ALL';
+let fbaFilterHour = null;
 
 const KID_THEMES = {
   space: {
@@ -574,6 +577,118 @@ function chart(series, baseline, target) {
   </div>`;
 }
 
+function fbaTrendChart(dailySeries, reductionMetrics) {
+  const series = dailySeries || [];
+  if (!series.length) {
+    return '<div style="padding:20px;background:var(--slate-50);border-radius:12px;text-align:center;color:var(--slate-400);font-size:0.85rem">No longitudinal ABC observations recorded yet.</div>';
+  }
+  const rm = reductionMetrics || { baselineRate: 0, currentRate: 0, pctChange: 0, phaseSplitIdx: 1 };
+  const w = 620, h = 195, padL = 38, padR = 26, padT = 28, padB = 34;
+  const n = series.length;
+  const maxVal = Math.max(5, ...series.map((d) => d.count), Math.ceil(rm.baselineRate || 0) + 1);
+  const x = (i) => (n === 1 ? w / 2 : Math.round(padL + (i * (w - padL - padR)) / (n - 1)));
+  const y = (v) => Math.round(h - padB - (Math.min(maxVal, Math.max(0, v)) / maxVal) * (h - padT - padB));
+
+  const pts = series.map((d, i) => `${x(i)},${y(d.count)}`).join(' ');
+  const areaPoly = `${x(0)},${h - padB} ${pts} ${x(n - 1)},${h - padB}`;
+  const splitIdx = n >= 3 ? Math.min(n - 1, Math.max(1, rm.phaseSplitIdx || Math.floor(n * 0.4))) : null;
+  const splitX = splitIdx !== null ? Math.round((x(splitIdx - 1) + x(splitIdx)) / 2) : null;
+
+  const gridSteps = [0, Math.round(maxVal / 2), maxVal];
+
+  return `
+  <div class="fba-chart-wrap">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#ffffff;border-radius:12px;border:1px solid var(--slate-200);overflow:visible;display:block">
+      <defs>
+        <linearGradient id="fbaAreaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e11d48" stop-opacity="0.22"/>
+          <stop offset="65%" stop-color="#6366f1" stop-opacity="0.12"/>
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Phase Background Zones -->
+      ${splitX !== null ? `
+        <rect x="${padL}" y="${padT - 8}" width="${splitX - padL}" height="${h - padT - padB + 8}" fill="rgba(244,63,94,0.045)" rx="4"/>
+        <rect x="${splitX}" y="${padT - 8}" width="${w - padR - splitX}" height="${h - padT - padB + 8}" fill="rgba(16,185,129,0.05)" rx="4"/>
+        <text x="${padL + 8}" y="${padT + 4}" font-size="9.5" font-weight="800" fill="#be123c" letter-spacing="0.04em">BASELINE PHASE (${rm.baselineRate}/day)</text>
+        <text x="${splitX + 10}" y="${padT + 4}" font-size="9.5" font-weight="800" fill="#047857" letter-spacing="0.04em">BIP / FCT INTERVENTION (${rm.currentRate}/day)</text>
+      ` : ''}
+
+      <!-- Horizontal Grid Lines -->
+      ${gridSteps.map((gv) => `
+        <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#e2e8f0" stroke-width="1"/>
+        <text x="${padL - 8}" y="${y(gv) + 3}" text-anchor="end" font-size="10" font-weight="600" fill="#64748b">${gv}</text>
+      `).join('')}
+
+      <!-- Baseline & Intervention Mean Reference Lines -->
+      ${rm.baselineRate > 0 ? `
+        <line x1="${padL}" x2="${splitX || (w - padR)}" y1="${y(rm.baselineRate)}" y2="${y(rm.baselineRate)}" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
+      ` : ''}
+      ${splitX !== null && rm.currentRate >= 0 ? `
+        <line x1="${splitX}" x2="${w - padR}" y1="${y(rm.currentRate)}" y2="${y(rm.currentRate)}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>
+      ` : ''}
+
+      <!-- Phase Change Vertical Divider -->
+      ${splitX !== null ? `
+        <line x1="${splitX}" x2="${splitX}" y1="${padT - 8}" y2="${h - padB}" stroke="#4f46e5" stroke-width="2" stroke-dasharray="5 3"/>
+      ` : ''}
+
+      <!-- Area & Trend Polyline -->
+      <polygon points="${areaPoly}" fill="url(#fbaAreaGrad)"/>
+      <polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+
+      <!-- Data Points & Labels -->
+      ${series.map((d, i) => {
+        const cx = x(i);
+        const cy = y(d.count);
+        const isPost = splitIdx !== null && i >= splitIdx;
+        const dotColor = isPost ? '#059669' : '#e11d48';
+        return `
+          <g>
+            <circle cx="${cx}" cy="${cy}" r="5.5" fill="#ffffff" stroke="${dotColor}" stroke-width="3">
+              <title>${esc(d.label)} (${esc(d.phase || 'Observation')}): ${d.count} incident(s)</title>
+            </circle>
+            <text x="${cx}" y="${cy - 10}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${dotColor}">${d.count}</text>
+            <text x="${cx}" y="${h - 12}" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">${esc(d.label)}</text>
+          </g>
+        `;
+      }).join('')}
+    </svg>
+  </div>`;
+}
+
+function fbaFunctionDonut(functions, total) {
+  const fnColors = [
+    { key: 'Escape', label: 'Escape / Avoidance', color: '#e11d48' },
+    { key: 'Tangible', label: 'Access to Tangible', color: '#d97706' },
+    { key: 'Attention', label: 'Attention Seeking', color: '#2563eb' },
+    { key: 'Sensory', label: 'Automatic / Sensory', color: '#7c3aed' }
+  ];
+  const r = 52;
+  const c = +(2 * Math.PI * r).toFixed(2);
+  let offset = 0;
+  const arcs = total > 0 ? fnColors.map((item) => {
+    const cnt = (functions && functions[item.key]) || 0;
+    if (!cnt) return '';
+    const frac = cnt / total;
+    const len = +(frac * c).toFixed(2);
+    const dashOffset = -offset;
+    offset += len;
+    return `<circle cx="72" cy="72" r="${r}" fill="none" stroke="${item.color}" stroke-width="18" stroke-dasharray="${len} ${c}" stroke-dashoffset="${dashOffset}" transform="rotate(-90 72 72)">
+      <title>${item.label}: ${cnt} (${Math.round(frac * 100)}%)</title>
+    </circle>`;
+  }).join('') : `<circle cx="72" cy="72" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="18"/>`;
+
+  return `
+  <svg viewBox="0 0 144 144" width="144" height="144" style="flex-shrink:0">
+    <circle cx="72" cy="72" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="18"/>
+    ${arcs}
+    <text x="72" y="68" text-anchor="middle" font-size="22" font-weight="900" fill="#0f172a">${total}</text>
+    <text x="72" y="84" text-anchor="middle" font-size="9" font-weight="800" fill="#64748b" letter-spacing="0.06em">ABC EVENTS</text>
+  </svg>`;
+}
+
 const ANTS = ['Transition from preferred activity', 'Removal of preferred item', 'Difficult academic task', 'Denied access', 'Peer proximity / space', 'Loud sensory environment', 'Unstructured free time'];
 const BEHAVIORS = ['Screaming', 'Aggression', 'Elopement', 'Task refusal', 'Crying', 'Property destruction', 'Self-injurious behavior'];
 
@@ -838,60 +953,249 @@ async function clientView(id) {
     </div>`;
   }
 
-  // Tab: Behavior & ABC Logs
+  // Tab: Behavior & ABC Logs (FBA Analytics & Behavior Reduction Suite)
   else if (tab === 'behavior_abc') {
+    const totalAbc = abcSummary.total || abcLogs.length || 0;
+    const rm = abcSummary.reductionMetrics || { baselineRate: 0, currentRate: 0, pctChange: 0, trendDirection: 'Stable', replacementSuccessRate: 100, observationDays: 0 };
+    const domFn = abcSummary.dominantFunction || { name: 'Escape', count: 0, pct: 0, secondaryName: null, secondaryPct: 0 };
+    const antMatrix = abcSummary.antecedentMatrix || [];
+    const conMatrix = abcSummary.consequenceMatrix || [];
+    const behMatrix = abcSummary.behaviorMatrix || [];
+    const topAnt = antMatrix[0] || null;
+
+    const filteredAbc = abcLogs.filter((a) => {
+      if (fbaFilterBehavior !== 'ALL' && a.behavior !== fbaFilterBehavior) return false;
+      if (fbaFilterFunction !== 'ALL' && (a.perceived_function || 'Escape') !== fbaFilterFunction) return false;
+      if (fbaFilterHour !== null && a.ts && new Date(a.ts).getHours() !== fbaFilterHour) return false;
+      return true;
+    });
+    const hasActiveFilter = fbaFilterBehavior !== 'ALL' || fbaFilterFunction !== 'ALL' || fbaFilterHour !== null;
+
+    const fnMeta = [
+      { key: 'Escape', label: 'Escape / Avoidance', desc: 'Social Negative Reinforcement (Demand / Transition)', color: '#e11d48', bg: '#fff1f2', border: '#fecdd3' },
+      { key: 'Tangible', label: 'Access to Tangible', desc: 'Social Positive Reinforcement (Preferred Item / Activity)', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+      { key: 'Attention', label: 'Attention Seeking', desc: 'Social Positive Reinforcement (Peer / Adult Attention)', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+      { key: 'Sensory', label: 'Automatic / Sensory', desc: 'Automatic Reinforcement (Auditory / Proprioceptive)', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' }
+    ];
+
+    const maxHourlyCount = Math.max(1, ...((abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map((h) => h.count)));
+
     body = `
     <div class="card">
-      <div class="flex-between">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
         <div>
-          <h3>Antecedent-Behavior-Consequence (ABC) Data Center</h3>
-          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Analyze environmental triggers and functional maintaining variables.</p>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 style="margin:0">Functional Behavior Assessment (FBA) & ABC Analytics</h3>
+            <span class="badge p">CPT 97151 / 97155 Clinical Analytics</span>
+          </div>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:4px 0 0">Longitudinal behavior reduction graphing, 4-function contingency weighting, antecedent conditional probabilities, and FBA progress reporting.</p>
         </div>
-        <button class="ok" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
-      </div>
-
-      <div class="abc-grid" style="margin-top:16px">
-        <div class="abc-metric Escape">
-          <div class="abc-num">${abcSummary.functions.Escape || 0}</div>
-          <small>Escape / Avoidance</small>
-        </div>
-        <div class="abc-metric Attention">
-          <div class="abc-num">${abcSummary.functions.Attention || 0}</div>
-          <small>Attention Seeking</small>
-        </div>
-        <div class="abc-metric Tangible">
-          <div class="abc-num">${abcSummary.functions.Tangible || 0}</div>
-          <small>Access to Tangible</small>
-        </div>
-        <div class="abc-metric Sensory">
-          <div class="abc-num">${abcSummary.functions.Sensory || 0}</div>
-          <small>Automatic / Sensory</small>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="sec" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe;font-weight:800" onclick="act.openFbaReportModal(${c.id})">
+            📄 Generate FBA & Progress Report
+          </button>
+          <button class="ok" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
         </div>
       </div>
 
-      <!-- Temporal Scatterplot & Setting Event Heatmap (CentralReach Improvement) -->
-      <div style="margin-top:20px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-lg);padding:16px">
-        <div class="flex-between">
+      <!-- Executive FBA Hypothesis & Behavior Reduction KPI Strip -->
+      <div class="fba-kpi-strip" style="margin-top:16px">
+        <div class="fba-kpi-card" style="border-left:4px solid #e11d48">
+          <div class="fba-kpi-label">Primary Hypothesized Function</div>
+          <div class="fba-kpi-val" style="color:#be123c">${esc(domFn.name)} (${domFn.pct}%)</div>
+          <div class="fba-kpi-sub">${domFn.count} of ${totalAbc} events${domFn.secondaryName ? ` · Secondary: <b>${esc(domFn.secondaryName)} (${domFn.secondaryPct}%)</b>` : ''}</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid ${rm.pctChange <= 0 ? '#059669' : '#d97706'}">
+          <div class="fba-kpi-label">Behavior Reduction Rate</div>
+          <div class="fba-kpi-val" style="color:${rm.pctChange <= 0 ? '#047857' : '#b45309'}">
+            ${rm.baselineRate}/d → ${rm.currentRate}/d
+            <span class="badge ${rm.pctChange <= 0 ? 'tan' : 'esc'}" style="font-size:0.75rem;vertical-align:middle;margin-left:4px">
+              ${rm.pctChange <= 0 ? `↓ ${Math.abs(rm.pctChange)}%` : `↑ ${rm.pctChange}%`}
+            </span>
+          </div>
+          <div class="fba-kpi-sub">${esc(rm.trendDirection)} across ${rm.observationDays} observation days</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid #4f46e5">
+          <div class="fba-kpi-label">Top Antecedent Conditional Prob.</div>
+          <div class="fba-kpi-val" style="color:#3730a3;font-size:1.05rem">${topAnt ? `${topAnt.pct}% (${topAnt.count}x)` : '0%'}</div>
+          <div class="fba-kpi-sub" title="${esc(topAnt ? topAnt.antecedent : '')}">${topAnt ? esc(topAnt.antecedent) : 'No antecedents logged'}</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid #059669">
+          <div class="fba-kpi-label">FCT / De-escalation Success</div>
+          <div class="fba-kpi-val" style="color:#047857">${rm.replacementSuccessRate}%</div>
+          <div class="fba-kpi-sub">Episodes resolved via FCT card / visual schedule</div>
+        </div>
+      </div>
+
+      <!-- Interactive Target Behavior Topography Filter Bar -->
+      <div class="fba-filter-bar" style="margin-top:16px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:0.74rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-right:4px">Filter Target Topography:</span>
+          <button class="fba-chip ${fbaFilterBehavior === 'ALL' ? 'active' : ''}" onclick="act.setFbaBehavior('ALL')">
+            All Behaviors (${totalAbc})
+          </button>
+          ${behMatrix.map((bm) => `
+            <button class="fba-chip ${fbaFilterBehavior === bm.behavior ? 'active' : ''}" onclick="act.setFbaBehavior(${JSON.stringify(bm.behavior).replace(/"/g, '&quot;')})">
+              ${esc(bm.behavior)} <b>(${bm.count} · ${bm.pct}%)</b>
+            </button>
+          `).join('')}
+        </div>
+        ${hasActiveFilter ? `
+          <button class="sec" style="padding:4px 10px;font-size:0.76rem;color:var(--bad);border-color:#fecaca" onclick="act.resetFbaFilters()">
+            ✕ Reset Active Filters
+          </button>
+        ` : ''}
+      </div>
+
+      <!-- Primary 2-Column FBA Visual Suite: Longitudinal Phase Chart + 4-Function Donut Matrix -->
+      <div class="fba-two-col" style="margin-top:18px">
+        <!-- Chart 1: Longitudinal Behavior Reduction & Phase-Change Graph -->
+        <div class="fba-panel">
+          <div class="flex-between" style="margin-bottom:10px;flex-wrap:wrap;gap:6px">
+            <div>
+              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">📈 Longitudinal Behavior Frequency & BIP Phase-Change Graph</h4>
+              <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Daily episode count comparing Baseline vs. Post-BIP / FCT Intervention phase.</p>
+            </div>
+            <span class="badge tan">${rm.pctChange <= 0 ? `↓ ${Math.abs(rm.pctChange)}% Post-BIP Reduction` : 'Phase Tracking'}</span>
+          </div>
+          ${fbaTrendChart(abcSummary.dailySeries, rm)}
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-size:0.78rem;color:var(--slate-600)">
+            <span><b style="color:#be123c">● Baseline Phase:</b> ${rm.baselineRate} episodes/day</span>
+            <span><b style="color:#4f46e5">┆ Phase Change:</b> FCT & Visual Countdown Introduced</span>
+            <span><b style="color:#047857">● Intervention Phase:</b> ${rm.currentRate} episodes/day</span>
+          </div>
+        </div>
+
+        <!-- Chart 2: 4-Function Relative Weighting Donut + Clickable Function Cards -->
+        <div class="fba-panel">
+          <div class="flex-between" style="margin-bottom:10px;flex-wrap:wrap;gap:6px">
+            <div>
+              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">🧭 4-Function Contingency Weighting (FBA)</h4>
+              <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Relative distribution across the 4 BACB functions. Click any function to filter logs.</p>
+            </div>
+            <span class="badge p">Dominant: ${esc(domFn.name)} (${domFn.pct}%)</span>
+          </div>
+          <div class="fba-donut-layout">
+            ${fbaFunctionDonut(abcSummary.functions, totalAbc)}
+            <div class="fba-fn-list">
+              ${fnMeta.map((f) => {
+                const cnt = (abcSummary.functions && abcSummary.functions[f.key]) || 0;
+                const pct = totalAbc ? Math.round((cnt / totalAbc) * 100) : 0;
+                const isSelected = fbaFilterFunction === f.key;
+                return `
+                  <div class="fba-fn-row ${isSelected ? 'selected' : ''}" style="border-left:4px solid ${f.color};background:${isSelected ? f.bg : '#fff'}" onclick="act.setFbaFunction('${f.key}')">
+                    <div class="flex-between" style="gap:8px">
+                      <div>
+                        <span style="font-weight:800;font-size:0.84rem;color:var(--slate-900)">${f.label}</span>
+                        <div style="font-size:0.71rem;color:var(--slate-500)">${f.desc}</div>
+                      </div>
+                      <div style="text-align:right;white-space:nowrap">
+                        <span style="font-weight:900;font-size:0.95rem;color:${f.color}">${pct}%</span>
+                        <span style="font-size:0.75rem;color:var(--slate-500);margin-left:3px">(${cnt})</span>
+                      </div>
+                    </div>
+                    <div class="fba-bar-track" style="margin-top:5px">
+                      <div class="fba-bar-fill" style="width:${pct}%;background:${f.color}"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary 2-Column FBA Suite: Antecedent Conditional Probability & Consequence Effectiveness -->
+      <div class="fba-two-col" style="margin-top:16px">
+        <!-- Chart 3A: Antecedent Trigger Conditional Probability -->
+        <div class="fba-panel">
+          <div class="flex-between" style="margin-bottom:10px">
+            <div>
+              <h4 style="margin:0;font-size:0.96rem;color:var(--slate-900)">⚡ Antecedent Conditional Probability Matrix</h4>
+              <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Environmental triggers ranked by conditional probability of evoking maladaptive behavior.</p>
+            </div>
+            <span class="badge esc">Trigger Ranking</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${antMatrix.slice(0, 5).map((item) => `
+              <div class="fba-prob-row">
+                <div class="flex-between" style="gap:8px;font-size:0.82rem">
+                  <span style="font-weight:700;color:var(--slate-800)">${esc(item.antecedent)}</span>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <span class="badge ${item.primaryFunction.toLowerCase().slice(0, 3)}" style="font-size:0.68rem">${esc(item.primaryFunction)}</span>
+                    <b style="color:var(--slate-900)">${item.pct}% (${item.count}x)</b>
+                  </div>
+                </div>
+                <div class="fba-bar-track" style="margin-top:5px;height:8px">
+                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#e11d48,#6366f1)"></div>
+                </div>
+                <div style="font-size:0.72rem;color:var(--slate-500);margin-top:3px">
+                  Primary Topography: <b>${esc(item.primaryBehavior)}</b>
+                </div>
+              </div>
+            `).join('') || '<div style="color:var(--slate-400);font-size:0.84rem">No antecedent data logged yet.</div>'}
+          </div>
+        </div>
+
+        <!-- Chart 3B: Consequence & FCT Replacement Effectiveness -->
+        <div class="fba-panel">
+          <div class="flex-between" style="margin-bottom:10px">
+            <div>
+              <h4 style="margin:0;font-size:0.96rem;color:var(--slate-900)">🛡️ Consequence & FCT Intervention Effectiveness</h4>
+              <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Staff consequence delivery frequency and post-prompt de-escalation / FCT fidelity.</p>
+            </div>
+            <span class="badge tan">BIP Fidelity</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${conMatrix.slice(0, 5).map((item) => `
+              <div class="fba-prob-row">
+                <div class="flex-between" style="gap:8px;font-size:0.82rem">
+                  <span style="font-weight:700;color:var(--slate-800)">${esc(item.consequence)}</span>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <span class="badge tan" style="font-size:0.68rem">${item.deescalationRate}% De-escalated</span>
+                    <b style="color:var(--slate-900)">${item.count}x (${item.pct}%)</b>
+                  </div>
+                </div>
+                <div class="fba-bar-track" style="margin-top:5px;height:8px">
+                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#059669,#10b981)"></div>
+                </div>
+                <div style="font-size:0.72rem;color:var(--slate-500);margin-top:3px">
+                  Targets Function: <b>${esc(item.primaryFunction)}</b>
+                </div>
+              </div>
+            `).join('') || '<div style="color:var(--slate-400);font-size:0.84rem">No consequence data logged yet.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart 4: Temporal Scatterplot & Hourly Bar-Heatmap (CentralReach Improvement) -->
+      <div style="margin-top:16px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-lg);padding:16px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:8px">
           <div>
-            <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">🕒 Temporal Behavior Scatterplot & Hourly Setting Event Heatmap</h4>
-            <p style="font-size:0.8rem;color:var(--slate-500);margin:2px 0 0">Distribution of incidents across clinic operational hours (8:00 AM – 5:00 PM) for Functional Behavior Assessments.</p>
+            <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">🕒 Temporal Behavior Scatterplot & Hourly Setting Event Bar-Heatmap</h4>
+            <p style="font-size:0.8rem;color:var(--slate-500);margin:2px 0 0">Distribution of incidents across clinic operational hours (8:00 AM – 5:00 PM). Click any hour slot to filter logs.</p>
           </div>
           <span class="badge p">FBA Scatterplot Analysis</span>
         </div>
 
         ${abcSummary.scatterplot && abcSummary.scatterplot.peakWindow ? `
           <div class="stalled-banner" style="margin-top:12px;background:#fef2f2;border-color:#fecaca;color:#991b1b">
-            ⚡ <b>Peak Behavioral Disruption Window:</b> <b>${esc(abcSummary.scatterplot.peakWindow.label)}</b> (${abcSummary.scatterplot.peakWindow.count} incident${abcSummary.scatterplot.peakWindow.count === 1 ? '' : 's'}). Primary Trigger: <b>${esc(abcSummary.scatterplot.peakWindow.primaryAntecedent)}</b>. Recommend antecedent visual schedules & high-density reinforcement prior to this transition window.
+            ⚡ <b>Peak Behavioral Disruption Window:</b> <b>${esc(abcSummary.scatterplot.peakWindow.label)}</b> (${abcSummary.scatterplot.peakWindow.count} incident${abcSummary.scatterplot.peakWindow.count === 1 ? '' : 's'}). Primary Trigger: <b>${esc(abcSummary.scatterplot.peakWindow.primaryAntecedent)}</b>. Recommend antecedent visual schedules & high-density reinforcement 5 minutes prior to this transition window.
           </div>
         ` : ''}
 
         <div class="heatmap-track" style="margin-top:14px">
-          ${(abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map(h => {
+          ${(abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map((h) => {
             const count = h.count;
             const bgClass = count >= 4 ? 'heat-4' : count >= 2 ? 'heat-2' : count === 1 ? 'heat-1' : 'heat-0';
-            const topAnt = Object.entries(h.antecedents).sort((a,b) => b[1] - a[1])[0];
+            const topHourAnt = Object.entries(h.antecedents).sort((a, b) => b[1] - a[1])[0];
+            const barHeightPct = Math.round((count / maxHourlyCount) * 100);
+            const isHourSelected = fbaFilterHour === h.hour;
             return `
-              <div class="heat-slot ${bgClass}" title="${h.label}: ${count} incident(s)${topAnt ? ` (Primary: ${topAnt[0]})` : ''}">
+              <div class="heat-slot ${bgClass} ${isHourSelected ? 'selected-hour' : ''}" style="cursor:pointer" onclick="act.setFbaHour(${h.hour})" title="${h.label}: ${count} incident(s)${topHourAnt ? ` (Primary: ${topHourAnt[0]})` : ''} — Click to filter">
+                <div class="heat-bar-well">
+                  <div class="heat-bar-col" style="height:${count ? Math.max(14, barHeightPct) : 4}%"></div>
+                </div>
                 <div class="heat-label">${h.label.replace(':00 ', ' ')}</div>
                 <div class="heat-count">${count}</div>
                 <div class="heat-sub">${count === 1 ? 'event' : 'events'}</div>
@@ -901,8 +1205,20 @@ async function clientView(id) {
         </div>
       </div>
 
-      <h4 style="margin-top:24px">Incident History (${abcLogs.length} total events)</h4>
-      ${abcLogs.length ? `
+      <div class="flex-between" style="margin-top:24px;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <h4 style="margin:0">
+          ABC Incident History (${filteredAbc.length}${hasActiveFilter ? ` of ${abcLogs.length}` : ''} total events)
+        </h4>
+        ${hasActiveFilter ? `
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${fbaFilterBehavior !== 'ALL' ? `<span class="badge esc">Behavior: ${esc(fbaFilterBehavior)}</span>` : ''}
+            ${fbaFilterFunction !== 'ALL' ? `<span class="badge p">Function: ${esc(fbaFilterFunction)}</span>` : ''}
+            ${fbaFilterHour !== null ? `<span class="badge tan">Hour: ${fbaFilterHour > 12 ? fbaFilterHour - 12 : fbaFilterHour}:00 ${fbaFilterHour >= 12 ? 'PM' : 'AM'}</span>` : ''}
+            <button class="sec" style="padding:3px 8px;font-size:0.74rem" onclick="act.resetFbaFilters()">Show All (${abcLogs.length})</button>
+          </div>
+        ` : ''}
+      </div>
+      ${filteredAbc.length ? `
         <table>
           <thead>
             <tr>
@@ -915,19 +1231,19 @@ async function clientView(id) {
             </tr>
           </thead>
           <tbody>
-            ${abcLogs.map(a => `
+            ${filteredAbc.map((a) => `
               <tr>
                 <td><span style="font-family:'JetBrains Mono',monospace;font-size:0.85rem">${fmtT(a.ts)}</span></td>
                 <td><b style="color:var(--bad)">${esc(a.behavior)}</b></td>
                 <td>${esc(a.antecedent)}</td>
                 <td>${esc(a.consequence)}</td>
-                <td><span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span></td>
+                <td><span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0, 3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span></td>
                 <td style="font-size:0.85rem;color:var(--slate-600)">${esc(a.notes || '—')}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
-      ` : '<p style="color:var(--slate-400);text-align:center;padding:20px">Zero ABC incidents logged.</p>'}
+      ` : '<p style="color:var(--slate-400);text-align:center;padding:20px">No ABC incidents match the current filter.</p>'}
     </div>`;
   }
 
@@ -2166,6 +2482,54 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'fba_report') {
+    const report = activeModal.report;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:860px;width:95%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--slate-200)">
+          <div>
+            <span class="badge p">CPT 97151 / 97155 Functional Behavior Assessment (FBA)</span>
+            <h3 style="margin:4px 0 0">${esc(report.title)}</h3>
+            <div style="font-size:0.85rem;color:var(--slate-500)">Client: <b>${esc(report.client_name)}</b> · Date: ${esc(report.date)} · Total ABC Episodes: <b>${report.totalIncidents}</b></div>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0">
+          <div style="background:#fff1f2;border:1px solid #fecdd3;padding:10px 12px;border-radius:12px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:800;color:#9f1239;text-transform:uppercase">Primary Function</div>
+            <div style="font-size:1.25rem;font-weight:900;color:#be123c">${esc(report.primaryFunction)} (${report.primaryFunctionPct}%)</div>
+          </div>
+          <div style="background:#f8fafc;border:1px solid var(--slate-200);padding:10px 12px;border-radius:12px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Baseline → Current</div>
+            <div style="font-size:1.25rem;font-weight:900;color:var(--slate-900)">${report.baselineRate}/d → ${report.currentRate}/d</div>
+          </div>
+          <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 12px;border-radius:12px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:800;color:#065f46;text-transform:uppercase">Net Rate Change</div>
+            <div style="font-size:1.25rem;font-weight:900;color:#047857">${report.pctChange <= 0 ? `↓ ${Math.abs(report.pctChange)}%` : `↑ ${report.pctChange}%`}</div>
+          </div>
+          <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:10px 12px;border-radius:12px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:800;color:#3730a3;text-transform:uppercase">FCT De-escalation</div>
+            <div style="font-size:1.25rem;font-weight:900;color:#4f46e5">${report.replacementSuccessRate}%</div>
+          </div>
+        </div>
+
+        <div class="report-content" id="report_text_body" style="background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:18px;font-size:0.86rem;line-height:1.65;white-space:pre-wrap;font-family:'JetBrains Mono',monospace;color:var(--slate-800)">${esc(report.text)}</div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap">
+          <div style="font-size:0.8rem;color:var(--slate-500)">
+            🔒 BACB Functional Behavior Assessment & Progress Report Draft · Supervising BCBA Signature Required
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec" onclick="act.copyReport()">📋 Copy FBA Report</button>
+            <button class="ok" onclick="window.print()">🖨️ Print / Save as PDF</button>
+            <button class="sec" onclick="act.closeModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
@@ -2204,6 +2568,29 @@ const act = {
   setTab: (t) => { tab = t; render(); },
   toggleCrisis: () => { showCrisis = !showCrisis; render(); },
   openAbcModal: (cid, sid = null) => { activeModal = { type: 'abc', clientId: cid, sessionId: sid }; render(); },
+  openFbaReportModal: safe(async (cid) => {
+    const report = await api('GET', `/api/clients/${cid}/fba-report`);
+    activeModal = { type: 'fba_report', report };
+    render();
+  }),
+  setFbaBehavior: (beh) => {
+    fbaFilterBehavior = fbaFilterBehavior === beh ? 'ALL' : beh;
+    render();
+  },
+  setFbaFunction: (fn) => {
+    fbaFilterFunction = fbaFilterFunction === fn ? 'ALL' : fn;
+    render();
+  },
+  setFbaHour: (hr) => {
+    fbaFilterHour = fbaFilterHour === hr ? null : hr;
+    render();
+  },
+  resetFbaFilters: () => {
+    fbaFilterBehavior = 'ALL';
+    fbaFilterFunction = 'ALL';
+    fbaFilterHour = null;
+    render();
+  },
   closeModal: () => { activeModal = null; render(); },
   submitAbcModal: safe(async (cid, sid) => {
     const payload = {

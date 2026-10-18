@@ -205,7 +205,21 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const gCreated = (await r('POST', '/api/clients/1/goals', { title: '2-Step Motor Imitation', baseline: 20, target: 80 })).j;
   ok(gCreated.id && gCreated.goal && gCreated.goal.title === '2-Step Motor Imitation', 'Clinician can create new skill goal from DTT/session view');
 
+  // 16. FBA Multi-Chart Analytics & Behavior Reduction Progress Report
+  ok(Array.isArray(clientData.abcSummary.dailySeries) && clientData.abcSummary.dailySeries.length >= 5, 'ABC summary includes multi-day longitudinal dailySeries');
+  ok(clientData.abcSummary.reductionMetrics && clientData.abcSummary.reductionMetrics.pctChange < 0, 'ABC summary computes Baseline vs Post-BIP behavior reduction rate');
+  ok(clientData.abcSummary.dominantFunction && clientData.abcSummary.dominantFunction.name === 'Escape', 'ABC summary identifies Escape as primary hypothesized function');
+  ok(Array.isArray(clientData.abcSummary.antecedentMatrix) && clientData.abcSummary.antecedentMatrix.length >= 3, 'ABC summary computes antecedent conditional probability matrix');
+  ok(Array.isArray(clientData.abcSummary.consequenceMatrix) && clientData.abcSummary.consequenceMatrix.length >= 2, 'ABC summary computes consequence & FCT effectiveness matrix');
+
+  const fbaParentBlock = await p('GET', '/api/clients/1/fba-report');
+  ok(fbaParentBlock.s === 403, 'Parent blocked from raw FBA clinical progress report');
+  const fbaRes = await b('GET', '/api/clients/1/fba-report');
+  ok(fbaRes.s === 200 && fbaRes.j.sections && fbaRes.j.sections.length === 5, 'BCBA/RBT can generate 5-section FBA & Behavior Reduction Progress Report');
+  ok(fbaRes.j.text.includes('FUNCTIONAL BEHAVIOR ASSESSMENT') && fbaRes.j.primaryFunction === 'Escape', 'FBA report includes functional hypothesis and baseline vs intervention trajectory');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, CentralReach Enhancements & Founder Demo Ready)');
   process.exit(fails ? 1 : 0);
 })();
+
