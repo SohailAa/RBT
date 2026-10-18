@@ -376,8 +376,43 @@ route('PUT', '/api/clients/:id', (u, b, p) => {
   run(`UPDATE clients SET ${f.map((x) => x + '=?').join(',')} WHERE id=?`, ...f.map((x) => b[x] ?? ''), +p.id); return {};
 });
 route('POST', '/api/clients/:id/goals', (u, b, p) => {
-  need(u, 'BCBA'); if (!b.title) bad(400, 'Title required');
-  run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', +p.id, b.title, +b.baseline || 0, +b.target || 80); return {};
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (!b.title) bad(400, 'Title required');
+  const r = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', +p.id, b.title, +b.baseline || 0, +b.target || 80);
+  const g = get('SELECT * FROM goals WHERE id=?', Number(r.lastInsertRowid));
+  return { id: Number(r.lastInsertRowid), goal: g ? goalProgress(g) : null };
+});
+route('GET', '/api/goals/:id', (u, b, p) => {
+  const g = get('SELECT * FROM goals WHERE id=?', +p.id);
+  if (!g) bad(404, 'Goal not found');
+  clientOr403(u, g.client_id);
+  const prog = goalProgress(g);
+  const client = get('SELECT id,name FROM clients WHERE id=?', g.client_id);
+  const rawTrials = all('SELECT * FROM trials WHERE goal_id=? ORDER BY id DESC', g.id);
+  const promptTotals = { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
+  rawTrials.forEach((t) => { if (promptTotals[t.level] !== undefined) promptTotals[t.level]++; });
+  return {
+    ...prog,
+    client_name: client ? client.name : '',
+    total_trials: rawTrials.length,
+    prompt_totals: promptTotals,
+    recent_trials: rawTrials.slice(0, 20)
+  };
+});
+route('PUT', '/api/goals/:id', (u, b, p) => {
+  const g = get('SELECT * FROM goals WHERE id=?', +p.id);
+  if (!g) bad(404, 'Goal not found');
+  clientOr403(u, g.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const title = (b.title ?? g.title).trim();
+  if (!title) bad(400, 'Title required');
+  const baseline = b.baseline !== undefined ? +b.baseline : g.baseline;
+  const target = b.target !== undefined ? +b.target : g.target;
+  const status = b.status || g.status || 'active';
+  run('UPDATE goals SET title=?,baseline=?,target=?,status=? WHERE id=?', title, baseline, target, status, g.id);
+  const updated = get('SELECT * FROM goals WHERE id=?', g.id);
+  return goalProgress(updated);
 });
 route('POST', '/api/goals/:id/status', (u, b, p) => {
   need(u, 'BCBA');
@@ -476,12 +511,16 @@ route('POST', '/api/appointments/:id/start', (u, b, p) => {
 function sessionView(u, sid) {
   const s = get('SELECT * FROM sessions WHERE id=?', +sid); if (!s) bad(404, 'Not found'); clientOr403(u, s.client_id);
   const client = get('SELECT * FROM clients WHERE id=?', s.client_id);
-  const goals = all('SELECT * FROM goals WHERE client_id=? AND status=\'active\'', s.client_id).map((g) => ({ ...g, summary: G.summarize(all('SELECT level FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id)) }));
+  const allGoals = all('SELECT * FROM goals WHERE client_id=?', s.client_id).map((g) => ({
+    ...goalProgress(g),
+    summary: G.summarize(all('SELECT level FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id))
+  }));
+  const goals = allGoals.filter((g) => g.status === 'active');
   const plans = all('SELECT * FROM plans WHERE client_id=? AND status=\'approved\'', s.client_id).map((x) => ({ ...x, data: parse(x.data) }));
   const stories = all('SELECT * FROM stories WHERE client_id=? AND status IN (\'approved\',\'shared\')', s.client_id).map((x) => ({ ...x, content: parse(x.content) }));
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
   const abcLogs = all('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC', s.id);
-  return { session: s, client, goals, plans, stories, appt, abcLogs };
+  return { session: s, client, goals, allGoals, plans, stories, appt, abcLogs };
 }
 route('GET', '/api/sessions/:id', (u, b, p) => { if (u.role === 'PARENT') bad(403, 'Not allowed'); return sessionView(u, p.id); });
 route('POST', '/api/sessions/:id/trials', (u, b, p) => {

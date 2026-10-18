@@ -197,6 +197,14 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(c360.stories.some(st => st.status === 'shared') && c360.stories.some(st => st.status === 'draft'), 'Demo seed includes both shared and draft Social Stories');
   ok(c360.goals[0].mastery_met === true && c360.goals[1].stalled === true, 'Demo seed showcases both Mastery Criteria Met and Target Stalled intelligence');
 
+  // 15. Goal Clinical Data Review, Modification & In-Session Goal Creation
+  const gDetail = (await r('GET', '/api/goals/1')).j;
+  ok(gDetail.id === 1 && gDetail.total_trials > 0 && typeof gDetail.prompt_totals.I === 'number', 'GET /api/goals/:id returns detailed trial & prompt breakdown');
+  const gEdit = (await b('PUT', '/api/goals/2', { title: 'Waiting for a turn (with visual timer)', baseline: 25, target: 85, status: 'active' })).j;
+  ok(gEdit.title.includes('visual timer') && gEdit.baseline === 25 && gEdit.target === 85, 'PUT /api/goals/:id updates goal title, baseline, and target');
+  const gCreated = (await r('POST', '/api/clients/1/goals', { title: '2-Step Motor Imitation', baseline: 20, target: 80 })).j;
+  ok(gCreated.id && gCreated.goal && gCreated.goal.title === '2-Step Motor Imitation', 'Clinician can create new skill goal from DTT/session view');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, CentralReach Enhancements & Founder Demo Ready)');
   process.exit(fails ? 1 : 0);

@@ -6,11 +6,120 @@ let clientSearchQuery = '';
 let showKidMode = false;
 let tokenCount = 0;
 let targetTokens = 5;
+let kidTheme = 'space';
+let kidSound = true;
+let kidAutoToken = true;
+let kidRewardChoice = '';
+let kidFirstGoalId = null;
+let kidFirstDone = false;
+let kidPraiseMsg = '';
+let kidCelebrationBurst = false;
 let sessionMode = 'dtt';
 let pitchSlide = 0;
 let pitchTourActive = false;
 let roiBcba = 3;
 let roiRbt = 12;
+
+const KID_THEMES = {
+  space: {
+    id: 'space',
+    name: '🚀 Space Rocket',
+    title: 'Cosmic Rocket Adventure',
+    subtitle: 'Collect glowing Cosmic Stars to launch the Rocket to the Saturn Reward Base!',
+    tokenEarned: '🌟',
+    tokenEmpty: '🪐',
+    hero: '🚀',
+    dest: '🌕',
+    accent: '#6366f1',
+    bannerBg: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 55%, #0f172a 100%)',
+    trackBg: 'linear-gradient(90deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)'
+  },
+  dino: {
+    id: 'dino',
+    name: '🦕 Dino Island',
+    title: 'Dino Explorer Island',
+    subtitle: 'Hatch the Baby Dinosaurs to unlock the Golden Volcano Treasure!',
+    tokenEarned: '🦖',
+    tokenEmpty: '🥚',
+    hero: '🦕',
+    dest: '🌋',
+    accent: '#059669',
+    bannerBg: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #065f46 100%)',
+    trackBg: 'linear-gradient(90deg, #064e3b 0%, #059669 50%, #10b981 100%)'
+  },
+  lego: {
+    id: 'lego',
+    name: '🧱 Master Builder',
+    title: 'Master LEGO Kingdom',
+    subtitle: 'Stack Super Builder Bricks to finish the Royal Castle Tower!',
+    tokenEarned: '🧱',
+    tokenEmpty: '🔲',
+    hero: '👷',
+    dest: '🏰',
+    accent: '#d97706',
+    bannerBg: 'linear-gradient(135deg, #78350f 0%, #b45309 55%, #1e3a8a 100%)',
+    trackBg: 'linear-gradient(90deg, #92400e 0%, #d97706 50%, #2563eb 100%)'
+  },
+  train: {
+    id: 'train',
+    name: '🚂 Super Train',
+    title: 'Rainbow Express Railway',
+    subtitle: 'Couple the Golden Train Cars to chug all the way to Rainbow Station!',
+    tokenEarned: '🚃',
+    tokenEmpty: '🛤️',
+    hero: '🚂',
+    dest: '🌈',
+    accent: '#0284c7',
+    bannerBg: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 55%, #312e81 100%)',
+    trackBg: 'linear-gradient(90deg, #075985 0%, #0284c7 50%, #38bdf8 100%)'
+  }
+};
+
+const PRAISE_CHEERS = [
+  '🌟 SUPERSTAR LISTENER! Amazing job!',
+  '🚀 BLAST OFF! You are working so hard!',
+  '🏆 CHAMPION EFFORT! High Five! 🙌',
+  '🦖 DINO-MITE FOCUS! Way to go!',
+  '🧱 MASTER BUILDER! You nailed that trial!',
+  '🌈 INCREDIBLE WORK! Keep shining!'
+];
+
+function playKidSound(type = 'token') {
+  if (!kidSound || typeof window === 'undefined') return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const notes = type === 'victory'
+      ? [523.25, 659.25, 783.99, 1046.5, 1318.5]
+      : type === 'praise'
+      ? [659.25, 830.61, 987.77, 1318.5]
+      : [587.33, 880.0];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.09);
+      gain.gain.setValueAtTime(0.18, ctx.currentTime + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.09 + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.09);
+      osc.stop(ctx.currentTime + i * 0.09 + 0.3);
+    });
+  } catch (e) {}
+}
+
+function speakKidPraise(text) {
+  if (!kidSound || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.02;
+    u.pitch = 1.2;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const val = (id) => (document.getElementById(id) || {}).value || '';
 const LV = {
@@ -561,21 +670,27 @@ async function clientView(id) {
         <div class="card">
           <div class="flex-between">
             <h3>🎯 Active Skill Acquisition Targets</h3>
-            <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('skills')">View All Targets →</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 10px" onclick="act.openCreateGoalModal(${c.id})">+ Add Target</button>` : ''}
+              <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.setTab('skills')">View All Targets →</button>
+            </div>
           </div>
           ${goals.slice(0, 3).map(g => `
-            <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--slate-100)">
-              <div class="flex-between">
-                <b>${esc(g.title)}</b>
-                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
+            <div class="goal-click-card" onclick="act.openGoalModal(${g.id})">
+              <div class="flex-between" style="gap:8px;flex-wrap:wrap">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <b style="font-size:0.98rem;color:var(--primary)">${esc(g.title)}</b>
+                  <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? '🏆 Mastered' : g.trend)}</span>
+                </div>
+                <span class="badge p" style="font-size:0.72rem">📊 Click to Review / Edit</span>
               </div>
-              <div style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 6px">
-                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery: <b>${g.target}%</b>
+              <div style="font-size:0.84rem;color:var(--slate-500);margin:4px 0 6px">
+                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b>
               </div>
               ${g.mastery_met && g.status !== 'mastered' ? `
-                <div class="mastery-banner">
+                <div class="mastery-banner" onclick="event.stopPropagation()">
                   <span>${esc(g.recommendation)}</span>
-                  ${B ? `<button class="ok" style="font-size:0.75rem;padding:3px 8px" onclick="act.setGoalStatus(${g.id}, 'mastered')">✓ Advance Target</button>` : ''}
+                  ${!P ? `<button class="ok" style="font-size:0.75rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>` : ''}
                 </div>
               ` : g.stalled ? `
                 <div class="stalled-banner">${esc(g.recommendation)}</div>
@@ -670,51 +785,45 @@ async function clientView(id) {
   else if (tab === 'skills') {
     body = `
     <div class="card">
-      <div class="flex-between">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
         <div>
           <h3>Skill Targets & Discrete Trial Training (DTT)</h3>
-          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Track longitudinal percentage of independent vs prompted trials.</p>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Click any target below to inspect session-by-session trial data, modify mastery criteria, or mark as mastered.</p>
         </div>
-        ${B ? `<button class="ok" onclick="document.getElementById('add_goal_card').style.display='block'">+ Add Skill Target</button>` : ''}
+        ${!P ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ok" onclick="act.openCreateGoalModal(${c.id})">+ Create New Skill Target</button>
+          </div>
+        ` : ''}
       </div>
-
-      ${B ? `
-        <div class="card" id="add_goal_card" style="display:none;background:var(--slate-50);margin-top:16px;border:1px dashed var(--slate-300)">
-          <div class="flex-between">
-            <h4>Add New Skill Acquisition Target</h4>
-            <button class="sec" style="padding:2px 8px;font-size:0.75rem" onclick="document.getElementById('add_goal_card').style.display='none'">✕</button>
-          </div>
-          <div class="row">
-            <div><label>Target Operational Title</label><input id="gt" placeholder="e.g. 2-Step Motor Imitation"></div>
-            <div><label>Baseline % Independent</label><input id="gb" type="number" value="20"></div>
-            <div><label>Mastery Criterion %</label><input id="gg" type="number" value="80"></div>
-          </div>
-          <button class="ok" onclick="act.addGoal(${c.id})">Save Target</button>
-        </div>
-      ` : ''}
 
       <div style="margin-top:16px">
         ${goals.map((g) => {
           const lastSession = g.series && g.series.length ? g.series[g.series.length - 1] : null;
           return `
-          <div style="background:var(--surface);padding:16px;border-radius:var(--radius-lg);border:1px solid var(--slate-200);margin-bottom:16px">
-            <div class="flex-between">
-              <div>
-                <h4 style="margin:0;font-size:1.1rem;display:inline-block">${esc(g.title)}</h4>
-                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}" style="margin-left:8px">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
+          <div class="goal-click-card" style="background:var(--surface);padding:20px;border-radius:var(--radius-xl);border:1.5px solid var(--slate-200);margin-bottom:16px" onclick="act.openGoalModal(${g.id})">
+            <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <h4 style="margin:0;font-size:1.12rem;color:var(--slate-900)">${esc(g.title)}</h4>
+                <span class="badge p">#${g.id}</span>
+                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? '🏆 Mastered' : g.trend)}</span>
               </div>
-              ${B && g.status !== 'mastered' && g.mastery_met ? `<button class="ok" style="font-size:0.8rem;padding:4px 10px" onclick="act.setGoalStatus(${g.id}, 'mastered')">🎯 Mark Mastered</button>` : ''}
+              <div style="display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
+                <button class="sec" style="font-size:0.82rem;padding:6px 12px" onclick="act.openGoalModal(${g.id})">📊 Review Data & Edit Goal</button>
+                ${!P && g.status !== 'mastered' ? `<button class="ok" style="font-size:0.82rem;padding:6px 12px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>` : ''}
+                ${!P && g.status === 'mastered' ? `<button class="sec" style="font-size:0.82rem;padding:6px 12px" onclick="act.quickReactivateGoal(${g.id})">🔄 Reactivate</button>` : ''}
+              </div>
             </div>
-            <div style="font-size:0.85rem;color:var(--slate-600);margin:4px 0 8px">
-              Baseline: <b>${g.baseline}%</b> · Current Average: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b>
+            <div style="font-size:0.86rem;color:var(--slate-600);margin:6px 0 10px">
+              Baseline: <b>${g.baseline}%</b> · Current 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b> · Sessions Logged: <b>${g.series ? g.series.length : 0}</b>
             </div>
             ${g.mastery_met && g.status !== 'mastered' ? `
-              <div class="mastery-banner">
+              <div class="mastery-banner" onclick="event.stopPropagation()">
                 <span><b>Clinical Intelligence:</b> ${esc(g.recommendation)}</span>
-                ${B ? `<button class="ok" style="font-size:0.75rem;padding:3px 8px" onclick="act.setGoalStatus(${g.id}, 'mastered')">Advance Target</button>` : ''}
+                ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 12px" onclick="act.quickMasterGoal(${g.id})">🏆 Advance to Mastered</button>` : ''}
               </div>
             ` : g.stalled ? `
-              <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)}</div>
+              <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)} — <i>Click card to adjust prompt level or target criteria.</i></div>
             ` : ''}
             ${chart(g.series, g.baseline, g.target)}
             ${lastSession && lastSession.prompts ? `
@@ -1160,7 +1269,8 @@ async function scheduleView() {
 let timer = null;
 async function sessionView(id) {
   const v = await api('GET', '/api/sessions/' + id);
-  const { session: s, client, goals, plans, stories, abcLogs = [] } = v;
+  const { session: s, client, goals, allGoals = goals, plans, stories, abcLogs = [] } = v;
+  const masteredGoals = (allGoals || []).filter((g) => g.status !== 'active');
   const ended = !!s.end;
   const startMs = new Date(s.start).getTime();
   clearInterval(timer);
@@ -1181,19 +1291,55 @@ async function sessionView(id) {
     }, 1000);
   }
 
+  // Build personalized + illustrated reward choices for Kid Mode
+  const rawReinf = (client.reinforcers || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const iconForReward = (r) => {
+    const low = r.toLowerCase();
+    if (low.includes('lego') || low.includes('block')) return '🧱';
+    if (low.includes('sticker') || low.includes('draw') || low.includes('art')) return '🎨';
+    if (low.includes('tablet') || low.includes('ipad') || low.includes('game')) return '🎮';
+    if (low.includes('train') || low.includes('car')) return '🚂';
+    if (low.includes('bubble')) return '🫧';
+    if (low.includes('swing') || low.includes('jump') || low.includes('trampoline')) return '🛝';
+    if (low.includes('music') || low.includes('song')) return '🎵';
+    return '🎁';
+  };
+  const defaultRewards = [
+    { label: 'LEGO Build Time', icon: '🧱' },
+    { label: 'iPad / Tablet Game', icon: '🎮' },
+    { label: 'Giant Bubbles', icon: '🫧' },
+    { label: 'Sensory Swing', icon: '🛝' },
+    { label: 'Sticker Book', icon: '🎨' },
+    { label: 'Wooden Train Set', icon: '🚂' }
+  ];
+  const rewardOptions = [];
+  rawReinf.forEach((r) => {
+    const label = r.charAt(0).toUpperCase() + r.slice(1);
+    rewardOptions.push({ label, icon: iconForReward(r) });
+  });
+  defaultRewards.forEach((d) => {
+    if (rewardOptions.length < 6 && !rewardOptions.some((x) => x.label.toLowerCase().includes(d.label.split(' ')[0].toLowerCase()))) {
+      rewardOptions.push(d);
+    }
+  });
+  const activeRewardObj = rewardOptions.find((r) => r.label === kidRewardChoice) || rewardOptions[0] || { label: 'Special Reward', icon: '🎁' };
+  const theme = KID_THEMES[kidTheme] || KID_THEMES.space;
+  const progressPct = Math.min(100, Math.round((tokenCount / targetTokens) * 100));
+  const activeFirstGoal = goals.find((g) => g.id === +kidFirstGoalId) || goals[0] || { id: 0, title: 'Tabletop Skill Trials' };
+
   const sum = (g) => {
-    if (!g.summary || !g.summary.total) return '<div style="color:var(--slate-400);font-size:0.85rem">No trials recorded yet this session.</div>';
+    if (!g.summary || !g.summary.total) return '<div style="color:var(--slate-400);font-size:0.85rem;margin-top:8px">No trials recorded yet this session. Tap a prompt button above to log a trial, or click the goal title to review historical data.</div>';
     return `
-    <div style="margin-top:10px">
+    <div style="margin-top:12px">
       <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px">
-        <span>Independent Mastery: <b>${g.summary.pct.I}%</b></span>
-        <span>${g.summary.total} Total Trials Recorded</span>
+        <span>Session Independent Mastery: <b style="color:var(--ok)">${g.summary.pct.I}%</b></span>
+        <span><b>${g.summary.total}</b> Trials Recorded This Session</span>
       </div>
       <div class="bar">
         <div style="width:${g.summary.pct.I}%"></div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:0.75rem;color:var(--slate-600);margin-top:6px">
-        ${Object.keys(LV).map(k => `<span>${LV[k].code}: <b>${g.summary.counts[k] || 0}</b> (${g.summary.pct[k] || 0}%)</span>`).join(' · ')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.78rem;color:var(--slate-600);margin-top:6px">
+        ${Object.keys(LV).map(k => `<span class="badge ${k === 'I' ? 'tan' : 'p'}">${LV[k].code} (${LV[k].label}): <b>${g.summary.counts[k] || 0}</b> (${g.summary.pct[k] || 0}%)</span>`).join('')}
       </div>
     </div>`;
   };
@@ -1202,9 +1348,10 @@ async function sessionView(id) {
   <div class="page-header">
     <div>
       <h1>Active Session Cockpit</h1>
-      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording & In-Session ABC Tracker</p>
+      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording, Goal Review & Interactive Kid Mode</p>
     </div>
-    <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create New Goal</button>
       <button class="sec" onclick="go('client', ${client.id})">👧 Client 360 Record</button>
     </div>
   </div>
@@ -1220,48 +1367,176 @@ async function sessionView(id) {
           <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
             <button class="bad" style="padding:12px 24px;font-size:1rem" onclick="act.endSession(${s.id})">⏹ End Clinical Session</button>
             <button class="ok" style="padding:12px 20px;font-size:1rem" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Quick ABC Incident Logger</button>
-            <button class="btn" style="background:#7c3aed;padding:12px 20px;font-size:1rem" onclick="act.toggleKidMode()">🌟 ${showKidMode ? 'Hide Kid Mode' : 'Open Kid Mode (Token Board)'}</button>
+            <button class="btn" style="background:linear-gradient(135deg,#9333ea 0%,#ec4899 100%);padding:12px 22px;font-size:1rem;box-shadow:0 8px 20px rgba(147,51,234,0.35)" onclick="act.toggleKidMode()">🌟 ${showKidMode ? 'Hide Kid Mode' : 'Open Interactive Kid Mode'}</button>
           </div>
         `}
     </div>
   </div>
 
-  <!-- Interactive Kid Mode & Token Board (CentralReach Enhancement) -->
+  <!-- Interactive Kid Mode & Graphic Reinforcement Playground -->
   ${showKidMode ? `
-    <div class="token-board">
-      <div class="flex-between">
-        <div>
-          <h3 style="margin:0;color:#6b21a8">🌟 ${esc(client.name)}'s Token Board</h3>
-          <div style="font-size:0.85rem;color:#7e22ce;margin-top:2px">Working for: <b>🎁 ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Preferred Activity')}</b></div>
+    <div class="kid-playground">
+      <!-- Top Control & Theme Bar -->
+      <div class="kid-top-controls">
+        <div class="kid-theme-pills">
+          ${Object.values(KID_THEMES).map((th) => `
+            <button class="kid-theme-btn ${kidTheme === th.id ? 'active' : ''}" onclick="act.setKidTheme('${th.id}')">
+              ${th.name}
+            </button>
+          `).join('')}
         </div>
-        <div>
-          <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.resetTokens()">Reset Tokens</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="kid-schedule-pills" title="Schedule of Reinforcement (Fixed Ratio)">
+            ${[3, 5, 10].map((num) => `
+              <button class="kid-sched-btn ${targetTokens === num ? 'active' : ''}" onclick="act.setTargetTokens(${num})">FR-${num} (${num} ${theme.tokenEarned})</button>
+            `).join('')}
+          </div>
+          <button class="sec" style="font-size:0.78rem;padding:6px 10px;border-radius:999px" onclick="act.toggleKidAutoToken()">
+            ${kidAutoToken ? '⚡ Auto-Token on Trial: ON' : '⚪ Auto-Token: OFF'}
+          </button>
+          <button class="sec" style="font-size:0.78rem;padding:6px 10px;border-radius:999px" onclick="act.toggleKidSound()">
+            ${kidSound ? '🔊 Sound & Voice: ON' : '🔇 Muted'}
+          </button>
+          <button class="sec" style="font-size:0.78rem;padding:6px 10px;border-radius:999px" onclick="act.resetTokens()">🔄 Reset</button>
         </div>
       </div>
-      
-      <div class="token-track">
-        ${Array.from({ length: targetTokens }).map((_, idx) => `
-          <div class="token-slot ${idx < tokenCount ? 'earned' : ''}" onclick="act.toggleToken(${idx})">
-            ${idx < tokenCount ? '⭐' : '⚪'}
+
+      <!-- Graphic Adventure Banner & Animated Hero Journey Track -->
+      <div class="kid-adventure-stage" style="background:${theme.bannerBg}">
+        <svg class="kid-stage-svg" viewBox="0 0 800 140" preserveAspectRatio="none">
+          <circle cx="90" cy="30" r="3" fill="rgba(255,255,255,0.6)"/>
+          <circle cx="220" cy="45" r="2" fill="rgba(255,255,255,0.4)"/>
+          <circle cx="380" cy="25" r="3.5" fill="rgba(255,255,255,0.7)"/>
+          <circle cx="540" cy="50" r="2.5" fill="rgba(255,255,255,0.5)"/>
+          <circle cx="690" cy="30" r="3" fill="rgba(255,255,255,0.6)"/>
+          <path d="M0 120 Q 200 85 400 115 T 800 105 L 800 140 L 0 140 Z" fill="rgba(255,255,255,0.08)"/>
+        </svg>
+
+        <div class="kid-stage-header">
+          <div>
+            <div class="kid-stage-kicker">✨ ${esc(client.name)}'s Reinforcement Adventure</div>
+            <h2 class="kid-stage-title">${theme.hero} ${esc(theme.title)}</h2>
+            <p class="kid-stage-sub">${esc(theme.subtitle)}</p>
           </div>
-        `).join('')}
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="kid-praise-btn" onclick="act.triggerPraiseBurst('${esc(client.name)}')">🙌 Super Praise Burst!</button>
+            ${tokenCount < targetTokens ? `<button class="kid-bonus-btn" onclick="act.awardBonusToken('${esc(client.name)}', '${esc(activeRewardObj.label)}')">+1 Bonus ${theme.tokenEarned}</button>` : ''}
+          </div>
+        </div>
+
+        ${kidPraiseMsg ? `
+          <div class="kid-praise-pop">
+            <span>${esc(kidPraiseMsg)}</span>
+            <button style="background:transparent;border:none;color:#fff;font-size:0.85rem;padding:2px 8px;box-shadow:none" onclick="kidPraiseMsg='';render()">✕</button>
+          </div>
+        ` : ''}
+
+        <!-- Animated Character Journey Track -->
+        <div class="kid-journey-track">
+          <div class="kid-journey-fill" style="width:${progressPct}%"></div>
+          <div class="kid-journey-hero" style="left:calc(${Math.min(92, Math.max(4, progressPct))}% - 26px)" title="${progressPct}% to Reward!">
+            <span>${theme.hero}</span>
+          </div>
+          <div class="kid-journey-dest ${tokenCount >= targetTokens ? 'reached' : ''}" title="Destination: ${esc(activeRewardObj.label)}">
+            <span>${theme.dest}</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.82rem;font-weight:700;color:rgba(255,255,255,0.9);margin-top:6px">
+          <span>Start Mission (${tokenCount} / ${targetTokens} collected)</span>
+          <span>Goal: ${activeRewardObj.icon} ${esc(activeRewardObj.label)} (${progressPct}%)</span>
+        </div>
+      </div>
+
+      <!-- Collectible 3D Token Medallions -->
+      <div class="token-track">
+        ${Array.from({ length: targetTokens }).map((_, idx) => {
+          const isEarned = idx < tokenCount;
+          return `
+            <div class="token-slot ${isEarned ? 'earned' : ''}" onclick="act.toggleToken(${idx}, '${esc(client.name)}', '${esc(activeRewardObj.label)}')">
+              <div class="token-slot-num">#${idx + 1}</div>
+              <div class="token-slot-ic">${isEarned ? theme.tokenEarned : theme.tokenEmpty}</div>
+              <div class="token-slot-lbl">${isEarned ? 'EARNED!' : 'Tap Me'}</div>
+            </div>
+          `;
+        }).join('')}
       </div>
 
       ${tokenCount >= targetTokens ? `
-        <div class="token-reward-msg">
-          🎉 ALL ${targetTokens} TOKENS EARNED! Time for ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Reward')}! 🎈
+        <div class="kid-victory-banner">
+          <div class="kid-confetti-row">🎉 🌟 🎈 🏆 ${theme.hero} ${activeRewardObj.icon} 🏆 🎈 🌟 🎉</div>
+          <h3 style="margin:6px 0 4px;font-size:1.45rem;color:#ffffff">HOORAY, ${esc(client.name.toUpperCase())}! ALL ${targetTokens} TOKENS EARNED!</h3>
+          <p style="margin:0 0 14px;font-size:1.02rem;color:#fef08a;font-weight:700">
+            It's time for your reward: ${activeRewardObj.icon} ${esc(activeRewardObj.label)}!
+          </p>
+          <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap">
+            <button class="kid-praise-btn" onclick="speakKidPraise('Amazing job ${esc(client.name)}! You earned all ${targetTokens} tokens! Time for ${esc(activeRewardObj.label)}!')">🔊 Read Celebration Aloud</button>
+            <button class="ok" style="background:#ffffff;color:#15803d;font-weight:800;padding:10px 20px;border-radius:999px" onclick="act.resetTokens()">🎁 Claim Reward & Start Next Round</button>
+          </div>
         </div>
-      ` : `<div style="text-align:center;font-size:0.85rem;color:#7e22ce">Tap tokens as client completes trials (${tokenCount}/${targetTokens} earned)</div>`}
+      ` : `
+        <div style="text-align:center;font-size:0.9rem;font-weight:700;color:#6b21a8;margin-bottom:14px">
+          👆 Tap any token above (or log a trial below with Auto-Token ON) — <b>${targetTokens - tokenCount} more</b> to unlock <b>${activeRewardObj.icon} ${esc(activeRewardObj.label)}</b>!
+        </div>
+      `}
 
-      <!-- Digital First/Then Visual Schedule -->
-      <div class="first-then-grid">
-        <div class="first-box">
-          <div class="ft-label" style="color:#2563eb">1. First (Task)</div>
-          <b style="font-size:1.05rem;color:#1e40af">📚 ${esc(goals[0] ? goals[0].title : 'Tabletop Trials')}</b>
+      <!-- Interactive Visual Reinforcer Choice Board -->
+      <div class="kid-choice-section">
+        <div class="flex-between" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
+          <div style="font-weight:800;font-size:0.9rem;color:#581c87;text-transform:uppercase;letter-spacing:0.04em">
+            🎁 Visual Choice Board — Tap to Choose What ${esc(client.name)} Is Working For:
+          </div>
+          <span class="badge p">Selected: ${activeRewardObj.icon} ${esc(activeRewardObj.label)}</span>
         </div>
-        <div class="then-box">
-          <div class="ft-label" style="color:#16a34a">2. Then (Reward)</div>
-          <b style="font-size:1.05rem;color:#15803d">🎁 ${esc(client.reinforcers ? client.reinforcers.split(',')[0].trim() : 'Break Time')}</b>
+        <div class="kid-choice-grid">
+          ${rewardOptions.map((r) => {
+            const isSel = r.label === activeRewardObj.label;
+            return `
+              <div class="kid-choice-card ${isSel ? 'selected' : ''}" onclick="act.selectKidReward('${esc(r.label)}')">
+                <div class="kid-choice-ic">${r.icon}</div>
+                <div class="kid-choice-lbl">${esc(r.label)}</div>
+                ${isSel ? `<div class="kid-choice-check">✓ Working For</div>` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Interactive Digital First / Then Visual Schedule -->
+      <div class="first-then-grid">
+        <div class="first-box ${kidFirstDone ? 'done' : ''}">
+          <div class="flex-between" style="margin-bottom:8px">
+            <div class="ft-label" style="color:#1d4ed8;margin:0">1️⃣ FIRST (My Learning Task)</div>
+            <button class="${kidFirstDone ? 'ok' : 'sec'}" style="font-size:0.78rem;padding:4px 10px;border-radius:999px" onclick="act.toggleKidFirstDone('${esc(client.name)}')">
+              ${kidFirstDone ? '✓ Task Completed!' : '○ Mark Task Done'}
+            </button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin:8px 0">
+            <div style="font-size:2.4rem">${kidFirstDone ? '✅' : '📚'}</div>
+            <div style="text-align:left">
+              <div style="font-weight:800;font-size:1.05rem;color:#1e3a8a">${esc(activeFirstGoal.title)}</div>
+              <div style="font-size:0.78rem;color:#3b82f6">Earn ${targetTokens} ${theme.tokenEarned} tokens doing this activity</div>
+            </div>
+          </div>
+          ${goals.length > 1 ? `
+            <select style="margin-top:6px;padding:6px 10px;font-size:0.82rem;border-radius:8px;background:#fff" onchange="act.setKidFirstGoal(this.value)">
+              ${goals.map((g) => `<option value="${g.id}" ${g.id === activeFirstGoal.id ? 'selected' : ''}>Switch Task: ${esc(g.title)}</option>`).join('')}
+            </select>
+          ` : ''}
+        </div>
+        <div class="then-box ${tokenCount >= targetTokens || kidFirstDone ? 'unlocked' : ''}">
+          <div class="flex-between" style="margin-bottom:8px">
+            <div class="ft-label" style="color:#15803d;margin:0">2️⃣ THEN (My Earned Reward!)</div>
+            <span class="tag ${tokenCount >= targetTokens || kidFirstDone ? 'approved' : 'draft'}">
+              ${tokenCount >= targetTokens || kidFirstDone ? '🔓 UNLOCKED!' : `🔒 ${targetTokens - tokenCount} more ${theme.tokenEarned}`}
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;justify-content:center;margin:10px 0">
+            <div style="font-size:2.8rem;filter:drop-shadow(0 4px 8px rgba(22,163,74,0.25))">${activeRewardObj.icon}</div>
+            <div style="text-align:left">
+              <div style="font-weight:800;font-size:1.15rem;color:#14532d">${esc(activeRewardObj.label)}</div>
+              <div style="font-size:0.8rem;color:#16a34a;font-weight:600">Tap any card in the Choice Board above to change reward</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1304,11 +1579,12 @@ async function sessionView(id) {
           ${sessionMode === 'net' ? 'Natural Environment Teaching (NET Multi-Target Grid)' : 'Discrete Trial Training (DTT Single-Focus View)'}
         </div>
         <div style="font-size:0.78rem;color:var(--slate-500)">
-          ${sessionMode === 'net' ? 'Simultaneous multi-goal trial buttons for natural play & classroom transitions' : 'Structured tabletop trials with full prompt-hierarchy breakdown'}
+          Click any goal below to inspect collected data, modify mastery criteria, or mark as mastered
         </div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="ok" style="font-size:0.84rem;padding:9px 14px" onclick="act.openCreateGoalModal(${client.id})">+ Add / Create Goal</button>
       ${!ended ? `<button class="sec" style="font-size:0.84rem;padding:9px 14px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>` : ''}
       <div class="mode-toggle-group">
         <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('dtt')">🎯 DTT View</button>
@@ -1325,14 +1601,17 @@ async function sessionView(id) {
         return `
         <div class="net-card">
           <div>
-            <div class="net-card-head">
-              <h4 style="margin:0;font-size:1.02rem;font-weight:800;color:var(--slate-900);line-height:1.35">${esc(g.title)}</h4>
-              <span class="badge p" style="font-size:0.74rem;flex-shrink:0">Goal #${g.id}</span>
+            <div class="net-card-head" style="cursor:pointer" onclick="act.openGoalModal(${g.id})" title="Click to review data, edit, or master this goal">
+              <h4 style="margin:0;font-size:1.02rem;font-weight:800;color:var(--primary);line-height:1.35;text-decoration:underline;text-underline-offset:3px">${esc(g.title)}</h4>
+              <span class="badge p" style="font-size:0.72rem;flex-shrink:0">📊 Review #${g.id}</span>
             </div>
-            <div class="net-stats-row">
-              <span>Trials: <b>${total}</b></span>
-              <span style="color:var(--slate-300)">•</span>
-              <span>Independent: <b style="color:var(--ok)">${indepPct}%</b></span>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+              <div class="net-stats-row">
+                <span>Session: <b>${total}</b> trials (<b>${indepPct}%</b> Indep)</span>
+                <span style="color:var(--slate-300)">•</span>
+                <span>Target: <b>${g.target || 80}%</b></span>
+              </div>
+              ${g.mastery_met ? `<span class="tag approved" style="font-size:0.68rem">🎯 Mastery Met</span>` : g.stalled ? `<span class="tag draft" style="font-size:0.68rem">⚠️ Stalled</span>` : ''}
             </div>
           </div>
           <div>
@@ -1366,29 +1645,90 @@ async function sessionView(id) {
       `;
       }).join('')}
     </div>
-  ` : goals.map((g) => `
-    <div class="card">
-      <div class="flex-between">
-        <h3 style="margin:0">${esc(g.title)}</h3>
-        <span class="badge p">Goal #${g.id}</span>
-      </div>
+  ` : `
+    ${goals.map((g) => `
+      <div class="card" style="border-top:4px solid ${g.mastery_met ? 'var(--ok)' : g.stalled ? 'var(--warn)' : 'var(--primary)'}">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+          <div style="cursor:pointer" onclick="act.openGoalModal(${g.id})" title="Click to review longitudinal data & edit goal">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <h3 style="margin:0;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:4px">${esc(g.title)}</h3>
+              <span class="badge p">Goal #${g.id}</span>
+              <span class="tag ${g.mastery_met ? 'approved' : g.stalled ? 'draft' : 'approved'}">
+                ${g.mastery_met ? '🎯 Mastery Criteria Met' : g.stalled ? '⚠️ Plateau / Stalled' : esc(g.trend || 'Active')}
+              </span>
+            </div>
+            <div style="font-size:0.84rem;color:var(--slate-500);margin-top:4px">
+              Baseline: <b>${g.baseline ?? 20}%</b> · 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null && g.current !== undefined ? '%' : ''}</b> · Mastery Target: <b>${g.target ?? 80}%</b>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec" style="font-size:0.82rem;padding:7px 13px" onclick="act.openGoalModal(${g.id})">📊 Review Data & Edit Goal</button>
+            <button class="ok" style="font-size:0.82rem;padding:7px 13px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>
+          </div>
+        </div>
 
-      ${ended ? '' : `
-        <div class="levels">
-          ${Object.entries(LV).map(([k, cfg]) => `
-            <button class="${cfg.cls}" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
-              <span>${cfg.icon} ${cfg.label}</span>
-              <span style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;opacity:0.8">(${k})</span>
-            </button>
+        ${g.mastery_met ? `
+          <div class="mastery-banner" style="margin-top:10px">
+            <span><b>🎯 Ready for Mastery:</b> ${esc(g.recommendation)}</span>
+            <button class="ok" style="font-size:0.78rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">✓ Advance to Mastered</button>
+          </div>
+        ` : g.stalled ? `
+          <div class="stalled-banner" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span><b>⚠️ Clinical Alert:</b> ${esc(g.recommendation)}</span>
+            <button class="sec" style="font-size:0.78rem;padding:4px 10px;background:#fff" onclick="act.openGoalModal(${g.id})">✏️ Modify Target / Criteria</button>
+          </div>
+        ` : ''}
+
+        ${ended ? '' : `
+          <div class="levels">
+            ${Object.entries(LV).map(([k, cfg]) => `
+              <button class="${cfg.cls}" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
+                <span>${cfg.icon} ${cfg.label}</span>
+                <span style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;opacity:0.8">(${k})</span>
+              </button>
+            `).join('')}
+          </div>
+        `}
+        ${sum(g)}
+      </div>
+    `).join('') || `
+      <div class="card" style="text-align:center;padding:28px">
+        <h3 style="margin:0 0 6px">All Active Goals Mastered or None Defined</h3>
+        <p style="color:var(--slate-500);margin:0 0 14px">Add a new skill acquisition target below to continue collecting DTT trials.</p>
+        <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create New Skill Target</button>
+      </div>
+    `}
+
+    <!-- Quick Add Goal Card inside DTT View -->
+    <div class="card" style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px dashed #818cf8;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+      <div>
+        <h4 style="margin:0;color:var(--slate-900)">🎯 Need to Introduce a New Skill Acquisition Goal?</h4>
+        <p style="margin:2px 0 0;font-size:0.84rem;color:var(--slate-600)">Create a custom DTT/NET target or pick from clinical ABA templates without leaving the session.</p>
+      </div>
+      <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create / Set New Goal</button>
+    </div>
+
+    ${masteredGoals.length ? `
+      <details class="drawer" style="background:#f0fdf4;border-color:#86efac">
+        <summary style="color:#065f46">🏆 Mastered & Maintenance Targets (${masteredGoals.length}) — Click to Review Data or Reactivate</summary>
+        <div style="margin-top:12px;display:grid;gap:10px">
+          ${masteredGoals.map((mg) => `
+            <div style="background:#ffffff;padding:12px 16px;border-radius:12px;border:1px solid #bbf7d0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;cursor:pointer" onclick="act.openGoalModal(${mg.id})">
+              <div>
+                <b style="color:#065f46">${esc(mg.title)}</b>
+                <span class="tag approved" style="margin-left:8px">🏆 Mastered</span>
+                <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">Baseline: ${mg.baseline}% · 3-Session Avg: ${mg.current ?? '—'}% · Target: ${mg.target}%</div>
+              </div>
+              <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
+                <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.openGoalModal(${mg.id})">📊 Review Data</button>
+                <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.quickReactivateGoal(${mg.id})">🔄 Move to Active</button>
+              </div>
+            </div>
           `).join('')}
         </div>
-        <div style="margin-top:8px">
-          <button class="sec" style="font-size:0.85rem;padding:6px 12px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>
-        </div>
-      `}
-      ${sum(g)}
-    </div>
-  `).join('')}
+      </details>
+    ` : ''}
+  `}
 
   <!-- Clinical Session Documentation & Dual Sign-off -->
   <div class="card">
@@ -1629,6 +1969,203 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'goal_review') {
+    const g = activeModal.goal;
+    const totalTrials = g.total_trials || 0;
+    const pt = g.prompt_totals || { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:780px;width:95%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--slate-200)">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="badge p">Goal #${g.id} · ${esc(g.client_name || 'Client')}</span>
+              <span class="tag ${g.status === 'mastered' ? 'approved' : g.mastery_met ? 'approved' : 'draft'}">
+                ${g.status === 'mastered' ? '🏆 Mastered (Maintenance)' : g.mastery_met ? '🎯 Mastery Criteria Met' : esc(g.trend || 'Active Acquisition')}
+              </span>
+            </div>
+            <h3 style="margin:6px 0 0;font-size:1.3rem;color:var(--slate-900)">${esc(g.title)}</h3>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            ${g.status !== 'mastered'
+              ? `<button class="ok" style="font-size:0.82rem;padding:7px 14px" onclick="act.quickMasterGoal(${g.id})">🏆 Mark Goal Mastered</button>`
+              : `<button class="sec" style="font-size:0.82rem;padding:7px 14px" onclick="act.quickReactivateGoal(${g.id})">🔄 Move Back to Active</button>`}
+            <button class="sec" style="font-size:0.82rem;padding:7px 12px" onclick="act.openCreateGoalModal(${g.client_id}, 'Next Step: ' + ${JSON.stringify(g.title).replace(/"/g, '&quot;')})">+ Add New Goal</button>
+            <button class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
+          </div>
+        </div>
+
+        <!-- Clinical Intelligence Recommendation -->
+        ${g.recommendation ? `
+          <div class="${g.status === 'mastered' || g.mastery_met ? 'mastery-banner' : 'stalled-banner'}" style="margin:14px 0">
+            <span><b>🧠 Clinical Data Analysis:</b> ${esc(g.recommendation)}</span>
+          </div>
+        ` : ''}
+
+        <!-- 4 KPI Summary Metrics Based on Collected Data -->
+        <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0">
+          <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Baseline</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--slate-800)">${g.baseline}%</div>
+          </div>
+          <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">3-Session Avg</div>
+            <div style="font-size:1.5rem;font-weight:800;color:${(g.current || 0) >= g.target ? 'var(--ok)' : 'var(--primary)'}">${g.current ?? '—'}${g.current !== null ? '%' : ''}</div>
+          </div>
+          <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Mastery Criterion</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--ok)">${g.target}%</div>
+          </div>
+          <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Trials Collected</div>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--slate-900)">${totalTrials}</div>
+          </div>
+        </div>
+
+        <!-- Longitudinal Trendline Chart -->
+        <h4 style="margin:14px 0 6px;font-size:0.95rem">📈 Longitudinal Mastery Trajectory (${(g.series || []).length} Sessions)</h4>
+        ${chart(g.series || [], g.baseline, g.target)}
+
+        <!-- Aggregate Prompt Hierarchy Breakdown -->
+        <h4 style="margin:16px 0 8px;font-size:0.95rem">🎯 Aggregate Prompt Hierarchy Breakdown (${totalTrials} Total Trials)</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+          ${Object.entries(LV).map(([code, cfg]) => {
+            const cnt = pt[code] || 0;
+            const pct = totalTrials ? Math.round((cnt / totalTrials) * 100) : 0;
+            return `
+              <div style="background:var(--slate-50);padding:8px 10px;border-radius:10px;border:1px solid var(--slate-200);font-size:0.8rem">
+                <div style="font-weight:700;color:var(--slate-700)">${cfg.icon} ${code} (${cfg.label.split(' ')[0]})</div>
+                <div style="font-size:1.1rem;font-weight:800;color:var(--slate-900);margin-top:2px">${cnt} <span style="font-size:0.78rem;color:var(--slate-500);font-weight:600">(${pct}%)</span></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <!-- Session-by-Session Data Table -->
+        ${g.series && g.series.length ? `
+          <details class="drawer" style="margin:12px 0">
+            <summary>📋 View Session-by-Session Trial Breakdown (${g.series.length} Sessions)</summary>
+            <table style="margin-top:10px">
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Total Trials</th>
+                  <th>% Independent</th>
+                  <th>Prompt Distribution (I / V / G / M / P / N)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${g.series.map((sRow) => `
+                  <tr>
+                    <td><b>Session #${sRow.session}</b></td>
+                    <td>${sRow.n} trials</td>
+                    <td><b style="color:${sRow.pct >= g.target ? 'var(--ok)' : 'var(--slate-800)'}">${sRow.pct}%</b></td>
+                    <td style="font-size:0.8rem">
+                      ${Object.entries(sRow.prompts || {}).filter(([, c]) => c > 0).map(([k, c]) => `<span class="badge ${k === 'I' ? 'tan' : 'p'}">${k}: ${c}</span>`).join(' ')}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </details>
+        ` : ''}
+
+        <!-- Modify / Edit Goal Parameters Form -->
+        <div style="background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 100%);border:1.5px solid #c7d2fe;border-radius:16px;padding:18px;margin-top:16px">
+          <h4 style="margin:0 0 10px;color:var(--slate-900)">✏️ Modify Goal Parameters, Criteria or Clinical Status</h4>
+          <div class="row">
+            <div style="grid-column:span 2">
+              <label>Operational Goal Title / Target Behavior</label>
+              <input id="edit_g_title" value="${esc(g.title)}">
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Baseline % Independent</label>
+              <input id="edit_g_base" type="number" min="0" max="100" value="${g.baseline}">
+            </div>
+            <div>
+              <label>Mastery Criterion % (3 consecutive sessions)</label>
+              <input id="edit_g_target" type="number" min="1" max="100" value="${g.target}">
+            </div>
+            <div>
+              <label>Clinical Status</label>
+              <select id="edit_g_status">
+                <option value="active" ${g.status === 'active' ? 'selected' : ''}>Active (Skill Acquisition)</option>
+                <option value="mastered" ${g.status === 'mastered' ? 'selected' : ''}>🏆 Mastered (Maintenance)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
+            <button class="ok" style="background:linear-gradient(135deg,#059669 0%,#10b981 100%)" onclick="act.masterAndAddNext(${g.id}, ${g.client_id}, ${JSON.stringify(g.title).replace(/"/g, '&quot;')})">
+              🏆 Master This Goal & Create Next Progression Target →
+            </button>
+            <div style="display:flex;gap:8px">
+              <button class="sec" onclick="act.closeModal()">Cancel</button>
+              <button class="ok" onclick="act.saveGoalModal(${g.id})">💾 Save Goal Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'create_goal') {
+    const cid = activeModal.clientId;
+    const prefill = activeModal.prefillTitle || '';
+    const templates = [
+      { title: '2-Step Motor Imitation ("Do this")', base: 20, target: 80 },
+      { title: 'Functional Manding for Break ("Break please")', base: 15, target: 80 },
+      { title: 'Peer Turn-Taking During Tabletop Play (3 exchanges)', base: 25, target: 80 },
+      { title: 'Following 2-Step Classroom Teacher Directions', base: 30, target: 85 },
+      { title: 'Tacting 10 Emotion Picture Cards ("Happy, Frustrated, Calm")', base: 20, target: 80 },
+      { title: 'Independent Transition Using First/Then Visual Schedule', base: 20, target: 80 }
+    ];
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:640px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">Skill Acquisition & DTT / NET Program</span>
+            <h3 style="margin:4px 0 0">🎯 Create & Set New Skill Acquisition Goal</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:6px 0 14px">
+          Define a custom operational target below, or tap a clinical ABA template to auto-fill:
+        </p>
+
+        <div style="margin-bottom:14px">
+          <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px">⚡ 1-Tap Clinical ABA Goal Templates:</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${templates.map((t) => `
+              <button class="sec" style="font-size:0.76rem;padding:5px 10px;border-radius:999px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target})">
+                + ${esc(t.title)}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <label>Target Operational Title</label>
+        <input id="new_g_title" placeholder="e.g. Following 2-step classroom directions" value="${esc(prefill)}">
+
+        <div class="row">
+          <div>
+            <label>Baseline % Independent</label>
+            <input id="new_g_base" type="number" min="0" max="100" value="20">
+          </div>
+          <div>
+            <label>Mastery Criterion % (3 consecutive sessions)</label>
+            <input id="new_g_target" type="number" min="1" max="100" value="80">
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitCreateGoalModal(${cid})">✓ Create & Activate Goal</button>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
@@ -1697,6 +2234,58 @@ const act = {
     render();
   }),
   addGoal: safe(async (id) => { await api('POST', `/api/clients/${id}/goals`, { title: val('gt'), baseline: val('gb'), target: val('gg') }); render(); }),
+  openGoalModal: safe(async (gid) => {
+    const goal = await api('GET', `/api/goals/${gid}`);
+    activeModal = { type: 'goal_review', goal };
+    render();
+  }),
+  saveGoalModal: safe(async (gid) => {
+    const title = val('edit_g_title');
+    const baseline = +val('edit_g_base');
+    const target = +val('edit_g_target');
+    const status = val('edit_g_status');
+    await api('PUT', `/api/goals/${gid}`, { title, baseline, target, status });
+    activeModal = null;
+    render();
+  }),
+  quickMasterGoal: safe(async (gid) => {
+    await api('PUT', `/api/goals/${gid}`, { status: 'mastered' });
+    playKidSound('victory');
+    activeModal = null;
+    render();
+  }),
+  quickReactivateGoal: safe(async (gid) => {
+    await api('PUT', `/api/goals/${gid}`, { status: 'active' });
+    activeModal = null;
+    render();
+  }),
+  masterAndAddNext: safe(async (gid, cid, oldTitle) => {
+    await api('PUT', `/api/goals/${gid}`, { status: 'mastered' });
+    playKidSound('victory');
+    activeModal = { type: 'create_goal', clientId: cid, prefillTitle: `Advanced Step: ${oldTitle}` };
+    render();
+  }),
+  openCreateGoalModal: (cid, prefillTitle = '') => {
+    activeModal = { type: 'create_goal', clientId: cid, prefillTitle };
+    render();
+  },
+  fillGoalTemplate: (title, base, target) => {
+    const tEl = document.getElementById('new_g_title');
+    const bEl = document.getElementById('new_g_base');
+    const gEl = document.getElementById('new_g_target');
+    if (tEl) tEl.value = title;
+    if (bEl) bEl.value = base;
+    if (gEl) gEl.value = target;
+  },
+  submitCreateGoalModal: safe(async (cid) => {
+    const title = val('new_g_title').trim();
+    if (!title) return alert('Please enter a Target Operational Title');
+    const baseline = +val('new_g_base') || 20;
+    const target = +val('new_g_target') || 80;
+    await api('POST', `/api/clients/${cid}/goals`, { title, baseline, target });
+    activeModal = null;
+    render();
+  }),
   addAuth: safe(async (id) => { await api('POST', `/api/clients/${id}/auths`, { code: val('ac'), authorized: val('au') }); render(); }),
   genPlan: safe(async (id) => { await api('POST', `/api/clients/${id}/plans/generate`, { behavior: val('pb'), antecedents: [...document.querySelectorAll('.pa:checked')].map((x) => x.value) }); render(); }),
   savePlan: safe(async (id) => {
@@ -1720,7 +2309,20 @@ const act = {
   shareStory: safe(async (id) => { const r = await api('POST', `/api/stories/${id}/share`); prompt('Parent Story Link (Share with family):', location.origin + r.url); render(); }),
   addAppt: safe(async () => { await api('POST', '/api/appointments', { client_id: val('ac'), user_id: val('as'), start: val('astart'), end: val('aend'), setting: val('aset') }); render(); }),
   start: safe(async (id) => { const r = await api('POST', `/api/appointments/${id}/start`); go('session', r.id); }),
-  trial: safe(async (sid, gid, level) => { await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level }); render(); }),
+  trial: safe(async (sid, gid, level) => {
+    await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level });
+    if (showKidMode && kidAutoToken && level !== 'N' && tokenCount < targetTokens) {
+      tokenCount++;
+      if (tokenCount >= targetTokens) {
+        playKidSound('victory');
+        kidPraiseMsg = '🎉 ALL TOKENS EARNED! REWARD TIME!';
+      } else {
+        playKidSound('token');
+        kidPraiseMsg = PRAISE_CHEERS[tokenCount % PRAISE_CHEERS.length];
+      }
+    }
+    render();
+  }),
   undo: safe(async (sid) => { await api('DELETE', `/api/sessions/${sid}/trials/last`); render(); }),
   endSession: safe(async (sid) => { if (confirm('End clinical session?')) { await api('POST', `/api/sessions/${sid}/end`, {}); render(); } }),
   genNote: safe(async (sid) => { const r = await api('POST', `/api/sessions/${sid}/note/generate`, {}); document.getElementById('note').value = r.note; }),
@@ -1737,20 +2339,63 @@ const act = {
     render();
   }),
   setGoalStatus: safe(async (gid, status) => {
-    await api('POST', `/api/goals/${gid}/status`, { status });
+    await api('PUT', `/api/goals/${gid}`, { status });
     alert(`Goal marked as: ${status}`);
     render();
   }),
   toggleKidMode: () => { showKidMode = !showKidMode; render(); },
-  toggleToken: (idx) => {
+  setKidTheme: (th) => { kidTheme = th; playKidSound('token'); render(); },
+  setTargetTokens: (num) => { targetTokens = +num || 5; if (tokenCount > targetTokens) tokenCount = targetTokens; render(); },
+  toggleKidAutoToken: () => { kidAutoToken = !kidAutoToken; render(); },
+  toggleKidSound: () => { kidSound = !kidSound; render(); },
+  selectKidReward: (label) => { kidRewardChoice = label; playKidSound('token'); render(); },
+  setKidFirstGoal: (gid) => { kidFirstGoalId = +gid; render(); },
+  toggleKidFirstDone: (clientName) => {
+    kidFirstDone = !kidFirstDone;
+    if (kidFirstDone) {
+      playKidSound('victory');
+      kidPraiseMsg = `🌟 Awesome job finishing your task, ${clientName || 'Superstar'}!`;
+    }
+    render();
+  },
+  triggerPraiseBurst: (clientName) => {
+    playKidSound('praise');
+    const msg = PRAISE_CHEERS[Math.floor(Math.random() * PRAISE_CHEERS.length)];
+    kidPraiseMsg = msg;
+    speakKidPraise(`Awesome job ${clientName || ''}! ${msg.replace(/[^\w\s!]/g, '')}`);
+    render();
+  },
+  awardBonusToken: (clientName, rewardLabel) => {
+    if (tokenCount < targetTokens) {
+      tokenCount++;
+      if (tokenCount >= targetTokens) {
+        playKidSound('victory');
+        kidPraiseMsg = `🎉 HOORAY ${clientName || ''}! All ${targetTokens} tokens earned for ${rewardLabel || 'your reward'}!`;
+        speakKidPraise(`Hooray ${clientName || ''}! You earned all ${targetTokens} tokens! Time for ${rewardLabel || 'your reward'}!`);
+      } else {
+        playKidSound('token');
+        kidPraiseMsg = PRAISE_CHEERS[tokenCount % PRAISE_CHEERS.length];
+      }
+      render();
+    }
+  },
+  toggleToken: (idx, clientName, rewardLabel) => {
     if (idx < tokenCount) {
       tokenCount = idx;
     } else {
       tokenCount = idx + 1;
+      if (tokenCount >= targetTokens) {
+        playKidSound('victory');
+        kidPraiseMsg = `🎉 HOORAY ${clientName || ''}! All ${targetTokens} tokens earned for ${rewardLabel || 'your reward'}!`;
+        speakKidPraise(`Amazing job ${clientName || ''}! You earned all ${targetTokens} tokens! Time for ${rewardLabel || 'your reward'}!`);
+      } else {
+        playKidSound('token');
+        kidPraiseMsg = PRAISE_CHEERS[tokenCount % PRAISE_CHEERS.length];
+      }
     }
     render();
   },
-  resetTokens: () => { tokenCount = 0; render(); },
+  resetTokens: () => { tokenCount = 0; kidFirstDone = false; kidPraiseMsg = ''; render(); },
   setSessionMode: (m) => { sessionMode = m; render(); },
   openReauthReportModal: safe(async (cid) => {
     const report = await api('GET', `/api/clients/${cid}/reauth-report`);
