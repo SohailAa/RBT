@@ -55,6 +55,16 @@ const NAV = {
   ]
 };
 
+const brandEmblem = (cls = '') => `
+  <div class="brand-icon ${cls}" title="Effective Behavioral Approach — Unified Behavioral Health Record">
+    <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,0.22)" stroke-width="2.5"/>
+      <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="rgba(255,255,255,0.32)" stroke-width="2.5"/>
+      <path d="M11 34H21L26 20L34 46L39 30L43 34H53" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="12" r="3.5" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
+    </svg>
+  </div>`;
+
 function shell(content, route) {
   const userInitials = getInitials(me.name);
   const floatBar = (pitchTourActive && route !== 'presentation') ? `
@@ -69,18 +79,18 @@ function shell(content, route) {
   <div class="layout">
     <nav>
       <div class="brand-wrapper">
-        <div class="brand-logo">
-          <div class="brand-icon">EBA</div>
+        <div class="brand-logo" style="cursor:pointer" onclick="go('dashboard')">
+          ${brandEmblem()}
           <div>
             <div class="brand-title">Effective Behavioral</div>
-            <div class="brand-sub">Unified Health Record</div>
+            <div class="brand-sub">● Unified Health Record</div>
           </div>
         </div>
       </div>
       <div class="nav-links">
         ${NAV[me.role].map(([r, ic, l]) => `
           <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
-            <span style="font-size:1.1rem">${ic}</span>
+            <span class="nav-ic-emblem">${ic}</span>
             <span>${l}</span>
           </a>
         `).join('')}
@@ -113,23 +123,27 @@ function loginView(err) {
   <div class="login-container">
     <div class="login-box">
       <div class="login-brand">
-        <div class="brand-icon" style="width:40px;height:40px;font-size:1.2rem">EBA</div>
+        ${brandEmblem('lg')}
         <div>
-          <h2 style="margin:0;font-size:1.25rem;color:var(--slate-900)">Effective Behavioral Approach</h2>
-          <div style="font-size:0.75rem;color:var(--slate-500);font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Unified Clinical Practice & Cockpit</div>
+          <span class="badge p" style="margin-bottom:4px;font-size:0.7rem">ABA CLINICAL COCKPIT</span>
+          <h2 style="margin:0;font-size:1.38rem;font-weight:800;color:var(--slate-900);letter-spacing:-0.02em">Effective Behavioral Approach</h2>
+          <div style="font-size:0.76rem;color:var(--slate-500);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:2px">Unified Clinical Practice & Field Record</div>
         </div>
       </div>
       
-      <p style="font-size:0.88rem;color:var(--slate-600);margin:12px 0 16px">
+      <p style="font-size:0.9rem;color:var(--slate-600);margin:12px 0 16px">
         Sign in to access real-time session tracking, unified ABC behavioral records, and dual-signature documentation.
       </p>
 
-      <div style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8;border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <div>
-          <div style="font-size:0.72rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.05em">🎯 Founder & Therapist Showcase</div>
-          <div style="font-size:0.83rem;font-weight:600;color:var(--slate-800)">Interactive Competitive Deck + Live Feature Tour</div>
+      <div style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8;border-radius:16px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="role-emblem" style="background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;border:none;width:46px;height:46px;font-size:1.45rem">🚀</div>
+          <div>
+            <div style="font-size:0.72rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.05em">Founder & Therapist Showcase</div>
+            <div style="font-size:0.86rem;font-weight:700;color:var(--slate-900)">Interactive Competitive Deck + Live Tour</div>
+          </div>
         </div>
-        <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap" onclick="go('presentation')">🚀 Launch Pitch Deck</button>
+        <button class="ok" style="padding:9px 16px;font-size:0.85rem;white-space:nowrap" onclick="go('presentation')">Launch Pitch Deck →</button>
       </div>
 
       <label>Clinician / Guardian Email</label>
@@ -138,27 +152,45 @@ function loginView(err) {
       <label>Secure Password</label>
       <input id="pw" type="password" value="password" autocomplete="current-password">
       
-      <button style="width:100%;padding:12px;font-size:1rem;margin-top:8px" onclick="act.login()">Sign In to Cockpit</button>
+      <button style="width:100%;padding:13px;font-size:1.02rem;margin-top:8px" onclick="act.login()">Sign In to Clinical Cockpit</button>
       
       ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
 
       <div class="demo-pills">
-        <div style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.04em">Quick Demo Roles (1-Tap Fill & Sign-In):</div>
+        <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">Quick Demo Roles (1-Tap Fill & Sign-In):</div>
         <div class="demo-pill" onclick="act.demoLogin('bcba@eba.test')">
-          <span>👩‍⚕️ <b>Dr. Dana Rivera</b> (Supervising BCBA)</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="role-emblem">👩‍⚕️</span>
+            <div>
+              <div style="font-weight:800;color:var(--slate-900)">Dr. Dana Rivera</div>
+              <div style="font-size:0.75rem;color:var(--slate-500)">Supervising Clinical Director</div>
+            </div>
+          </div>
           <span class="badge p">BCBA</span>
         </div>
         <div class="demo-pill" onclick="act.demoLogin('rbt@eba.test')">
-          <span>👨‍⚕️ <b>Sam Lee</b> (Field Therapist)</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="role-emblem">👨‍⚕️</span>
+            <div>
+              <div style="font-weight:800;color:var(--slate-900)">Sam Lee</div>
+              <div style="font-size:0.75rem;color:var(--slate-500)">Registered Behavior Technician</div>
+            </div>
+          </div>
           <span class="badge tan">RBT</span>
         </div>
         <div class="demo-pill" onclick="act.demoLogin('parent@eba.test')">
-          <span>👨‍👩‍👧 <b>Mrs. Carter</b> (Client Guardian)</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="role-emblem">👨‍👩‍👧</span>
+            <div>
+              <div style="font-weight:800;color:var(--slate-900)">Mrs. Carter</div>
+              <div style="font-size:0.75rem;color:var(--slate-500)">Eleanor's Parent / Guardian</div>
+            </div>
+          </div>
           <span class="badge esc">Parent</span>
         </div>
       </div>
       
-      <div style="font-size:0.72rem;color:var(--slate-400);text-align:center;margin-top:20px">
+      <div style="font-size:0.74rem;color:var(--slate-400);text-align:center;margin-top:20px;font-weight:600">
         🔒 HIPAA & 21 CFR Part 11 Compliant Data Isolation · Zero PHI Synthetic Sandbox
       </div>
     </div>
@@ -172,45 +204,66 @@ async function dashboardView() {
   
   return `
   <div class="page-header">
-    <div>
-      <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Dashboard'}</h1>
-      <p class="page-sub">Today is <b>${todayStr}</b> · Active Shift Status: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Operational</span></p>
+    <div style="display:flex;align-items:center;gap:16px">
+      ${brandEmblem('lg')}
+      <div>
+        <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Dashboard'}</h1>
+        <p class="page-sub">Today is <b>${todayStr}</b> · Active Shift Status: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Operational</span></p>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="ok" onclick="go('presentation')">🚀 Founder Pitch & Competitive Deck</button>
-      <button class="sec" onclick="go('schedule')">📅 View Full Schedule</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="ok" style="padding:11px 18px;font-size:0.92rem" onclick="go('presentation')">🚀 Founder Pitch & Competitive Deck</button>
+      <button class="sec" style="padding:11px 18px;font-size:0.92rem" onclick="go('schedule')">📅 View Full Schedule</button>
     </div>
   </div>
 
   <div class="grid">
     <div class="stat-card">
-      <div class="stat-label">Today's Appointments</div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Today's Appointments</div>
+        <div class="stat-emblem">📅</div>
+      </div>
       <div class="stat">${d.appts.length}</div>
       <div class="stat-sub">Scheduled therapy sessions</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">1:1 Direct (97153)</div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">1:1 Direct (97153)</div>
+        <div class="stat-emblem">🧩</div>
+      </div>
       <div class="stat" style="color:var(--primary)">${d.rbt}</div>
       <div class="stat-sub">RBT direct client care</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">BCBA Supervision (97155)</div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">BCBA Supervision (97155)</div>
+        <div class="stat-emblem">👩‍⚕️</div>
+      </div>
       <div class="stat" style="color:var(--sensory)">${d.bcba}</div>
       <div class="stat-sub">Protocol mods & direct review</div>
     </div>
     <div class="stat-card ${d.incompleteNotes > 0 ? 'warn' : 'ok'}">
-      <div class="stat-label">Notes Pending</div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Notes Pending</div>
+        <div class="stat-emblem">📝</div>
+      </div>
       <div class="stat" style="color:${d.incompleteNotes > 0 ? 'var(--warn)' : 'var(--ok)'}">${d.incompleteNotes}</div>
       <div class="stat-sub">Awaiting author submission / sign</div>
     </div>
     <div class="stat-card ${sup.compliant ? 'ok' : 'warn'}">
-      <div class="stat-label">BACB 5% Supervision</div>
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">BACB 5% Supervision</div>
+        <div class="stat-emblem">🎯</div>
+      </div>
       <div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>
       <div class="stat-sub"><span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant ≥5%' : '⚠ Below 5% Target'}</span></div>
     </div>
     ${me.role === 'BCBA' ? `
       <div class="stat-card warn">
-        <div class="stat-label">Pending Dual-Signs</div>
+        <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+          <div class="stat-label" style="margin:0">Pending Dual-Signs</div>
+          <div class="stat-emblem">✍️</div>
+        </div>
         <div class="stat" style="color:var(--warn)">${d.pendingSign}</div>
         <div class="stat-sub">RBT notes awaiting BCBA signature</div>
       </div>
@@ -237,8 +290,8 @@ async function dashboardView() {
             <tr>
               <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${fmtT(a.start).slice(-7)} – ${a.end.slice(11)}</span></td>
               <td>
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div class="user-avatar" style="width:28px;height:28px;font-size:0.75rem;background:#6366f1">${getInitials(a.client)}</div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div class="user-avatar" style="width:40px;height:40px;font-size:0.9rem;background:linear-gradient(135deg,#4f46e5,#06b6d4)">${getInitials(a.client)}</div>
                   <b>${esc(a.client)}</b>
                 </div>
               </td>
@@ -293,13 +346,16 @@ async function clientsView() {
 
   return `
   <div class="page-header">
-    <div>
-      <h1>Children & Client 360 Records</h1>
-      <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition & ABC Portals</p>
+    <div style="display:flex;align-items:center;gap:16px">
+      ${brandEmblem('lg')}
+      <div>
+        <h1>Children & Client 360 Records</h1>
+        <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition & ABC Portals</p>
+      </div>
     </div>
     ${me.role === 'BCBA' ? `
       <div>
-        <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
+        <button class="ok" style="padding:11px 18px" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
       </div>
     ` : ''}
   </div>
@@ -344,11 +400,11 @@ async function clientsView() {
         ${filtered.map((c) => `
           <tr>
             <td>
-              <div style="display:flex;align-items:center;gap:12px">
-                <div class="user-avatar" style="width:34px;height:34px;background:var(--primary);font-size:0.85rem">${getInitials(c.name)}</div>
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="user-avatar" style="width:46px;height:46px;background:linear-gradient(135deg,#4f46e5,#06b6d4);font-size:1rem">${getInitials(c.name)}</div>
                 <div>
-                  <div style="font-weight:700;color:var(--slate-900)">${esc(c.name)}</div>
-                  <div style="font-size:0.75rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
+                  <div style="font-weight:800;font-size:0.98rem;color:var(--slate-900)">${esc(c.name)}</div>
+                  <div style="font-size:0.76rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
                 </div>
               </div>
             </td>
@@ -432,11 +488,11 @@ async function clientView(id) {
   const vitalsBanner = `
   <div class="vitals-banner">
     <div class="vitals-header">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="user-avatar" style="width:42px;height:42px;font-size:1rem;background:linear-gradient(135deg,#4f46e5 0%,#06b6d4 100%)">${getInitials(c.name)}</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div class="user-avatar xl">${getInitials(c.name)}</div>
         <div>
-          <h2 style="margin:0;font-size:1.45rem;color:var(--slate-900)">${esc(c.name)}</h2>
-          <div style="font-size:0.8rem;color:var(--slate-500)">
+          <h2 style="margin:0 0 4px;font-size:1.65rem;font-weight:800;color:var(--slate-900);letter-spacing:-0.02em">${esc(c.name)}</h2>
+          <div style="font-size:0.82rem;color:var(--slate-500);display:flex;gap:6px;flex-wrap:wrap">
             <span class="badge p">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
             ${c.dob ? `<span class="badge">DOB: ${esc(c.dob)}</span>` : ''}
             ${c.school ? `<span class="badge">${esc(c.school)}</span>` : ''}
@@ -444,9 +500,9 @@ async function clientView(id) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        ${B ? `<button class="sec" style="padding:8px 14px;font-size:0.85rem" onclick="act.openReauthReportModal(${c.id})">📄 6-Month Re-Auth Report</button>` : ''}
+        ${B ? `<button class="sec" style="padding:9px 15px;font-size:0.86rem" onclick="act.openReauthReportModal(${c.id})">📄 6-Month Re-Auth Report</button>` : ''}
         ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used} units left</span>`).join(' ') : ''}
-        <button class="bad" style="padding:8px 14px;font-size:0.85rem" onclick="act.toggleCrisis()">
+        <button class="bad" style="padding:9px 15px;font-size:0.86rem" onclick="act.toggleCrisis()">
           🚨 ${showCrisis ? 'Hide Crisis Protocol' : 'Emergency / Crisis Plan'}
         </button>
       </div>
@@ -454,20 +510,32 @@ async function clientView(id) {
     
     <div class="vitals-grid">
       <div class="vital-item">
-        <div class="vital-label">🗣️ Communication Mode</div>
-        <b>${esc(c.communication || 'Verbal (full sentences)')}</b>
+        <div class="vital-emblem">🗣️</div>
+        <div>
+          <div class="vital-label">Communication Mode</div>
+          <b>${esc(c.communication || 'Verbal (full sentences)')}</b>
+        </div>
       </div>
       <div class="vital-item">
-        <div class="vital-label">🎧 Sensory Profile</div>
-        <b>${esc(c.sensory || 'Sensory sensitive (avoids loud sirens)')}</b>
+        <div class="vital-emblem" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-color:#ddd6fe">🎧</div>
+        <div>
+          <div class="vital-label">Sensory Profile</div>
+          <b>${esc(c.sensory || 'Sensory sensitive (avoids loud sirens)')}</b>
+        </div>
       </div>
       <div class="vital-item">
-        <div class="vital-label">⚡ Known Antecedent Triggers</div>
-        <b>${esc(c.triggers || 'Difficult task transitions, peer proximity')}</b>
+        <div class="vital-emblem" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fde68a">⚡</div>
+        <div>
+          <div class="vital-label">Known Antecedent Triggers</div>
+          <b>${esc(c.triggers || 'Difficult task transitions, peer proximity')}</b>
+        </div>
       </div>
       <div class="vital-item">
-        <div class="vital-label">🎁 Reinforcer Hierarchy</div>
-        <b>${esc(c.reinforcers || 'LEGO, bubbles, sensory swing')}</b>
+        <div class="vital-emblem" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0">🎁</div>
+        <div>
+          <div class="vital-label">Reinforcer Hierarchy</div>
+          <b>${esc(c.reinforcers || 'LEGO, bubbles, sensory swing')}</b>
+        </div>
       </div>
     </div>
 
@@ -1791,27 +1859,30 @@ function presentationView() {
 
       <div class="pitch-grid-3">
         <div class="pitch-box highlight">
-          <div style="font-size:1.4rem;margin-bottom:6px">⚡</div>
-          <h3 style="margin:0 0 6px;font-size:1rem">Zero Context Switching</h3>
-          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">Vitals, Crisis De-escalation, DTT/NET Trials, ABC Logs, Token Boards, SOAP Notes, and BACB Supervision live in one cohesive record.</p>
+          <div class="pitch-emblem">⚡</div>
+          <h3 style="margin:0 0 6px;font-size:1.08rem">Zero Context Switching</h3>
+          <p style="margin:0;font-size:0.88rem;color:var(--slate-600)">Vitals, Crisis De-escalation, DTT/NET Trials, ABC Logs, Token Boards, SOAP Notes, and BACB Supervision live in one cohesive record.</p>
         </div>
         <div class="pitch-box highlight">
-          <div style="font-size:1.4rem;margin-bottom:6px">📱</div>
-          <h3 style="margin:0 0 6px;font-size:1rem">One-Handed Field Ergonomics</h3>
-          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">60px+ thumb-friendly prompt buttons, instant 1-tap undo, embedded Kid Mode token economy, and zero-lag architecture for school hallways.</p>
+          <div class="pitch-emblem">📱</div>
+          <h3 style="margin:0 0 6px;font-size:1.08rem">One-Handed Field Ergonomics</h3>
+          <p style="margin:0;font-size:0.88rem;color:var(--slate-600)">60px+ thumb-friendly prompt buttons, instant 1-tap undo, embedded Kid Mode token economy, and zero-lag architecture for school hallways.</p>
         </div>
         <div class="pitch-box highlight">
-          <div style="font-size:1.4rem;margin-bottom:6px">🛡️</div>
-          <h3 style="margin:0 0 6px;font-size:1rem">Clinical Guardrails Built In</h3>
-          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">AI drafts BIPs, Social Stories, and 6-month Re-Auth packets in seconds—but nothing reaches a parent or payer without BCBA co-signature.</p>
+          <div class="pitch-emblem">🛡️</div>
+          <h3 style="margin:0 0 6px;font-size:1.08rem">Clinical Guardrails Built In</h3>
+          <p style="margin:0;font-size:0.88rem;color:var(--slate-600)">AI drafts BIPs, Social Stories, and 6-month Re-Auth packets in seconds—but nothing reaches a parent or payer without BCBA co-signature.</p>
         </div>
       </div>
 
       <div class="card" style="background:var(--slate-50);margin-bottom:0">
-        <div class="flex-between" style="flex-wrap:wrap;gap:10px">
-          <div>
-            <h4 style="margin:0;color:var(--slate-900)">🎯 Interactive Presentation Mode: Jump Straight into Live Prototype</h4>
-            <p style="margin:4px 0 0;font-size:0.84rem;color:var(--slate-600)">Every slide includes a <b>"🚀 Live Demo"</b> button that logs into the right role, opens the exact feature, and gives you a floating <b>"↩ Back to Deck"</b> button.</p>
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="pitch-emblem" style="margin:0;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;border:none">🎯</div>
+            <div>
+              <h4 style="margin:0;color:var(--slate-900);font-size:1.05rem">Interactive Presentation Mode: Jump Straight into Live Prototype</h4>
+              <p style="margin:4px 0 0;font-size:0.86rem;color:var(--slate-600)">Every slide includes a <b>"🚀 Live Demo"</b> button that logs into the right role, opens the exact feature, and gives you a floating <b>"↩ Back to Deck"</b> button.</p>
+            </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="ok" onclick="act.pitchDemo('client360_crisis', 0)">🚀 Preview Eleanor's Client 360</button>
@@ -1831,8 +1902,11 @@ function presentationView() {
 
       <div class="pitch-grid-2">
         <div class="pitch-box pain">
-          <div class="flex-between" style="margin-bottom:8px">
-            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">1. Legacy Enterprise EHRs</h3>
+          <div class="flex-between" style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="pitch-emblem" style="margin:0;width:48px;height:48px;font-size:1.5rem;border-color:#fda4af">🏢</div>
+              <h3 style="margin:0;color:#9f1239;font-size:1.08rem">1. Legacy Enterprise EHRs</h3>
+            </div>
             <span class="badge bad">CentralReach · RethinkBH</span>
           </div>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
@@ -1843,9 +1917,12 @@ function presentationView() {
         </div>
 
         <div class="pitch-box pain">
-          <div class="flex-between" style="margin-bottom:8px">
-            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">2. Standalone Data Collection Apps</h3>
-            <span class="badge bad">Catalyst · Passage Health · Hi Rasmus</span>
+          <div class="flex-between" style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="pitch-emblem" style="margin:0;width:48px;height:48px;font-size:1.5rem;border-color:#fda4af">📲</div>
+              <h3 style="margin:0;color:#9f1239;font-size:1.08rem">2. Standalone Data Collection Apps</h3>
+            </div>
+            <span class="badge bad">Catalyst · Passage · Hi Rasmus</span>
           </div>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
             <li><b>Siloed from Practice Ops:</b> Disconnected from CPT authorization burn-down counters, CMS 8-minute unit math, and BACB 5% supervision tracking.</li>
@@ -1855,8 +1932,11 @@ function presentationView() {
         </div>
 
         <div class="pitch-box pain">
-          <div class="flex-between" style="margin-bottom:8px">
-            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">3. Generic Mental Health EHRs</h3>
+          <div class="flex-between" style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="pitch-emblem" style="margin:0;width:48px;height:48px;font-size:1.5rem;border-color:#fda4af">🛋️</div>
+              <h3 style="margin:0;color:#9f1239;font-size:1.08rem">3. Generic Mental Health EHRs</h3>
+            </div>
             <span class="badge bad">SimplePractice · TherapyNotes</span>
           </div>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
@@ -1866,8 +1946,11 @@ function presentationView() {
         </div>
 
         <div class="pitch-box pain">
-          <div class="flex-between" style="margin-bottom:8px">
-            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">4. Paper Binders, Clickers & Excel</h3>
+          <div class="flex-between" style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="pitch-emblem" style="margin:0;width:48px;height:48px;font-size:1.5rem;border-color:#fda4af">📋</div>
+              <h3 style="margin:0;color:#9f1239;font-size:1.08rem">4. Paper Binders, Clickers & Excel</h3>
+            </div>
             <span class="badge bad">The Manual Workaround</span>
           </div>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
@@ -1960,7 +2043,8 @@ function presentationView() {
 
       <div class="pitch-grid-2">
         <div class="pitch-box">
-          <span class="badge bad" style="margin-bottom:8px">The Old Way (Legacy Systems)</span>
+          <div class="pitch-emblem" style="border-color:#fda4af">🗂️</div>
+          <div><span class="badge bad" style="margin-bottom:8px">The Old Way (Legacy Systems)</span></div>
           <h3 style="margin:4px 0 8px">Fragmented Across 5 Tabs</h3>
           <p style="font-size:0.88rem;color:var(--slate-600);line-height:1.6">
             Communication modality is in the intake PDF. Reinforcers are on a clipboard. The Crisis Plan is buried in a folder called <code>BIP_Final_v3_Signed.pdf</code>. By the time an RBT opens it on tablet Wi-Fi, the behavior has already escalated.
@@ -1968,7 +2052,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge p" style="margin-bottom:8px">The EBA Advantage</span>
+          <div class="pitch-emblem">🚨</div>
+          <div><span class="badge p" style="margin-bottom:8px">The EBA Advantage</span></div>
           <h3 style="margin:4px 0 8px">Pinned Vitals Header + Instant Crisis Protocol</h3>
           <p style="font-size:0.88rem;color:var(--slate-700);line-height:1.6">
             Every client record pins <b>Communication Modality</b>, <b>Sensory Profile</b>, <b>Known Antecedents</b>, <b>Reinforcer Hierarchy</b>, live <b>CPT Unit Counters</b>, and a red <b>"🚨 Emergency / Crisis Plan"</b> toggle at the top of every view—plus an in-session BIP drawer.
@@ -1998,7 +2083,8 @@ function presentationView() {
 
       <div class="pitch-grid-3">
         <div class="pitch-box highlight">
-          <span class="badge p">1-Tap Mode Switch</span>
+          <div class="pitch-emblem">🧩</div>
+          <div><span class="badge p">1-Tap Mode Switch</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem">🎯 DTT Mode ↔ 🧩 NET Play Grid</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             In <b>DTT Mode</b>, focus on one skill with oversized 60px+ buttons across all 6 BACB prompt levels (<code>I / V / G / M / P / N</code>) + instant undo. Tap <b>🧩 NET Mode</b> to see all active goals in a compact multi-target grid for floor play!
@@ -2006,7 +2092,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge tan">Industry First</span>
+          <div class="pitch-emblem">⭐</div>
+          <div><span class="badge tan">Industry First</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem">⭐ Embedded Interactive Kid Mode</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             Tap <b>"⭐ Kid Mode"</b> inside any active session to open an interactive <b>5-Star Token Economy Board</b> + <b>Digital First/Then Visual Schedule</b> right on the tablet—no more lost Velcro stars!
@@ -2014,7 +2101,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge sen">Automated Billing Math</span>
+          <div class="pitch-emblem">⏱️</div>
+          <div><span class="badge sen">Automated Billing Math</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem">⏱️ CMS 8-Minute Rule Engine</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             Dark-mode elapsed timer calculates billable 15-minute CPT units in real time using the exact CMS 8-minute threshold rule (e.g., 23 mins = 2 units; 180 mins = 12 units).
@@ -2047,7 +2135,8 @@ function presentationView() {
 
       <div class="pitch-grid-2">
         <div class="pitch-box">
-          <h3 style="margin:0 0 8px;font-size:1.05rem">🧠 Automatic 4-Function Classification</h3>
+          <div class="pitch-emblem">🧠</div>
+          <h3 style="margin:0 0 8px;font-size:1.05rem">Automatic 4-Function Classification</h3>
           <p style="font-size:0.86rem;color:var(--slate-600);line-height:1.6;margin:0 0 12px">
             Every behavior incident is tagged and color-coded across the four clinical functions of behavior:
           </p>
@@ -2060,7 +2149,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <h3 style="margin:0 0 8px;font-size:1.05rem">⏰ Why the Hourly Scatterplot Matters to BCBAs</h3>
+          <div class="pitch-emblem">⏰</div>
+          <h3 style="margin:0 0 8px;font-size:1.05rem">Why the Hourly Scatterplot Matters to BCBAs</h3>
           <p style="font-size:0.86rem;color:var(--slate-700);line-height:1.6;margin:0">
             In Eleanor's pre-loaded clinical record, our heatmap immediately reveals that <b>60% of her behaviors cluster in the 11:00 AM hour</b> (right before noisy cafeteria transition). Instead of guessing, the BCBA can immediately introduce a 10:55 AM visual countdown and sensory headphones!
           </p>
@@ -2089,7 +2179,8 @@ function presentationView() {
 
       <div class="pitch-grid-3">
         <div class="pitch-box" style="background:#f0fdf4;border-color:#86efac">
-          <span class="tag approved">🎯 Mastery Criteria Met</span>
+          <div class="pitch-emblem" style="border-color:#86efac">🏆</div>
+          <div><span class="tag approved">🎯 Mastery Criteria Met</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem;color:#065f46">Auto-Detects ≥80% × 3 Sessions</h3>
           <p style="margin:0;font-size:0.85rem;color:#047857">
             Eleanor's <i>"Following teacher directions"</i> goal hit 83%, 86%, and 90% independent across her last 3 sessions. EBA flags it with a 1-tap <b>"✓ Advance to Mastered"</b> button for the BCBA.
@@ -2097,7 +2188,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box" style="background:#fffbeb;border-color:#fde68a">
-          <span class="tag draft">⚠️ Target Stalled / Plateau</span>
+          <div class="pitch-emblem" style="border-color:#fde68a">⚠️</div>
+          <div><span class="tag draft">⚠️ Target Stalled / Plateau</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem;color:#92400e">Flags Stagnant Targets Early</h3>
           <p style="margin:0;font-size:0.85rem;color:#b45309">
             Eleanor's <i>"Waiting for a turn"</i> goal has stayed flat at 20% across 3 sessions (baseline 20%). EBA alerts the BCBA to modify the prompt hierarchy before weeks are wasted.
@@ -2105,7 +2197,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge p">Prompt Dependency Audit</span>
+          <div class="pitch-emblem">📊</div>
+          <div><span class="badge p">Prompt Dependency Audit</span></div>
           <h3 style="margin:8px 0 6px;font-size:1rem">Prompt Fading Breakdown</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             Under every skill graph, EBA displays the exact prompt distribution (<code>I / V / G / M / P / N</code>) from the latest session so BCBAs can spot verbal or physical prompt dependency at a glance.
@@ -2135,7 +2228,8 @@ function presentationView() {
 
       <div class="pitch-grid-2">
         <div class="pitch-box highlight">
-          <span class="badge tan">Daily RBT → BCBA Workflow</span>
+          <div class="pitch-emblem">✍️</div>
+          <div><span class="badge tan">Daily RBT → BCBA Workflow</span></div>
           <h3 style="margin:8px 0 6px">Auto-Compiled SOAP Note + Co-Signature</h3>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
             <li>Combines session duration, CMS 8-minute billable units, exact trial percentages per goal, client reinforcers, and in-session ABC incidents into a structured narrative in 1 click.</li>
@@ -2144,7 +2238,8 @@ function presentationView() {
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge p">Every 6 Months · Saves 4–6 Hours/Client</span>
+          <div class="pitch-emblem">📄</div>
+          <div><span class="badge p">Every 6 Months · Saves 4–6 Hours/Client</span></div>
           <h3 style="margin:8px 0 6px">1-Click Insurance Re-Authorization Generator</h3>
           <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
             <li>Generates a complete 5-section <b>CPT 97151 / 97155 Treatment Plan & Re-Authorization Progress Report</b> directly from live Client 360 data.</li>
@@ -2178,24 +2273,27 @@ function presentationView() {
 
       <div class="pitch-grid-3">
         <div class="pitch-box highlight">
-          <span class="badge p">Hard Clinical Guardrail</span>
-          <h3 style="margin:8px 0 6px;font-size:1rem">📖 AI Social Stories & BIPs</h3>
+          <div class="pitch-emblem">📖</div>
+          <div><span class="badge p">Hard Clinical Guardrail</span></div>
+          <h3 style="margin:8px 0 6px;font-size:1rem">AI Social Stories & BIPs</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             Generates child-tailored Social Stories (incorporating special interests like LEGO or Space Rockets + Web Speech Read-Aloud) and FCT Behavior Plans. <b>Locked as <code>draft</code> until BCBA approval.</b>
           </p>
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge esc">Zero-Leakage RBAC</span>
-          <h3 style="margin:8px 0 6px;font-size:1rem">👨‍👩‍👧 Guarded Parent Portal</h3>
+          <div class="pitch-emblem">👨‍👩‍👧</div>
+          <div><span class="badge esc">Zero-Leakage RBAC</span></div>
+          <h3 style="margin:8px 0 6px;font-size:1rem">Guarded Parent Portal</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             When Mrs. Carter signs in, the API strips all raw ABC logs, internal clinical notes, CPT billing units, and unapproved drafts—showing only her child's progress and BCBA-shared stories.
           </p>
         </div>
 
         <div class="pitch-box highlight">
-          <span class="badge tan">Licensure Protection</span>
-          <h3 style="margin:8px 0 6px;font-size:1rem">🎯 BACB 5% Supervision Radar</h3>
+          <div class="pitch-emblem">🎯</div>
+          <div><span class="badge tan">Licensure Protection</span></div>
+          <h3 style="margin:8px 0 6px;font-size:1rem">BACB 5% Supervision Radar</h3>
           <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
             Automatically tracks supervised minutes against total RBT direct therapy hours, alerting the clinic if supervision drops below the mandatory 5% BACB threshold.
           </p>
@@ -2292,11 +2390,11 @@ function presentationView() {
   const inner = `
   <div class="pitch-deck-wrap">
     <div class="pitch-topbar">
-      <div style="display:flex;align-items:center;gap:12px">
-        <div class="brand-icon" style="width:36px;height:36px;font-size:0.95rem">EBA</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        ${brandEmblem('lg')}
         <div>
-          <div style="font-weight:800;font-size:1rem;letter-spacing:-0.01em">Founder & Clinical Advisor Pitch Deck</div>
-          <div style="font-size:0.75rem;color:#94a3b8">Existing ABA Technology vs. Effective Behavioral Approach · Use ← / → keys or buttons below</div>
+          <div style="font-weight:800;font-size:1.18rem;letter-spacing:-0.015em">Founder & Clinical Advisor Pitch Deck</div>
+          <div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Existing ABA Technology vs. Effective Behavioral Approach · Use ← / → keys or slide numbers</div>
         </div>
       </div>
       <div class="pitch-dots">
@@ -2305,8 +2403,8 @@ function presentationView() {
         `).join('')}
       </div>
       <div>
-        ${me ? `<button class="sec" style="padding:6px 12px;font-size:0.78rem;background:#1e293b;color:#fff;border-color:#475569" onclick="go('dashboard')">Exit to App</button>`
-             : `<button class="ok" style="padding:6px 12px;font-size:0.78rem" onclick="act.demoLogin('bcba@eba.test')">Sign In to Live App →</button>`}
+        ${me ? `<button class="sec" style="padding:8px 14px;font-size:0.82rem;background:#1e293b;color:#fff;border-color:#475569" onclick="go('dashboard')">Exit to App</button>`
+             : `<button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="act.demoLogin('bcba@eba.test')">Sign In to Live App →</button>`}
       </div>
     </div>
 
