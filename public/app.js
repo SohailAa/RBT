@@ -1294,47 +1294,78 @@ async function sessionView(id) {
   ` : ''}
 
   <!-- Teaching Mode Switcher (CentralReach Enhancement: DTT vs NET) -->
-  <div class="flex-between" style="margin:16px 0 12px;background:var(--slate-100);padding:8px 12px;border-radius:var(--radius-md)">
-    <div style="font-weight:700;font-size:0.9rem;color:var(--slate-700)">
-      ${sessionMode === 'net' ? '🎲 Natural Environment Teaching (NET Multi-Target Grid)' : '🎯 Discrete Trial Training (DTT Single Focus)'}
+  <div class="mode-switcher-bar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="vital-emblem" style="width:42px;height:42px;font-size:1.3rem">
+        ${sessionMode === 'net' ? '🎲' : '🎯'}
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:0.98rem;color:var(--slate-900)">
+          ${sessionMode === 'net' ? 'Natural Environment Teaching (NET Multi-Target Grid)' : 'Discrete Trial Training (DTT Single-Focus View)'}
+        </div>
+        <div style="font-size:0.78rem;color:var(--slate-500)">
+          ${sessionMode === 'net' ? 'Simultaneous multi-goal trial buttons for natural play & classroom transitions' : 'Structured tabletop trials with full prompt-hierarchy breakdown'}
+        </div>
+      </div>
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.8rem;padding:4px 10px" onclick="act.setSessionMode('dtt')">🎯 DTT View</button>
-      <button class="${sessionMode === 'net' ? 'ok' : 'sec'}" style="font-size:0.8rem;padding:4px 10px" onclick="act.setSessionMode('net')">🎲 NET Multi-Target View</button>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      ${!ended ? `<button class="sec" style="font-size:0.84rem;padding:9px 14px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>` : ''}
+      <div class="mode-toggle-group">
+        <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('dtt')">🎯 DTT View</button>
+        <button class="${sessionMode === 'net' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('net')">🎲 NET Grid</button>
+      </div>
     </div>
   </div>
 
   ${sessionMode === 'net' ? `
     <div class="net-grid">
-      ${goals.map((g) => `
+      ${goals.map((g) => {
+        const total = g.summary ? g.summary.total : 0;
+        const indepPct = g.summary ? g.summary.pct.I : 0;
+        return `
         <div class="net-card">
-          <div class="flex-between" style="margin-bottom:6px">
-            <h4 style="margin:0;font-size:0.95rem;line-height:1.2">${esc(g.title)}</h4>
-            <span class="badge p" style="font-size:0.7rem">#${g.id}</span>
-          </div>
-          <div style="font-size:0.75rem;color:var(--slate-500);margin-bottom:8px">
-            Trials: <b>${g.summary ? g.summary.total : 0}</b> · Indep: <b style="color:var(--ok)">${g.summary ? g.summary.pct.I : 0}%</b>
-          </div>
-          ${ended ? '' : `
-            <div class="net-actions">
-              <button class="net-btn btn-i" title="Independent" onclick="act.trial(${s.id}, ${g.id}, 'I')">⭐ Ind</button>
-              <button class="net-btn btn-v" title="Verbal Prompt" onclick="act.trial(${s.id}, ${g.id}, 'V')">🗣️ Verb</button>
-              <button class="net-btn btn-g" title="Gestural Prompt" onclick="act.trial(${s.id}, ${g.id}, 'G')">👉 Gest</button>
-              <button class="net-btn btn-p" title="Physical Prompt" onclick="act.trial(${s.id}, ${g.id}, 'P')">🤝 Phys</button>
-              <button class="net-btn btn-n" title="Refusal / Non-compliant" onclick="act.trial(${s.id}, ${g.id}, 'N')">⛔ Ref</button>
+          <div>
+            <div class="net-card-head">
+              <h4 style="margin:0;font-size:1.02rem;font-weight:800;color:var(--slate-900);line-height:1.35">${esc(g.title)}</h4>
+              <span class="badge p" style="font-size:0.74rem;flex-shrink:0">Goal #${g.id}</span>
             </div>
-          `}
-          <div class="bar" style="height:4px;margin-top:8px">
-            <div style="width:${g.summary ? g.summary.pct.I : 0}%"></div>
+            <div class="net-stats-row">
+              <span>Trials: <b>${total}</b></span>
+              <span style="color:var(--slate-300)">•</span>
+              <span>Independent: <b style="color:var(--ok)">${indepPct}%</b></span>
+            </div>
+          </div>
+          <div>
+            ${ended ? '' : `
+              <div class="net-actions">
+                <button class="net-btn btn-i" title="Independent (I)" onclick="act.trial(${s.id}, ${g.id}, 'I')">
+                  <span class="net-btn-ic">⭐</span><span>Indep</span>
+                </button>
+                <button class="net-btn btn-v" title="Verbal Prompt (V)" onclick="act.trial(${s.id}, ${g.id}, 'V')">
+                  <span class="net-btn-ic">🗣️</span><span>Verbal</span>
+                </button>
+                <button class="net-btn btn-g" title="Gestural Prompt (G)" onclick="act.trial(${s.id}, ${g.id}, 'G')">
+                  <span class="net-btn-ic">👉</span><span>Gestural</span>
+                </button>
+                <button class="net-btn btn-m" title="Model Prompt (M)" onclick="act.trial(${s.id}, ${g.id}, 'M')">
+                  <span class="net-btn-ic">👀</span><span>Model</span>
+                </button>
+                <button class="net-btn btn-p" title="Physical Prompt (P)" onclick="act.trial(${s.id}, ${g.id}, 'P')">
+                  <span class="net-btn-ic">🤝</span><span>Physical</span>
+                </button>
+                <button class="net-btn btn-n" title="Refusal / Non-compliant (N)" onclick="act.trial(${s.id}, ${g.id}, 'N')">
+                  <span class="net-btn-ic">⛔</span><span>Refusal</span>
+                </button>
+              </div>
+            `}
+            <div class="bar" style="height:8px;margin:14px 0 0">
+              <div style="width:${indepPct}%"></div>
+            </div>
           </div>
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     </div>
-    ${ended ? '' : `
-      <div style="margin:8px 0 16px;text-align:right">
-        <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>
-      </div>
-    `}
   ` : goals.map((g) => `
     <div class="card">
       <div class="flex-between">
