@@ -301,7 +301,7 @@ async function dashboardView() {
               </td>
               <td>
                 <button class="${a.session ? 'sec' : 'ok'}" onclick="act.start(${a.id})">
-                  ${a.session ? (a.session.end ? 'Review Session 📋' : 'Resume Cockpit ⚡') : 'Launch Cockpit 🚀'}
+                  ${a.session ? (a.session.end ? 'Review Session 📋' : 'Resume Session ⚡') : 'Start Session'}
                 </button>
               </td>
             </tr>
@@ -1146,7 +1146,7 @@ async function scheduleView() {
               <td>
                 ${x.session && x.session.end ? '<span class="tag approved">Completed</span>' : ''}
                 <button class="${x.session ? 'sec' : 'ok'}" onclick="act.start(${x.id})">
-                  ${x.session ? (x.session.end ? 'Open Note' : 'Resume Cockpit') : 'Start Session'}
+                  ${x.session ? (x.session.end ? 'Open Note' : 'Resume Session ⚡') : 'Start Session'}
                 </button>
               </td>
             </tr>
