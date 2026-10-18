@@ -155,47 +155,121 @@ const NAV_ICONS = {
 
 const NAV = {
   BCBA: [
-    ['dashboard', NAV_ICONS.dashboard, 'Practice Ledger'],
-    ['clients', NAV_ICONS.clients, 'Clients 360'],
-    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule'],
-    ['notes', NAV_ICONS.notes, 'Notes & Dual-Sign'],
-    ['supervision', NAV_ICONS.supervision, 'BACB Supervision'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
+    ['dashboard', NAV_ICONS.dashboard, 'Practice Ledger', 'Live EVV, Roster & Burn-Down'],
+    ['clients', NAV_ICONS.clients, 'Clients 360°', 'Vitals, DTT, FBA & BIPs'],
+    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & Units'],
+    ['notes', NAV_ICONS.notes, 'Notes & Dual-Sign', 'SOAP & 21 CFR Co-Sign'],
+    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Mandatory 5% Audit Radar'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
   ],
   RBT: [
-    ['dashboard', NAV_ICONS.dashboard, 'My Clinical Day'],
-    ['schedule', NAV_ICONS.schedule, 'Schedule'],
-    ['clients', NAV_ICONS.clients, 'My Clients'],
-    ['notes', NAV_ICONS.notes, 'Session Notes'],
-    ['supervision', NAV_ICONS.supervision, 'My Supervision'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
+    ['dashboard', NAV_ICONS.dashboard, 'My Clinical Day', 'Assigned Shift & Tasks'],
+    ['schedule', NAV_ICONS.schedule, 'Session Schedule', '1-Tap Start Session'],
+    ['clients', NAV_ICONS.clients, 'My Clients 360°', 'Vitals, DTT & ABC Logs'],
+    ['notes', NAV_ICONS.notes, 'Session Notes', 'Auto-SOAP Drafts'],
+    ['supervision', NAV_ICONS.supervision, 'My Supervision', 'BCBA Feedback & 5% Track'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
   ],
   PARENT: [
-    ['clients', NAV_ICONS.clients, 'My Child'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
+    ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Approved Stories'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
   ]
 };
 
 const brandEmblem = (cls = '') => `
   <div class="brand-icon ${cls}" title="Effective Behavioral Approach — Unified Behavioral Health Record">
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="6" y="6" width="52" height="52" rx="10" stroke="#D4A359" stroke-width="1.8" opacity="0.55"/>
-      <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="#D4A359" stroke-width="2" opacity="0.45"/>
-      <path d="M11 34H21L26 20L34 46L39 30L43 34H53" stroke="#F7F4EC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="32" cy="13" r="4" fill="#C85A32" stroke="#F7F4EC" stroke-width="1.5"/>
+      <rect x="6" y="6" width="52" height="52" rx="11" stroke="#6ee7b7" stroke-width="1.8" opacity="0.7"/>
+      <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="#38bdf8" stroke-width="2" opacity="0.55"/>
+      <path d="M11 34H21L26 20L34 46L39 30L43 34H53" stroke="#ecfeff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="13" r="4.5" fill="#10b981" stroke="#ecfeff" stroke-width="1.5"/>
     </svg>
   </div>`;
 
 function shell(content, route) {
   const userInitials = getInitials(me.name);
+  const activeClientId = location.hash.startsWith('#client/') ? (+location.hash.split('/')[1] || 1) : 1;
+  const isParent = me.role === 'PARENT';
   const floatBar = (pitchTourActive && route !== 'presentation') ? `
     <div class="pitch-float-bar">
-      <span style="font-family:var(--font-mono);font-size:0.76rem;font-weight:600;color:#EACB8A">GUIDED TOUR · SLIDE ${pitchSlide + 1}/10</span>
+      <span style="font-family:var(--font-mono);font-size:0.76rem;font-weight:600;color:#6ee7b7">GUIDED TOUR · SLIDE ${pitchSlide + 1}/10</span>
       <button class="ok" style="padding:5px 12px;font-size:0.78rem" onclick="go('presentation')">↩ Back to Deck</button>
       ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide (${pitchSlide + 2}/10) →</button>` : ''}
-      <button style="background:transparent;border:none;color:#B8C7C0;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
+      <button style="background:transparent;border:none;color:#99f6e4;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
     </div>
   ` : '';
+
+  const caseloadWidget = !isParent ? `
+    <div>
+      <div class="sidebar-section-label">
+        <span>Active Caseload Pinboard</span>
+        <span style="color:#38bdf8">1-Tap Jump</span>
+      </div>
+      <div class="sidebar-widget">
+        <div class="sidebar-client-list">
+          <div class="sidebar-client-row" onclick="go('client', 1)" title="Open Eleanor Carter 360° Record">
+            <div class="sidebar-client-avatar">EC</div>
+            <div class="sidebar-client-info">
+              <div class="sidebar-client-name">Eleanor Carter</div>
+              <div class="sidebar-client-meta">ASD · AAC + Vocal · 97153</div>
+            </div>
+            <button class="sidebar-mini-btn" onclick="event.stopPropagation();act.start(1)" title="Start / Resume Session">▶ Session</button>
+          </div>
+          <div class="sidebar-client-row" onclick="go('client', 2)" title="Open Leon Patel 360° Record">
+            <div class="sidebar-client-avatar" style="background:linear-gradient(135deg,#0284c7,#0f766e)">LP</div>
+            <div class="sidebar-client-info">
+              <div class="sidebar-client-name">Leon Patel</div>
+              <div class="sidebar-client-meta">ASD · PECS Phase IV · 97153</div>
+            </div>
+            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 2)" title="Open 360° Record">360° →</button>
+          </div>
+        </div>
+
+        <div class="sidebar-pillar-chips">
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'overview')">01 Overview</button>
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'skills')">02 DTT Goals</button>
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'behavior_abc')">03 FBA & ABC</button>
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'plans')">04 BIP Plans</button>
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'stories')">05 Stories</button>
+          <button class="sidebar-pillar-chip" style="background:linear-gradient(135deg,rgba(16,185,129,0.35),rgba(2,132,199,0.35))!important;color:#fff!important" onclick="act.openAbcModal(${activeClientId})">+ Log ABC</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-label">
+        <span>Clinic Compliance Radar</span>
+        <span style="color:#6ee7b7">≥5% BACB</span>
+      </div>
+      <div class="sidebar-widget" style="cursor:pointer" onclick="go('supervision')" title="Click to open BACB Monthly Supervision Tracker">
+        <div class="flex-between" style="font-size:0.74rem;font-weight:700;color:#ecfeff">
+          <span>BACB RBT Supervision</span>
+          <span style="font-family:var(--font-mono);color:#6ee7b7">COMPLIANT</span>
+        </div>
+        <div class="sidebar-radar-bar">
+          <div class="sidebar-radar-fill" style="width:78%"></div>
+        </div>
+        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.63rem;color:#99f6e4;margin-top:4px">
+          <span>CMS 8-Min Rule: ON</span>
+          <span>CPT 97153 / 97155</span>
+        </div>
+      </div>
+    </div>
+  ` : `
+    <div>
+      <div class="sidebar-section-label">
+        <span>Family Quick Access</span>
+        <span style="color:#6ee7b7">Guarded View</span>
+      </div>
+      <div class="sidebar-widget">
+        <div class="sidebar-pillar-chips" style="grid-template-columns:1fr 1fr;margin-top:0;padding-top:0;border-top:none">
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(1, 'goals')">Skill Goals</button>
+          <button class="sidebar-pillar-chip" onclick="act.quickPillar(1, 'stories')">Social Stories</button>
+        </div>
+      </div>
+    </div>
+  `;
+
   return `
   <div class="layout">
     <nav>
@@ -204,19 +278,36 @@ function shell(content, route) {
           ${brandEmblem()}
           <div>
             <div class="brand-title">Effective Behavioral</div>
-            <div class="brand-sub">Unified Clinical Record</div>
+            <div class="brand-sub">Ocean & Emerald Clinical OS</div>
           </div>
         </div>
+        <div class="sidebar-telemetry-pill">
+          <span><span class="pulse-dot"></span>EVV & FBA SYNCED</span>
+          <span style="color:#38bdf8;font-weight:700">UBHR v3.4</span>
+        </div>
       </div>
-      <div class="nav-links">
-        ${NAV[me.role].map(([r, ic, l], idx) => `
-          <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
-            <span class="nav-ic-emblem">${ic}</span>
-            <span style="flex:1">${l}</span>
-            <span style="font-family:var(--font-mono);font-size:0.66rem;opacity:0.45">0${idx + 1}</span>
-          </a>
-        `).join('')}
+
+      <div>
+        <div class="sidebar-section-label">
+          <span>Clinical Command Modules</span>
+          <span>01–0${NAV[me.role].length}</span>
+        </div>
+        <div class="nav-links">
+          ${NAV[me.role].map(([r, ic, l, sub], idx) => `
+            <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
+              <span class="nav-ic-emblem">${ic}</span>
+              <div class="nav-item-text">
+                <div class="nav-item-title">${l}</div>
+                <div class="nav-item-sub">${sub || ''}</div>
+              </div>
+              <span class="nav-item-badge">0${idx + 1}</span>
+            </a>
+          `).join('')}
+        </div>
       </div>
+
+      ${caseloadWidget}
+
       <div class="nav-user">
         <div class="nav-user-header">
           <div class="user-avatar">${userInitials}</div>
@@ -225,7 +316,13 @@ function shell(content, route) {
             <span class="user-role-badge">${esc(me.role)}</span>
           </div>
         </div>
-        <a class="nav-logout" onclick="act.logout()">Sign Out</a>
+        <div style="font-family:var(--font-mono);font-size:0.6rem;color:#99f6e4;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px">1-Tap Instant Role Switch:</div>
+        <div class="sidebar-role-switcher">
+          <button class="role-switch-btn ${me.role === 'BCBA' ? 'active' : ''}" onclick="act.demoLogin('bcba@eba.test')">BCBA</button>
+          <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
+          <button class="role-switch-btn ${me.role === 'PARENT' ? 'active' : ''}" onclick="act.demoLogin('parent@eba.test')">Parent</button>
+        </div>
+        <a class="nav-logout" onclick="act.logout()">Sign Out of Workspace</a>
       </div>
     </nav>
     <main>
@@ -560,31 +657,31 @@ function chart(series, baseline, target) {
   
   return `
   <div style="position:relative;margin:8px 0">
-    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#FFFDF9;border-radius:var(--radius-md);border:1px solid var(--slate-200);overflow:hidden">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:linear-gradient(155deg,#e2f6f4 0%,#daf0f8 100%);border-radius:var(--radius-md);border:1.5px solid #6abdb8;overflow:hidden">
       <defs>
         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#173F33" stop-opacity="0.24"/>
-          <stop offset="100%" stop-color="#173F33" stop-opacity="0.01"/>
+          <stop offset="0%" stop-color="#059669" stop-opacity="0.34"/>
+          <stop offset="100%" stop-color="#0284c7" stop-opacity="0.04"/>
         </linearGradient>
       </defs>
       <!-- Baseline line -->
-      <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#8C9991" stroke-dasharray="3"/>
+      <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#3d7d82" stroke-dasharray="3"/>
       <!-- Target mastery line -->
-      <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#C85A32" stroke-dasharray="3"/>
+      <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="4 3"/>
       <!-- Gradient area under curve -->
       <polygon points="${areaPoly}" fill="url(#chartGrad)"/>
       <!-- Polyline -->
-      <polyline fill="none" stroke="#173F33" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      <polyline fill="none" stroke="#047857" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
       <!-- Data circles -->
       ${series.map((s, i) => `
-        <circle cx="${x(i)}" cy="${y(s.pct)}" r="4" fill="#FFFDF9" stroke="#173F33" stroke-width="2.5">
+        <circle cx="${x(i)}" cy="${y(s.pct)}" r="4.2" fill="#ecfeff" stroke="#0284c7" stroke-width="2.5">
           <title>Session ${s.session}: ${s.pct}% independent</title>
         </circle>
       `).join('')}
     </svg>
-    <div class="flex-between" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--slate-500);margin-top:4px">
+    <div class="flex-between" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--slate-600);margin-top:4px">
       <span>BASELINE: <b>${baseline}%</b></span>
-      <span style="color:var(--accent-clay);font-weight:600">CRITERION: <b>${target}%</b></span>
+      <span style="color:#0284c7;font-weight:700">CRITERION: <b>${target}%</b></span>
     </div>
   </div>`;
 }
@@ -610,59 +707,59 @@ function fbaTrendChart(dailySeries, reductionMetrics) {
 
   return `
   <div class="fba-chart-wrap">
-    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#FFFDF9;border-radius:8px;border:1px solid var(--slate-200);overflow:visible;display:block">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:linear-gradient(155deg,#e2f6f4 0%,#d9eff8 100%);border-radius:8px;border:1.5px solid #6abdb8;overflow:visible;display:block">
       <defs>
         <linearGradient id="fbaAreaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#C85A32" stop-opacity="0.22"/>
-          <stop offset="65%" stop-color="#173F33" stop-opacity="0.11"/>
-          <stop offset="100%" stop-color="#1E6B4E" stop-opacity="0.02"/>
+          <stop offset="0%" stop-color="#0284c7" stop-opacity="0.28"/>
+          <stop offset="65%" stop-color="#0d9488" stop-opacity="0.16"/>
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0.03"/>
         </linearGradient>
       </defs>
 
       <!-- Phase Background Zones -->
       ${splitX !== null ? `
-        <rect x="${padL}" y="${padT - 8}" width="${splitX - padL}" height="${h - padT - padB + 8}" fill="rgba(182,54,44,0.045)" rx="3"/>
-        <rect x="${splitX}" y="${padT - 8}" width="${w - padR - splitX}" height="${h - padT - padB + 8}" fill="rgba(30,107,78,0.055)" rx="3"/>
-        <text x="${padL + 8}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="600" fill="#9B2B22" letter-spacing="0.05em">BASELINE (${rm.baselineRate}/DAY)</text>
-        <text x="${splitX + 10}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="600" fill="#173F33" letter-spacing="0.05em">BIP / FCT PHASE (${rm.currentRate}/DAY)</text>
+        <rect x="${padL}" y="${padT - 8}" width="${splitX - padL}" height="${h - padT - padB + 8}" fill="rgba(2,132,199,0.09)" rx="3"/>
+        <rect x="${splitX}" y="${padT - 8}" width="${w - padR - splitX}" height="${h - padT - padB + 8}" fill="rgba(16,185,129,0.12)" rx="3"/>
+        <text x="${padL + 8}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="700" fill="#0369a1" letter-spacing="0.05em">BASELINE (${rm.baselineRate}/DAY)</text>
+        <text x="${splitX + 10}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="700" fill="#047857" letter-spacing="0.05em">BIP / FCT PHASE (${rm.currentRate}/DAY)</text>
       ` : ''}
 
       <!-- Horizontal Grid Lines -->
       ${gridSteps.map((gv) => `
-        <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#E6DFD1" stroke-width="1"/>
-        <text x="${padL - 8}" y="${y(gv) + 3}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600" fill="#6A7A72">${gv}</text>
+        <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#99cfc9" stroke-width="1"/>
+        <text x="${padL - 8}" y="${y(gv) + 3}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="700" fill="#255f66">${gv}</text>
       `).join('')}
 
       <!-- Baseline & Intervention Mean Reference Lines -->
       ${rm.baselineRate > 0 ? `
-        <line x1="${padL}" x2="${splitX || (w - padR)}" y1="${y(rm.baselineRate)}" y2="${y(rm.baselineRate)}" stroke="#B6362C" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
+        <line x1="${padL}" x2="${splitX || (w - padR)}" y1="${y(rm.baselineRate)}" y2="${y(rm.baselineRate)}" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
       ` : ''}
       ${splitX !== null && rm.currentRate >= 0 ? `
-        <line x1="${splitX}" x2="${w - padR}" y1="${y(rm.currentRate)}" y2="${y(rm.currentRate)}" stroke="#1E6B4E" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>
+        <line x1="${splitX}" x2="${w - padR}" y1="${y(rm.currentRate)}" y2="${y(rm.currentRate)}" stroke="#047857" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.9"/>
       ` : ''}
 
       <!-- Phase Change Vertical Divider -->
       ${splitX !== null ? `
-        <line x1="${splitX}" x2="${splitX}" y1="${padT - 8}" y2="${h - padB}" stroke="#C8923A" stroke-width="2" stroke-dasharray="5 3"/>
+        <line x1="${splitX}" x2="${splitX}" y1="${padT - 8}" y2="${h - padB}" stroke="#0d9488" stroke-width="2" stroke-dasharray="5 3"/>
       ` : ''}
 
       <!-- Area & Trend Polyline -->
       <polygon points="${areaPoly}" fill="url(#fbaAreaGrad)"/>
-      <polyline fill="none" stroke="#173F33" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      <polyline fill="none" stroke="#0b5d5e" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
 
       <!-- Data Points & Labels -->
       ${series.map((d, i) => {
         const cx = x(i);
         const cy = y(d.count);
         const isPost = splitIdx !== null && i >= splitIdx;
-        const dotColor = isPost ? '#1E6B4E' : '#B6362C';
+        const dotColor = isPost ? '#047857' : '#0284c7';
         return `
           <g>
-            <circle cx="${cx}" cy="${cy}" r="5" fill="#FFFDF9" stroke="${dotColor}" stroke-width="2.75">
+            <circle cx="${cx}" cy="${cy}" r="5" fill="#ecfeff" stroke="${dotColor}" stroke-width="2.75">
               <title>${esc(d.label)} (${esc(d.phase || 'Observation')}): ${d.count} incident(s)</title>
             </circle>
             <text x="${cx}" y="${cy - 10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="700" fill="${dotColor}">${d.count}</text>
-            <text x="${cx}" y="${h - 12}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="600" fill="#4D5F57">${esc(d.label)}</text>
+            <text x="${cx}" y="${h - 12}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="700" fill="#164b54">${esc(d.label)}</text>
           </g>
         `;
       }).join('')}
@@ -672,10 +769,10 @@ function fbaTrendChart(dailySeries, reductionMetrics) {
 
 function fbaFunctionDonut(functions, total) {
   const fnColors = [
-    { key: 'Escape', label: 'Escape / Avoidance', color: '#B6362C' },
-    { key: 'Tangible', label: 'Access to Tangible', color: '#C8923A' },
-    { key: 'Attention', label: 'Attention Seeking', color: '#1E5670' },
-    { key: 'Sensory', label: 'Automatic / Sensory', color: '#6A3D7A' }
+    { key: 'Escape', label: 'Escape / Avoidance', color: '#0284c7' },
+    { key: 'Tangible', label: 'Access to Tangible', color: '#059669' },
+    { key: 'Attention', label: 'Attention Seeking', color: '#0d9488' },
+    { key: 'Sensory', label: 'Automatic / Sensory', color: '#1d4ed8' }
   ];
   const r = 52;
   const c = +(2 * Math.PI * r).toFixed(2);
@@ -690,14 +787,14 @@ function fbaFunctionDonut(functions, total) {
     return `<circle cx="72" cy="72" r="${r}" fill="none" stroke="${item.color}" stroke-width="18" stroke-dasharray="${len} ${c}" stroke-dashoffset="${dashOffset}" transform="rotate(-90 72 72)">
       <title>${item.label}: ${cnt} (${Math.round(frac * 100)}%)</title>
     </circle>`;
-  }).join('') : `<circle cx="72" cy="72" r="${r}" fill="none" stroke="#DCD4C6" stroke-width="18"/>`;
+  }).join('') : `<circle cx="72" cy="72" r="${r}" fill="none" stroke="#99cfc9" stroke-width="18"/>`;
 
   return `
   <svg viewBox="0 0 144 144" width="144" height="144" style="flex-shrink:0">
-    <circle cx="72" cy="72" r="${r}" fill="none" stroke="#ECE6DA" stroke-width="18"/>
+    <circle cx="72" cy="72" r="${r}" fill="none" stroke="#bce6e2" stroke-width="18"/>
     ${arcs}
-    <text x="72" y="68" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="700" fill="#13221C">${total}</text>
-    <text x="72" y="84" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="8.5" font-weight="600" fill="#6A7A72" letter-spacing="0.06em">ABC EVENTS</text>
+    <text x="72" y="68" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="700" fill="#041d24">${total}</text>
+    <text x="72" y="84" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="8.5" font-weight="700" fill="#164b54" letter-spacing="0.06em">ABC EVENTS</text>
   </svg>`;
 }
 
@@ -2579,6 +2676,15 @@ const act = {
     render();
   }),
   setTab: (t) => { tab = t; render(); },
+  quickPillar: (cid, targetTab) => {
+    tab = targetTab;
+    const targetHash = `client/${cid || 1}`;
+    if (location.hash === `#${targetHash}` || location.hash === targetHash) {
+      render();
+    } else {
+      location.hash = targetHash;
+    }
+  },
   toggleCrisis: () => { showCrisis = !showCrisis; render(); },
   openAbcModal: (cid, sid = null) => { activeModal = { type: 'abc', clientId: cid, sessionId: sid }; render(); },
   openFbaReportModal: safe(async (cid) => {
