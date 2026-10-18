@@ -426,7 +426,7 @@ async function dashboardView() {
     <div style="display:flex;align-items:center;gap:16px">
       ${brandEmblem('lg')}
       <div>
-        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL COMMAND LEDGER</div>
+        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL COMMAND LEDGER</div>
         <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Ledger'}</h1>
         <p class="page-sub">${todayStr} · Shift Telemetry: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Active Practice</span></p>
       </div>
@@ -569,7 +569,7 @@ async function clientsView() {
     <div style="display:flex;align-items:center;gap:16px">
       ${brandEmblem('lg')}
       <div>
-        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">02 / UNIFIED CLINICAL RECORDS</div>
+        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">02 / UNIFIED CLINICAL RECORDS</div>
         <h1>Children & Client 360 Registry</h1>
         <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition, FBA & BIP Portals</p>
       </div>
@@ -3575,8 +3575,8 @@ function presentationView() {
       <div style="display:flex;align-items:center;gap:16px">
         ${brandEmblem('lg')}
         <div>
-          <div style="font-weight:800;font-size:1.18rem;letter-spacing:-0.015em">Founder & Clinical Advisor Pitch Deck</div>
-          <div style="font-size:0.8rem;color:#94a3b8;margin-top:2px">Existing ABA Technology vs. Effective Behavioral Approach · Use ← / → keys or slide numbers</div>
+          <div style="font-weight:800;font-size:1.18rem;letter-spacing:-0.015em;color:#031d24">Founder & Clinical Advisor Pitch Deck</div>
+          <div style="font-size:0.82rem;color:#0b4650;font-weight:600;margin-top:2px">Existing ABA Technology vs. Effective Behavioral Approach · Use ← / → keys or slide numbers</div>
         </div>
       </div>
       <div class="pitch-dots">
@@ -3585,7 +3585,7 @@ function presentationView() {
         `).join('')}
       </div>
       <div>
-        ${me ? `<button class="sec" style="padding:8px 14px;font-size:0.82rem;background:#1e293b;color:#fff;border-color:#475569" onclick="go('dashboard')">Exit to App</button>`
+        ${me ? `<button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="go('dashboard')">Exit to App</button>`
              : `<button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="act.demoLogin('bcba@eba.test')">Sign In to Live App →</button>`}
       </div>
     </div>
