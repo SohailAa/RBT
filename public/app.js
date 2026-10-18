@@ -144,36 +144,45 @@ async function api(method, url, body) {
 }
 const safe = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert(e.message); } };
 
+const NAV_ICONS = {
+  dashboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>`,
+  clients: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  schedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  notes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  supervision: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
+  presentation: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`
+};
+
 const NAV = {
   BCBA: [
-    ['dashboard', '🏠', 'Dashboard'],
-    ['clients', '👧', 'Clients 360'],
-    ['schedule', '📅', 'Clinical Schedule'],
-    ['notes', '📝', 'Notes & Dual-Sign'],
-    ['supervision', '🎯', 'BACB Supervision'],
-    ['presentation', '🚀', 'Founder Pitch Deck']
+    ['dashboard', NAV_ICONS.dashboard, 'Practice Ledger'],
+    ['clients', NAV_ICONS.clients, 'Clients 360'],
+    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule'],
+    ['notes', NAV_ICONS.notes, 'Notes & Dual-Sign'],
+    ['supervision', NAV_ICONS.supervision, 'BACB Supervision'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
   ],
   RBT: [
-    ['dashboard', '🏠', 'My Clinical Day'],
-    ['schedule', '📅', 'Schedule'],
-    ['clients', '👧', 'My Clients'],
-    ['notes', '📝', 'Session Notes'],
-    ['supervision', '🎯', 'My Supervision'],
-    ['presentation', '🚀', 'Founder Pitch Deck']
+    ['dashboard', NAV_ICONS.dashboard, 'My Clinical Day'],
+    ['schedule', NAV_ICONS.schedule, 'Schedule'],
+    ['clients', NAV_ICONS.clients, 'My Clients'],
+    ['notes', NAV_ICONS.notes, 'Session Notes'],
+    ['supervision', NAV_ICONS.supervision, 'My Supervision'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
   ],
   PARENT: [
-    ['clients', '👧', 'My Child'],
-    ['presentation', '🚀', 'Founder Pitch Deck']
+    ['clients', NAV_ICONS.clients, 'My Child'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck']
   ]
 };
 
 const brandEmblem = (cls = '') => `
   <div class="brand-icon ${cls}" title="Effective Behavioral Approach — Unified Behavioral Health Record">
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,0.22)" stroke-width="2.5"/>
-      <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="rgba(255,255,255,0.32)" stroke-width="2.5"/>
-      <path d="M11 34H21L26 20L34 46L39 30L43 34H53" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="32" cy="12" r="3.5" fill="#38bdf8" stroke="#ffffff" stroke-width="1.5"/>
+      <rect x="6" y="6" width="52" height="52" rx="10" stroke="#D4A359" stroke-width="1.8" opacity="0.55"/>
+      <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="#D4A359" stroke-width="2" opacity="0.45"/>
+      <path d="M11 34H21L26 20L34 46L39 30L43 34H53" stroke="#F7F4EC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="13" r="4" fill="#C85A32" stroke="#F7F4EC" stroke-width="1.5"/>
     </svg>
   </div>`;
 
@@ -181,10 +190,10 @@ function shell(content, route) {
   const userInitials = getInitials(me.name);
   const floatBar = (pitchTourActive && route !== 'presentation') ? `
     <div class="pitch-float-bar">
-      <span style="font-size:0.8rem;font-weight:700;color:#38bdf8">🎯 Live Demo Tour (Slide ${pitchSlide + 1}/10)</span>
-      <button class="ok" style="padding:5px 12px;font-size:0.78rem;border-radius:999px" onclick="go('presentation')">↩ Back to Deck</button>
-      ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem;border-radius:999px;background:#1e293b;color:#fff;border-color:#475569" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide (${pitchSlide + 2}/10) →</button>` : ''}
-      <button style="background:transparent;border:none;color:#94a3b8;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
+      <span style="font-family:var(--font-mono);font-size:0.76rem;font-weight:600;color:#EACB8A">GUIDED TOUR · SLIDE ${pitchSlide + 1}/10</span>
+      <button class="ok" style="padding:5px 12px;font-size:0.78rem" onclick="go('presentation')">↩ Back to Deck</button>
+      ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide (${pitchSlide + 2}/10) →</button>` : ''}
+      <button style="background:transparent;border:none;color:#B8C7C0;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
     </div>
   ` : '';
   return `
@@ -195,15 +204,16 @@ function shell(content, route) {
           ${brandEmblem()}
           <div>
             <div class="brand-title">Effective Behavioral</div>
-            <div class="brand-sub">● Unified Health Record</div>
+            <div class="brand-sub">Unified Clinical Record</div>
           </div>
         </div>
       </div>
       <div class="nav-links">
-        ${NAV[me.role].map(([r, ic, l]) => `
+        ${NAV[me.role].map(([r, ic, l], idx) => `
           <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
             <span class="nav-ic-emblem">${ic}</span>
-            <span>${l}</span>
+            <span style="flex:1">${l}</span>
+            <span style="font-family:var(--font-mono);font-size:0.66rem;opacity:0.45">0${idx + 1}</span>
           </a>
         `).join('')}
       </div>
@@ -237,25 +247,25 @@ function loginView(err) {
       <div class="login-brand">
         ${brandEmblem('lg')}
         <div>
-          <span class="badge p" style="margin-bottom:4px;font-size:0.7rem">ABA CLINICAL COCKPIT</span>
-          <h2 style="margin:0;font-size:1.38rem;font-weight:800;color:var(--slate-900);letter-spacing:-0.02em">Effective Behavioral Approach</h2>
-          <div style="font-size:0.76rem;color:var(--slate-500);font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:2px">Unified Clinical Practice & Field Record</div>
+          <span class="badge p" style="margin-bottom:4px;font-size:0.68rem">PEDIATRIC ABA CLINICAL LEDGER</span>
+          <h2 style="margin:0;font-size:1.45rem;font-weight:600;color:var(--slate-900)">Effective Behavioral Approach</h2>
+          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--slate-500);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px">Unified Clinical Practice & Field Record</div>
         </div>
       </div>
       
       <p style="font-size:0.9rem;color:var(--slate-600);margin:12px 0 16px">
-        Sign in to access real-time session tracking, unified ABC behavioral records, and dual-signature documentation.
+        Sign in to access real-time session tracking, unified FBA & ABC behavioral records, and dual-signature clinical documentation.
       </p>
 
-      <div style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8;border-radius:16px;padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
+      <div style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--accent-clay);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="role-emblem" style="background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;border:none;width:46px;height:46px;font-size:1.45rem">🚀</div>
+          <div class="role-emblem" style="background:var(--primary);color:#F7F4EC;border-color:#D4A359;width:44px;height:44px;font-size:0.95rem;font-family:var(--font-mono)">EBA</div>
           <div>
-            <div style="font-size:0.72rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.05em">Founder & Therapist Showcase</div>
-            <div style="font-size:0.86rem;font-weight:700;color:var(--slate-900)">Interactive Competitive Deck + Live Tour</div>
+            <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--accent-clay);text-transform:uppercase;letter-spacing:0.06em">Founder & Clinical Monograph</div>
+            <div style="font-family:var(--font-serif);font-size:0.94rem;font-weight:600;color:var(--slate-900)">Interactive Competitive Deck & Live Tour</div>
           </div>
         </div>
-        <button class="ok" style="padding:9px 16px;font-size:0.85rem;white-space:nowrap" onclick="go('presentation')">Launch Pitch Deck →</button>
+        <button class="ok" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="go('presentation')">Open Pitch Deck →</button>
       </div>
 
       <label>Clinician / Guardian Email</label>
@@ -264,17 +274,17 @@ function loginView(err) {
       <label>Secure Password</label>
       <input id="pw" type="password" value="password" autocomplete="current-password">
       
-      <button style="width:100%;padding:13px;font-size:1.02rem;margin-top:8px" onclick="act.login()">Sign In to Clinical Cockpit</button>
+      <button style="width:100%;padding:12px;font-size:0.96rem;margin-top:6px" onclick="act.login()">Enter Clinical Workspace</button>
       
       ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
 
       <div class="demo-pills">
-        <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:2px">Quick Demo Roles (1-Tap Fill & Sign-In):</div>
+        <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">1-Tap Clinical Role Credentials:</div>
         <div class="demo-pill" onclick="act.demoLogin('bcba@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
-            <span class="role-emblem">👩‍⚕️</span>
+            <span class="role-emblem">DR</span>
             <div>
-              <div style="font-weight:800;color:var(--slate-900)">Dr. Dana Rivera</div>
+              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Dr. Dana Rivera, BCBA</div>
               <div style="font-size:0.75rem;color:var(--slate-500)">Supervising Clinical Director</div>
             </div>
           </div>
@@ -282,9 +292,9 @@ function loginView(err) {
         </div>
         <div class="demo-pill" onclick="act.demoLogin('rbt@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
-            <span class="role-emblem">👨‍⚕️</span>
+            <span class="role-emblem">SL</span>
             <div>
-              <div style="font-weight:800;color:var(--slate-900)">Sam Lee</div>
+              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Sam Lee, RBT</div>
               <div style="font-size:0.75rem;color:var(--slate-500)">Registered Behavior Technician</div>
             </div>
           </div>
@@ -292,18 +302,18 @@ function loginView(err) {
         </div>
         <div class="demo-pill" onclick="act.demoLogin('parent@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
-            <span class="role-emblem">👨‍👩‍👧</span>
+            <span class="role-emblem">MC</span>
             <div>
-              <div style="font-weight:800;color:var(--slate-900)">Mrs. Carter</div>
+              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Mrs. Carter</div>
               <div style="font-size:0.75rem;color:var(--slate-500)">Eleanor's Parent / Guardian</div>
             </div>
           </div>
-          <span class="badge esc">Parent</span>
+          <span class="badge att">Parent</span>
         </div>
       </div>
       
-      <div style="font-size:0.74rem;color:var(--slate-400);text-align:center;margin-top:20px;font-weight:600">
-        🔒 HIPAA & 21 CFR Part 11 Compliant Data Isolation · Zero PHI Synthetic Sandbox
+      <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--slate-500);text-align:center;margin-top:20px;font-weight:500">
+        HIPAA & 21 CFR PART 11 ISOLATION · ZERO-PHI SYNTHETIC CLINICAL SANDBOX
       </div>
     </div>
   </div>`;
@@ -319,21 +329,22 @@ async function dashboardView() {
     <div style="display:flex;align-items:center;gap:16px">
       ${brandEmblem('lg')}
       <div>
-        <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Dashboard'}</h1>
-        <p class="page-sub">Today is <b>${todayStr}</b> · Active Shift Status: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Operational</span></p>
+        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL COMMAND LEDGER</div>
+        <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Ledger'}</h1>
+        <p class="page-sub">${todayStr} · Shift Telemetry: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Active Practice</span></p>
       </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="ok" style="padding:11px 18px;font-size:0.92rem" onclick="go('presentation')">🚀 Founder Pitch & Competitive Deck</button>
-      <button class="sec" style="padding:11px 18px;font-size:0.92rem" onclick="go('schedule')">📅 View Full Schedule</button>
+      <button class="ok" style="padding:10px 16px" onclick="go('presentation')">Founder Pitch & Monograph →</button>
+      <button class="sec" style="padding:10px 16px" onclick="go('schedule')">Full Clinical Schedule</button>
     </div>
   </div>
 
   <div class="grid">
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Today's Appointments</div>
-        <div class="stat-emblem">📅</div>
+        <div class="stat-label" style="margin:0">Today's Roster</div>
+        <span class="badge">01</span>
       </div>
       <div class="stat">${d.appts.length}</div>
       <div class="stat-sub">Scheduled therapy sessions</div>
@@ -341,31 +352,31 @@ async function dashboardView() {
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
         <div class="stat-label" style="margin:0">1:1 Direct (97153)</div>
-        <div class="stat-emblem">🧩</div>
+        <span class="badge p">CPT</span>
       </div>
       <div class="stat" style="color:var(--primary)">${d.rbt}</div>
-      <div class="stat-sub">RBT direct client care</div>
+      <div class="stat-sub">RBT direct client treatment</div>
     </div>
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">BCBA Supervision (97155)</div>
-        <div class="stat-emblem">👩‍⚕️</div>
+        <div class="stat-label" style="margin:0">Direction (97155)</div>
+        <span class="badge sen">BCBA</span>
       </div>
       <div class="stat" style="color:var(--sensory)">${d.bcba}</div>
-      <div class="stat-sub">Protocol mods & direct review</div>
+      <div class="stat-sub">Protocol modification & review</div>
     </div>
     <div class="stat-card ${d.incompleteNotes > 0 ? 'warn' : 'ok'}">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
         <div class="stat-label" style="margin:0">Notes Pending</div>
-        <div class="stat-emblem">📝</div>
+        <span class="badge">${d.incompleteNotes > 0 ? 'ACTION' : 'CLEAR'}</span>
       </div>
       <div class="stat" style="color:${d.incompleteNotes > 0 ? 'var(--warn)' : 'var(--ok)'}">${d.incompleteNotes}</div>
       <div class="stat-sub">Awaiting author submission / sign</div>
     </div>
     <div class="stat-card ${sup.compliant ? 'ok' : 'warn'}">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">BACB 5% Supervision</div>
-        <div class="stat-emblem">🎯</div>
+        <div class="stat-label" style="margin:0">BACB 5% Audit</div>
+        <span class="badge tan">≥5% REQ</span>
       </div>
       <div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>
       <div class="stat-sub"><span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant ≥5%' : '⚠ Below 5% Target'}</span></div>
@@ -373,8 +384,8 @@ async function dashboardView() {
     ${me.role === 'BCBA' ? `
       <div class="stat-card warn">
         <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-          <div class="stat-label" style="margin:0">Pending Dual-Signs</div>
-          <div class="stat-emblem">✍️</div>
+          <div class="stat-label" style="margin:0">Pending Co-Signs</div>
+          <span class="badge esc">21 CFR</span>
         </div>
         <div class="stat" style="color:var(--warn)">${d.pendingSign}</div>
         <div class="stat-sub">RBT notes awaiting BCBA signature</div>
@@ -384,7 +395,7 @@ async function dashboardView() {
 
   <div class="card">
     <div class="flex-between">
-      <h3>📅 Today's Clinical Schedule</h3>
+      <h3>Today's Clinical Roster</h3>
       <span class="badge p">${d.appts.length} Appointments</span>
     </div>
     ${d.appts.length ? `
@@ -400,11 +411,11 @@ async function dashboardView() {
         <tbody>
           ${d.appts.map((a) => `
             <tr>
-              <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${fmtT(a.start).slice(-7)} – ${a.end.slice(11)}</span></td>
+              <td><span style="font-family:var(--font-mono);font-weight:600">${fmtT(a.start).slice(-7)} – ${a.end.slice(11)}</span></td>
               <td>
                 <div style="display:flex;align-items:center;gap:12px">
-                  <div class="user-avatar" style="width:40px;height:40px;font-size:0.9rem;background:linear-gradient(135deg,#4f46e5,#06b6d4)">${getInitials(a.client)}</div>
-                  <b>${esc(a.client)}</b>
+                  <div class="user-avatar" style="width:38px;height:38px;font-size:0.86rem">${getInitials(a.client)}</div>
+                  <b style="font-family:var(--font-serif);font-size:0.98rem">${esc(a.client)}</b>
                 </div>
               </td>
               <td>
@@ -413,7 +424,7 @@ async function dashboardView() {
               </td>
               <td>
                 <button class="${a.session ? 'sec' : 'ok'}" onclick="act.start(${a.id})">
-                  ${a.session ? (a.session.end ? 'Review Session 📋' : 'Resume Session ⚡') : 'Start Session'}
+                  ${a.session ? (a.session.end ? 'Review Session' : 'Resume Session →') : 'Start Session'}
                 </button>
               </td>
             </tr>
@@ -426,7 +437,7 @@ async function dashboardView() {
   ${d.auths && d.auths.length ? `
     <div class="card" style="border-left:4px solid var(--warn)">
       <div class="flex-between">
-        <h3>⚠️ Insurance Authorization Burn-Down Alerts</h3>
+        <h3>Insurance Authorization Burn-Down Alerts</h3>
         <span class="tag draft">≥80% Units Exhausted</span>
       </div>
       <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 14px">These authorizations are nearing expiration. Initiate re-authorization packets to prevent treatment interruption.</p>
@@ -435,8 +446,8 @@ async function dashboardView() {
         return `
           <div style="background:var(--slate-50);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:10px">
             <div class="flex-between">
-              <div><b>${esc(a.client)}</b> <span class="badge p">CPT ${esc(a.code)}</span></div>
-              <div><b>${a.used}</b> / ${a.authorized} units (${pct}%)</div>
+              <div><b style="font-family:var(--font-serif)">${esc(a.client)}</b> <span class="badge p">CPT ${esc(a.code)}</span></div>
+              <div style="font-family:var(--font-mono);font-size:0.82rem"><b>${a.used}</b> / ${a.authorized} units (${pct}%)</div>
             </div>
             <div class="bar" style="margin-top:8px"><div style="width:${pct}%;background:${pct >= 90 ? 'var(--bad)' : 'var(--warn)'}"></div></div>
           </div>
@@ -461,13 +472,14 @@ async function clientsView() {
     <div style="display:flex;align-items:center;gap:16px">
       ${brandEmblem('lg')}
       <div>
-        <h1>Children & Client 360 Records</h1>
-        <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition & ABC Portals</p>
+        <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">02 / UNIFIED CLINICAL RECORDS</div>
+        <h1>Children & Client 360 Registry</h1>
+        <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition, FBA & BIP Portals</p>
       </div>
     </div>
     ${me.role === 'BCBA' ? `
       <div>
-        <button class="ok" style="padding:11px 18px" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
+        <button class="ok" style="padding:10px 18px" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
       </div>
     ` : ''}
   </div>
@@ -495,7 +507,7 @@ async function clientsView() {
     <div class="flex-between" style="margin-bottom:12px">
       <h3>Active Caseload (${filtered.length} Children)</h3>
       <div style="max-width:280px;width:100%">
-        <input style="margin:0" placeholder="🔍 Search by name or diagnosis..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
+        <input style="margin:0" placeholder="Search by name or diagnosis..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
       </div>
     </div>
     <table>
@@ -513,18 +525,18 @@ async function clientsView() {
           <tr>
             <td>
               <div style="display:flex;align-items:center;gap:14px">
-                <div class="user-avatar" style="width:46px;height:46px;background:linear-gradient(135deg,#4f46e5,#06b6d4);font-size:1rem">${getInitials(c.name)}</div>
+                <div class="user-avatar" style="width:42px;height:42px;font-size:0.95rem">${getInitials(c.name)}</div>
                 <div>
-                  <div style="font-weight:800;font-size:0.98rem;color:var(--slate-900)">${esc(c.name)}</div>
-                  <div style="font-size:0.76rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
+                  <div style="font-family:var(--font-serif);font-weight:600;font-size:1.02rem;color:var(--slate-900)">${esc(c.name)}</div>
+                  <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
                 </div>
               </div>
             </td>
             <td><span class="badge p">${esc(c.diagnosis || 'ASD')}</span></td>
-            <td><span class="badge esc">${esc(c.communication || 'Vocal')}</span></td>
+            <td><span class="badge att">${esc(c.communication || 'Vocal')}</span></td>
             <td>${esc(c.school || 'Home / Clinic')}</td>
             <td>
-              <button class="sec" onclick="go('client',${c.id})">Open 360 Cockpit 👧</button>
+              <button class="sec" onclick="go('client',${c.id})">Open 360 Record →</button>
             </td>
           </tr>
         `).join('')}
@@ -537,7 +549,7 @@ let tab = 'overview';
 let showCrisis = false;
 
 function chart(series, baseline, target) {
-  if (!series || !series.length) return '<div style="padding:14px;background:var(--slate-50);border-radius:8px;text-align:center;color:var(--slate-400);font-size:0.85rem">No session trials collected for this target yet.</div>';
+  if (!series || !series.length) return '<div style="padding:14px;background:var(--slate-50);border-radius:6px;text-align:center;color:var(--slate-400);font-size:0.85rem">No session trials collected for this target yet.</div>';
   const w = 340, h = 120, n = series.length;
   const x = (i) => n === 1 ? w / 2 : 16 + (i * (w - 32)) / (n - 1);
   const y = (p) => h - 16 - (Math.min(100, Math.max(0, p)) / 100) * (h - 32);
@@ -548,31 +560,31 @@ function chart(series, baseline, target) {
   
   return `
   <div style="position:relative;margin:8px 0">
-    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#fafafa;border-radius:var(--radius-md);border:1px solid var(--slate-200);overflow:hidden">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#FFFDF9;border-radius:var(--radius-md);border:1px solid var(--slate-200);overflow:hidden">
       <defs>
         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#6366f1" stop-opacity="0.3"/>
-          <stop offset="100%" stop-color="#6366f1" stop-opacity="0.01"/>
+          <stop offset="0%" stop-color="#173F33" stop-opacity="0.24"/>
+          <stop offset="100%" stop-color="#173F33" stop-opacity="0.01"/>
         </linearGradient>
       </defs>
       <!-- Baseline line -->
-      <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#94a3b8" stroke-dasharray="3"/>
+      <line x1="0" x2="${w}" y1="${y(baseline)}" y2="${y(baseline)}" stroke="#8C9991" stroke-dasharray="3"/>
       <!-- Target mastery line -->
-      <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#059669" stroke-dasharray="3"/>
+      <line x1="0" x2="${w}" y1="${y(target)}" y2="${y(target)}" stroke="#C85A32" stroke-dasharray="3"/>
       <!-- Gradient area under curve -->
       <polygon points="${areaPoly}" fill="url(#chartGrad)"/>
       <!-- Polyline -->
-      <polyline fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      <polyline fill="none" stroke="#173F33" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
       <!-- Data circles -->
       ${series.map((s, i) => `
-        <circle cx="${x(i)}" cy="${y(s.pct)}" r="4" fill="#ffffff" stroke="#4f46e5" stroke-width="2.5">
+        <circle cx="${x(i)}" cy="${y(s.pct)}" r="4" fill="#FFFDF9" stroke="#173F33" stroke-width="2.5">
           <title>Session ${s.session}: ${s.pct}% independent</title>
         </circle>
       `).join('')}
     </svg>
-    <div class="flex-between" style="font-size:0.75rem;color:var(--slate-500);margin-top:4px">
-      <span>Baseline: <b>${baseline}%</b></span>
-      <span style="color:var(--ok);font-weight:700">Mastery Target: <b>${target}%</b></span>
+    <div class="flex-between" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--slate-500);margin-top:4px">
+      <span>BASELINE: <b>${baseline}%</b></span>
+      <span style="color:var(--accent-clay);font-weight:600">CRITERION: <b>${target}%</b></span>
     </div>
   </div>`;
 }
@@ -580,7 +592,7 @@ function chart(series, baseline, target) {
 function fbaTrendChart(dailySeries, reductionMetrics) {
   const series = dailySeries || [];
   if (!series.length) {
-    return '<div style="padding:20px;background:var(--slate-50);border-radius:12px;text-align:center;color:var(--slate-400);font-size:0.85rem">No longitudinal ABC observations recorded yet.</div>';
+    return '<div style="padding:20px;background:var(--slate-50);border-radius:8px;text-align:center;color:var(--slate-400);font-size:0.85rem">No longitudinal ABC observations recorded yet.</div>';
   }
   const rm = reductionMetrics || { baselineRate: 0, currentRate: 0, pctChange: 0, phaseSplitIdx: 1 };
   const w = 620, h = 195, padL = 38, padR = 26, padT = 28, padB = 34;
@@ -598,59 +610,59 @@ function fbaTrendChart(dailySeries, reductionMetrics) {
 
   return `
   <div class="fba-chart-wrap">
-    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#ffffff;border-radius:12px;border:1px solid var(--slate-200);overflow:visible;display:block">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:#FFFDF9;border-radius:8px;border:1px solid var(--slate-200);overflow:visible;display:block">
       <defs>
         <linearGradient id="fbaAreaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#e11d48" stop-opacity="0.22"/>
-          <stop offset="65%" stop-color="#6366f1" stop-opacity="0.12"/>
-          <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
+          <stop offset="0%" stop-color="#C85A32" stop-opacity="0.22"/>
+          <stop offset="65%" stop-color="#173F33" stop-opacity="0.11"/>
+          <stop offset="100%" stop-color="#1E6B4E" stop-opacity="0.02"/>
         </linearGradient>
       </defs>
 
       <!-- Phase Background Zones -->
       ${splitX !== null ? `
-        <rect x="${padL}" y="${padT - 8}" width="${splitX - padL}" height="${h - padT - padB + 8}" fill="rgba(244,63,94,0.045)" rx="4"/>
-        <rect x="${splitX}" y="${padT - 8}" width="${w - padR - splitX}" height="${h - padT - padB + 8}" fill="rgba(16,185,129,0.05)" rx="4"/>
-        <text x="${padL + 8}" y="${padT + 4}" font-size="9.5" font-weight="800" fill="#be123c" letter-spacing="0.04em">BASELINE PHASE (${rm.baselineRate}/day)</text>
-        <text x="${splitX + 10}" y="${padT + 4}" font-size="9.5" font-weight="800" fill="#047857" letter-spacing="0.04em">BIP / FCT INTERVENTION (${rm.currentRate}/day)</text>
+        <rect x="${padL}" y="${padT - 8}" width="${splitX - padL}" height="${h - padT - padB + 8}" fill="rgba(182,54,44,0.045)" rx="3"/>
+        <rect x="${splitX}" y="${padT - 8}" width="${w - padR - splitX}" height="${h - padT - padB + 8}" fill="rgba(30,107,78,0.055)" rx="3"/>
+        <text x="${padL + 8}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="600" fill="#9B2B22" letter-spacing="0.05em">BASELINE (${rm.baselineRate}/DAY)</text>
+        <text x="${splitX + 10}" y="${padT + 4}" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="600" fill="#173F33" letter-spacing="0.05em">BIP / FCT PHASE (${rm.currentRate}/DAY)</text>
       ` : ''}
 
       <!-- Horizontal Grid Lines -->
       ${gridSteps.map((gv) => `
-        <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#e2e8f0" stroke-width="1"/>
-        <text x="${padL - 8}" y="${y(gv) + 3}" text-anchor="end" font-size="10" font-weight="600" fill="#64748b">${gv}</text>
+        <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#E6DFD1" stroke-width="1"/>
+        <text x="${padL - 8}" y="${y(gv) + 3}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600" fill="#6A7A72">${gv}</text>
       `).join('')}
 
       <!-- Baseline & Intervention Mean Reference Lines -->
       ${rm.baselineRate > 0 ? `
-        <line x1="${padL}" x2="${splitX || (w - padR)}" y1="${y(rm.baselineRate)}" y2="${y(rm.baselineRate)}" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
+        <line x1="${padL}" x2="${splitX || (w - padR)}" y1="${y(rm.baselineRate)}" y2="${y(rm.baselineRate)}" stroke="#B6362C" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.7"/>
       ` : ''}
       ${splitX !== null && rm.currentRate >= 0 ? `
-        <line x1="${splitX}" x2="${w - padR}" y1="${y(rm.currentRate)}" y2="${y(rm.currentRate)}" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>
+        <line x1="${splitX}" x2="${w - padR}" y1="${y(rm.currentRate)}" y2="${y(rm.currentRate)}" stroke="#1E6B4E" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.85"/>
       ` : ''}
 
       <!-- Phase Change Vertical Divider -->
       ${splitX !== null ? `
-        <line x1="${splitX}" x2="${splitX}" y1="${padT - 8}" y2="${h - padB}" stroke="#4f46e5" stroke-width="2" stroke-dasharray="5 3"/>
+        <line x1="${splitX}" x2="${splitX}" y1="${padT - 8}" y2="${h - padB}" stroke="#C8923A" stroke-width="2" stroke-dasharray="5 3"/>
       ` : ''}
 
       <!-- Area & Trend Polyline -->
       <polygon points="${areaPoly}" fill="url(#fbaAreaGrad)"/>
-      <polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
+      <polyline fill="none" stroke="#173F33" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" points="${pts}"/>
 
       <!-- Data Points & Labels -->
       ${series.map((d, i) => {
         const cx = x(i);
         const cy = y(d.count);
         const isPost = splitIdx !== null && i >= splitIdx;
-        const dotColor = isPost ? '#059669' : '#e11d48';
+        const dotColor = isPost ? '#1E6B4E' : '#B6362C';
         return `
           <g>
-            <circle cx="${cx}" cy="${cy}" r="5.5" fill="#ffffff" stroke="${dotColor}" stroke-width="3">
+            <circle cx="${cx}" cy="${cy}" r="5" fill="#FFFDF9" stroke="${dotColor}" stroke-width="2.75">
               <title>${esc(d.label)} (${esc(d.phase || 'Observation')}): ${d.count} incident(s)</title>
             </circle>
-            <text x="${cx}" y="${cy - 10}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${dotColor}">${d.count}</text>
-            <text x="${cx}" y="${h - 12}" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">${esc(d.label)}</text>
+            <text x="${cx}" y="${cy - 10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" font-weight="700" fill="${dotColor}">${d.count}</text>
+            <text x="${cx}" y="${h - 12}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="600" fill="#4D5F57">${esc(d.label)}</text>
           </g>
         `;
       }).join('')}
@@ -660,10 +672,10 @@ function fbaTrendChart(dailySeries, reductionMetrics) {
 
 function fbaFunctionDonut(functions, total) {
   const fnColors = [
-    { key: 'Escape', label: 'Escape / Avoidance', color: '#e11d48' },
-    { key: 'Tangible', label: 'Access to Tangible', color: '#d97706' },
-    { key: 'Attention', label: 'Attention Seeking', color: '#2563eb' },
-    { key: 'Sensory', label: 'Automatic / Sensory', color: '#7c3aed' }
+    { key: 'Escape', label: 'Escape / Avoidance', color: '#B6362C' },
+    { key: 'Tangible', label: 'Access to Tangible', color: '#C8923A' },
+    { key: 'Attention', label: 'Attention Seeking', color: '#1E5670' },
+    { key: 'Sensory', label: 'Automatic / Sensory', color: '#6A3D7A' }
   ];
   const r = 52;
   const c = +(2 * Math.PI * r).toFixed(2);
@@ -678,14 +690,14 @@ function fbaFunctionDonut(functions, total) {
     return `<circle cx="72" cy="72" r="${r}" fill="none" stroke="${item.color}" stroke-width="18" stroke-dasharray="${len} ${c}" stroke-dashoffset="${dashOffset}" transform="rotate(-90 72 72)">
       <title>${item.label}: ${cnt} (${Math.round(frac * 100)}%)</title>
     </circle>`;
-  }).join('') : `<circle cx="72" cy="72" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="18"/>`;
+  }).join('') : `<circle cx="72" cy="72" r="${r}" fill="none" stroke="#DCD4C6" stroke-width="18"/>`;
 
   return `
   <svg viewBox="0 0 144 144" width="144" height="144" style="flex-shrink:0">
-    <circle cx="72" cy="72" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="18"/>
+    <circle cx="72" cy="72" r="${r}" fill="none" stroke="#ECE6DA" stroke-width="18"/>
     ${arcs}
-    <text x="72" y="68" text-anchor="middle" font-size="22" font-weight="900" fill="#0f172a">${total}</text>
-    <text x="72" y="84" text-anchor="middle" font-size="9" font-weight="800" fill="#64748b" letter-spacing="0.06em">ABC EVENTS</text>
+    <text x="72" y="68" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="700" fill="#13221C">${total}</text>
+    <text x="72" y="84" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="8.5" font-weight="600" fill="#6A7A72" letter-spacing="0.06em">ABC EVENTS</text>
   </svg>`;
 }
 
@@ -696,14 +708,14 @@ async function clientView(id) {
   const data = await api('GET', '/api/clients/' + id);
   const { client: c, goals, plans, stories, auths, assigned, abcLogs = [], abcSummary = { functions: {}, total: 0 }, supervisionLogs = [] } = data;
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
-  const tabs = P ? [['goals', '🎯 Skill Goals'], ['stories', '📖 Social Stories']] : [
-    ['overview', '🌟 360 Cockpit'],
-    ['skills', '🎯 Skills & DTT'],
-    ['behavior_abc', '📊 Behavior & ABC'],
-    ['plans', '📋 Behavior Plans (BIP)'],
-    ['stories', '📖 Social Stories'],
-    ['profile', '👤 Clinical Vitals'],
-    ['services', '💳 Authorizations']
+  const tabs = P ? [['goals', '01 · Skill Goals'], ['stories', '02 · Social Stories']] : [
+    ['overview', '01 · 360 Overview'],
+    ['skills', '02 · Skills & DTT'],
+    ['behavior_abc', '03 · FBA & ABC Analytics'],
+    ['plans', '04 · Behavior Plans (BIP)'],
+    ['stories', '05 · Social Stories'],
+    ['profile', '06 · Clinical Vitals'],
+    ['services', '07 · Authorizations']
   ];
   if (P && !['goals', 'stories'].includes(tab)) tab = 'goals';
   if (!P && !tabs.map(t=>t[0]).includes(tab)) tab = 'overview';
@@ -715,7 +727,8 @@ async function clientView(id) {
       <div style="display:flex;align-items:center;gap:16px">
         <div class="user-avatar xl">${getInitials(c.name)}</div>
         <div>
-          <h2 style="margin:0 0 4px;font-size:1.65rem;font-weight:800;color:var(--slate-900);letter-spacing:-0.02em">${esc(c.name)}</h2>
+          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">UNIFIED BEHAVIORAL HEALTH RECORD · #00${c.id}</div>
+          <h2 style="margin:2px 0 5px;font-size:1.7rem;font-weight:600;color:var(--slate-900)">${esc(c.name)}</h2>
           <div style="font-size:0.82rem;color:var(--slate-500);display:flex;gap:6px;flex-wrap:wrap">
             <span class="badge p">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
             ${c.dob ? `<span class="badge">DOB: ${esc(c.dob)}</span>` : ''}
@@ -724,38 +737,38 @@ async function clientView(id) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        ${B ? `<button class="sec" style="padding:9px 15px;font-size:0.86rem" onclick="act.openReauthReportModal(${c.id})">📄 6-Month Re-Auth Report</button>` : ''}
-        ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used} units left</span>`).join(' ') : ''}
-        <button class="bad" style="padding:9px 15px;font-size:0.86rem" onclick="act.toggleCrisis()">
-          🚨 ${showCrisis ? 'Hide Crisis Protocol' : 'Emergency / Crisis Plan'}
+        ${B ? `<button class="sec" style="padding:9px 15px;font-size:0.84rem" onclick="act.openReauthReportModal(${c.id})">6-Month Re-Auth Dossier</button>` : ''}
+        ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used}u rem</span>`).join(' ') : ''}
+        <button class="bad" style="padding:9px 15px;font-size:0.84rem" onclick="act.toggleCrisis()">
+          ${showCrisis ? 'Hide Crisis Protocol' : 'Crisis / Safety Protocol'}
         </button>
       </div>
     </div>
     
     <div class="vitals-grid">
       <div class="vital-item">
-        <div class="vital-emblem">🗣️</div>
+        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--primary)">COM</div>
         <div>
-          <div class="vital-label">Communication Mode</div>
+          <div class="vital-label">Communication Modality</div>
           <b>${esc(c.communication || 'Verbal (full sentences)')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border-color:#ddd6fe">🎧</div>
+        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--sensory);background:var(--sensory-light);border-color:var(--sensory-border)">SEN</div>
         <div>
           <div class="vital-label">Sensory Profile</div>
           <b>${esc(c.sensory || 'Sensory sensitive (avoids loud sirens)')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fde68a">⚡</div>
+        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--warn);background:var(--warn-light);border-color:var(--warn-border)">ANT</div>
         <div>
           <div class="vital-label">Known Antecedent Triggers</div>
           <b>${esc(c.triggers || 'Difficult task transitions, peer proximity')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#a7f3d0">🎁</div>
+        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--ok);background:var(--ok-light);border-color:var(--ok-border)">SR+</div>
         <div>
           <div class="vital-label">Reinforcer Hierarchy</div>
           <b>${esc(c.reinforcers || 'LEGO, bubbles, sensory swing')}</b>
@@ -766,7 +779,7 @@ async function clientView(id) {
     ${showCrisis ? `
     <div class="crisis-box">
       <div class="flex-between">
-        <h4 style="margin:0;color:#991b1b">⚠️ Immediate De-Escalation & Safety Crisis Protocol</h4>
+        <h4 style="margin:0;color:#7D1F18">Immediate De-Escalation & Safety Crisis Protocol</h4>
         <button class="bad" style="padding:2px 8px;font-size:0.75rem" onclick="act.toggleCrisis()">✕ Close</button>
       </div>
       <div style="white-space:pre-wrap;margin-top:8px;font-size:0.92rem;line-height:1.5">${esc(c.crisis_plan || '1. Offer quiet sensory space.\n2. Use calm, low-tone language.\n3. Do not block items or use physical restraint.\n4. Provide replacement communication card.')}</div>
@@ -784,28 +797,28 @@ async function clientView(id) {
       <div>
         <div class="card">
           <div class="flex-between">
-            <h3>🎯 Active Skill Acquisition Targets</h3>
+            <h3>Active Skill Acquisition Targets</h3>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 10px" onclick="act.openCreateGoalModal(${c.id})">+ Add Target</button>` : ''}
-              <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.setTab('skills')">View All Targets →</button>
+              <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.setTab('skills')">All Targets →</button>
             </div>
           </div>
           ${goals.slice(0, 3).map(g => `
             <div class="goal-click-card" onclick="act.openGoalModal(${g.id})">
               <div class="flex-between" style="gap:8px;flex-wrap:wrap">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <b style="font-size:0.98rem;color:var(--primary)">${esc(g.title)}</b>
-                  <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? '🏆 Mastered' : g.trend)}</span>
+                  <b style="font-family:var(--font-serif);font-size:1.02rem;color:var(--primary)">${esc(g.title)}</b>
+                  <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
                 </div>
-                <span class="badge p" style="font-size:0.72rem">📊 Click to Review / Edit</span>
+                <span class="badge p" style="font-size:0.68rem">Review / Edit →</span>
               </div>
-              <div style="font-size:0.84rem;color:var(--slate-500);margin:4px 0 6px">
-                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b>
+              <div style="font-family:var(--font-mono);font-size:0.76rem;color:var(--slate-500);margin:5px 0 6px">
+                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Criterion: <b>${g.target}%</b>
               </div>
               ${g.mastery_met && g.status !== 'mastered' ? `
                 <div class="mastery-banner" onclick="event.stopPropagation()">
                   <span>${esc(g.recommendation)}</span>
-                  ${!P ? `<button class="ok" style="font-size:0.75rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>` : ''}
+                  ${!P ? `<button class="ok" style="font-size:0.75rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">Master Goal</button>` : ''}
                 </div>
               ` : g.stalled ? `
                 <div class="stalled-banner">${esc(g.recommendation)}</div>
@@ -817,17 +830,17 @@ async function clientView(id) {
 
         <div class="card">
           <div class="flex-between">
-            <h3>📋 Behavior Intervention Plan (BIP)</h3>
+            <h3>Behavior Intervention Plan (BIP)</h3>
             <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('plans')">Manage BIP →</button>
           </div>
           ${plans.length ? `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-              <b>Target: ${esc(plans[0].behavior)}</b>
+              <b style="font-family:var(--font-serif)">Target: ${esc(plans[0].behavior)}</b>
               <span class="tag ${plans[0].status}">${plans[0].status}</span>
             </div>
             <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin-bottom:10px">
-              <div style="font-size:0.75rem;font-weight:700;color:var(--ok);text-transform:uppercase">Functional Replacement Behavior (FCT):</div>
-              <b style="color:#064e3b">${esc(plans[0].data.replacement)}</b>
+              <div style="font-family:var(--font-mono);font-size:0.7rem;font-weight:600;color:var(--ok);text-transform:uppercase">Functional Replacement Behavior (FCT):</div>
+              <b style="color:#124A34">${esc(plans[0].data.replacement)}</b>
             </div>
             <div style="font-size:0.85rem;color:var(--slate-600)">
               <b>Proactive Prevention:</b> ${esc(plans[0].data.prevention.slice(0, 3).join(', '))}
@@ -840,8 +853,8 @@ async function clientView(id) {
       <div>
         <div class="card">
           <div class="flex-between">
-            <h3>📊 ABC Behavior Reduction Center</h3>
-            <button class="ok" style="font-size:0.85rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
+            <h3>ABC Behavior Reduction Center</h3>
+            <button class="ok" style="font-size:0.84rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
           </div>
           <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Total of <b>${abcSummary.total || 0}</b> incidents recorded across the 4 functional classifications:</p>
           <div class="abc-grid">
@@ -867,7 +880,7 @@ async function clientView(id) {
           ${abcLogs.slice(0, 3).map(a => `
             <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-md);margin-bottom:8px;border:1px solid var(--slate-200);font-size:0.85rem">
               <div class="flex-between">
-                <b>${esc(a.behavior)}</b>
+                <b style="font-family:var(--font-serif)">${esc(a.behavior)}</b>
                 <span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span>
               </div>
               <div style="color:var(--slate-500);font-size:0.8rem;margin-top:2px">
@@ -879,16 +892,16 @@ async function clientView(id) {
 
         <div class="card">
           <div class="flex-between">
-            <h3>📖 Social Stories & Visual Tools</h3>
+            <h3>Social Stories & Caregiver Tools</h3>
             <button class="sec" style="font-size:0.8rem;padding:4px 10px" onclick="act.setTab('stories')">Stories →</button>
           </div>
           ${stories.slice(0, 2).map(s => `
-            <div style="padding:10px;border-radius:var(--radius-md);background:var(--slate-50);border:1px solid var(--slate-200);margin-bottom:8px">
+            <div style="padding:10px 12px;border-radius:var(--radius-md);background:var(--slate-50);border:1px solid var(--slate-200);margin-bottom:8px">
               <div class="flex-between">
-                <b>${esc(s.content.title)}</b>
+                <b style="font-family:var(--font-serif)">${esc(s.content.title)}</b>
                 <span class="tag ${s.status}">${s.status}</span>
               </div>
-              ${s.status === 'shared' ? `<div style="font-size:0.75rem;color:var(--primary);margin-top:4px">✓ Published to Family Portal</div>` : ''}
+              ${s.status === 'shared' ? `<div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--primary);margin-top:4px">✓ PUBLISHED TO FAMILY PORTAL</div>` : ''}
             </div>
           `).join('') || '<p style="color:var(--slate-400)">No social stories created yet.</p>'}
         </div>
@@ -916,26 +929,26 @@ async function clientView(id) {
         ${goals.map((g) => {
           const lastSession = g.series && g.series.length ? g.series[g.series.length - 1] : null;
           return `
-          <div class="goal-click-card" style="background:var(--surface);padding:20px;border-radius:var(--radius-xl);border:1.5px solid var(--slate-200);margin-bottom:16px" onclick="act.openGoalModal(${g.id})">
+          <div class="goal-click-card" style="background:var(--surface);padding:20px;border-radius:var(--radius-lg);border:1px solid var(--slate-200);margin-bottom:16px" onclick="act.openGoalModal(${g.id})">
             <div class="flex-between" style="flex-wrap:wrap;gap:10px">
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <h4 style="margin:0;font-size:1.12rem;color:var(--slate-900)">${esc(g.title)}</h4>
+                <h4 style="margin:0;font-size:1.14rem;color:var(--slate-900)">${esc(g.title)}</h4>
                 <span class="badge p">#${g.id}</span>
-                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? '🏆 Mastered' : g.trend)}</span>
+                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
-                <button class="sec" style="font-size:0.82rem;padding:6px 12px" onclick="act.openGoalModal(${g.id})">📊 Review Data & Edit Goal</button>
-                ${!P && g.status !== 'mastered' ? `<button class="ok" style="font-size:0.82rem;padding:6px 12px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>` : ''}
-                ${!P && g.status === 'mastered' ? `<button class="sec" style="font-size:0.82rem;padding:6px 12px" onclick="act.quickReactivateGoal(${g.id})">🔄 Reactivate</button>` : ''}
+                <button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.openGoalModal(${g.id})">Review Data & Edit Goal</button>
+                ${!P && g.status !== 'mastered' ? `<button class="ok" style="font-size:0.8rem;padding:6px 12px" onclick="act.quickMasterGoal(${g.id})">Master Goal</button>` : ''}
+                ${!P && g.status === 'mastered' ? `<button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.quickReactivateGoal(${g.id})">Reactivate</button>` : ''}
               </div>
             </div>
-            <div style="font-size:0.86rem;color:var(--slate-600);margin:6px 0 10px">
-              Baseline: <b>${g.baseline}%</b> · Current 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Mastery Target: <b>${g.target}%</b> · Sessions Logged: <b>${g.series ? g.series.length : 0}</b>
+            <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin:6px 0 10px">
+              Baseline: <b>${g.baseline}%</b> · 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Criterion: <b>${g.target}%</b> · Sessions: <b>${g.series ? g.series.length : 0}</b>
             </div>
             ${g.mastery_met && g.status !== 'mastered' ? `
               <div class="mastery-banner" onclick="event.stopPropagation()">
                 <span><b>Clinical Intelligence:</b> ${esc(g.recommendation)}</span>
-                ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 12px" onclick="act.quickMasterGoal(${g.id})">🏆 Advance to Mastered</button>` : ''}
+                ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 12px" onclick="act.quickMasterGoal(${g.id})">Advance to Mastered</button>` : ''}
               </div>
             ` : g.stalled ? `
               <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)} — <i>Click card to adjust prompt level or target criteria.</i></div>
@@ -943,7 +956,7 @@ async function clientView(id) {
             ${chart(g.series, g.baseline, g.target)}
             ${lastSession && lastSession.prompts ? `
               <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-size:0.8rem;color:var(--slate-600);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                <span style="font-weight:700">Prompt Hierarchy Fading (Latest Session):</span>
+                <span style="font-family:var(--font-mono);font-size:0.72rem;font-weight:600">PROMPT FADING (LATEST SESSION):</span>
                 ${Object.entries(lastSession.prompts).map(([code, cnt]) => cnt > 0 ? `<span class="badge ${code==='I'?'tan':'p'}">${code} (${LV[code]?.label || code}): <b>${cnt}</b></span>` : '').join('')}
               </div>
             ` : ''}
@@ -972,10 +985,10 @@ async function clientView(id) {
     const hasActiveFilter = fbaFilterBehavior !== 'ALL' || fbaFilterFunction !== 'ALL' || fbaFilterHour !== null;
 
     const fnMeta = [
-      { key: 'Escape', label: 'Escape / Avoidance', desc: 'Social Negative Reinforcement (Demand / Transition)', color: '#e11d48', bg: '#fff1f2', border: '#fecdd3' },
-      { key: 'Tangible', label: 'Access to Tangible', desc: 'Social Positive Reinforcement (Preferred Item / Activity)', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-      { key: 'Attention', label: 'Attention Seeking', desc: 'Social Positive Reinforcement (Peer / Adult Attention)', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-      { key: 'Sensory', label: 'Automatic / Sensory', desc: 'Automatic Reinforcement (Auditory / Proprioceptive)', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' }
+      { key: 'Escape', label: 'Escape / Avoidance', desc: 'Social Negative Reinforcement (Demand / Transition)', color: '#B6362C', bg: '#FBECE9', border: '#EBBDB7' },
+      { key: 'Tangible', label: 'Access to Tangible', desc: 'Social Positive Reinforcement (Preferred Item / Activity)', color: '#C8923A', bg: '#FCF4E4', border: '#E8CBA0' },
+      { key: 'Attention', label: 'Attention Seeking', desc: 'Social Positive Reinforcement (Peer / Adult Attention)', color: '#1E5670', bg: '#EAF2F6', border: '#B5D0DD' },
+      { key: 'Sensory', label: 'Automatic / Sensory', desc: 'Automatic Reinforcement (Auditory / Proprioceptive)', color: '#6A3D7A', bg: '#F4EDF7', border: '#D6BFE0' }
     ];
 
     const maxHourlyCount = Math.max(1, ...((abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map((h) => h.count)));
@@ -991,38 +1004,38 @@ async function clientView(id) {
           <p style="font-size:0.85rem;color:var(--slate-500);margin:4px 0 0">Longitudinal behavior reduction graphing, 4-function contingency weighting, antecedent conditional probabilities, and FBA progress reporting.</p>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="sec" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe;font-weight:800" onclick="act.openFbaReportModal(${c.id})">
-            📄 Generate FBA & Progress Report
+          <button class="sec" onclick="act.openFbaReportModal(${c.id})">
+            Generate FBA & Progress Report
           </button>
-          <button class="ok" onclick="act.openAbcModal(${c.id})">⚡ Log ABC Incident</button>
+          <button class="ok" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
         </div>
       </div>
 
       <!-- Executive FBA Hypothesis & Behavior Reduction KPI Strip -->
       <div class="fba-kpi-strip" style="margin-top:16px">
-        <div class="fba-kpi-card" style="border-left:4px solid #e11d48">
+        <div class="fba-kpi-card" style="border-left:4px solid var(--escape)">
           <div class="fba-kpi-label">Primary Hypothesized Function</div>
-          <div class="fba-kpi-val" style="color:#be123c">${esc(domFn.name)} (${domFn.pct}%)</div>
+          <div class="fba-kpi-val" style="color:var(--escape)">${esc(domFn.name)} (${domFn.pct}%)</div>
           <div class="fba-kpi-sub">${domFn.count} of ${totalAbc} events${domFn.secondaryName ? ` · Secondary: <b>${esc(domFn.secondaryName)} (${domFn.secondaryPct}%)</b>` : ''}</div>
         </div>
-        <div class="fba-kpi-card" style="border-left:4px solid ${rm.pctChange <= 0 ? '#059669' : '#d97706'}">
+        <div class="fba-kpi-card" style="border-left:4px solid ${rm.pctChange <= 0 ? 'var(--ok)' : 'var(--warn)'}">
           <div class="fba-kpi-label">Behavior Reduction Rate</div>
-          <div class="fba-kpi-val" style="color:${rm.pctChange <= 0 ? '#047857' : '#b45309'}">
+          <div class="fba-kpi-val" style="color:${rm.pctChange <= 0 ? 'var(--ok)' : 'var(--warn)'}">
             ${rm.baselineRate}/d → ${rm.currentRate}/d
-            <span class="badge ${rm.pctChange <= 0 ? 'tan' : 'esc'}" style="font-size:0.75rem;vertical-align:middle;margin-left:4px">
+            <span class="badge ${rm.pctChange <= 0 ? 'tan' : 'esc'}" style="font-size:0.72rem;vertical-align:middle;margin-left:4px">
               ${rm.pctChange <= 0 ? `↓ ${Math.abs(rm.pctChange)}%` : `↑ ${rm.pctChange}%`}
             </span>
           </div>
           <div class="fba-kpi-sub">${esc(rm.trendDirection)} across ${rm.observationDays} observation days</div>
         </div>
-        <div class="fba-kpi-card" style="border-left:4px solid #4f46e5">
+        <div class="fba-kpi-card" style="border-left:4px solid var(--primary)">
           <div class="fba-kpi-label">Top Antecedent Conditional Prob.</div>
-          <div class="fba-kpi-val" style="color:#3730a3;font-size:1.05rem">${topAnt ? `${topAnt.pct}% (${topAnt.count}x)` : '0%'}</div>
+          <div class="fba-kpi-val" style="color:var(--primary);font-size:1.15rem">${topAnt ? `${topAnt.pct}% (${topAnt.count}x)` : '0%'}</div>
           <div class="fba-kpi-sub" title="${esc(topAnt ? topAnt.antecedent : '')}">${topAnt ? esc(topAnt.antecedent) : 'No antecedents logged'}</div>
         </div>
-        <div class="fba-kpi-card" style="border-left:4px solid #059669">
+        <div class="fba-kpi-card" style="border-left:4px solid var(--ok)">
           <div class="fba-kpi-label">FCT / De-escalation Success</div>
-          <div class="fba-kpi-val" style="color:#047857">${rm.replacementSuccessRate}%</div>
+          <div class="fba-kpi-val" style="color:var(--ok)">${rm.replacementSuccessRate}%</div>
           <div class="fba-kpi-sub">Episodes resolved via FCT card / visual schedule</div>
         </div>
       </div>
@@ -1030,7 +1043,7 @@ async function clientView(id) {
       <!-- Interactive Target Behavior Topography Filter Bar -->
       <div class="fba-filter-bar" style="margin-top:16px">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-size:0.74rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-right:4px">Filter Target Topography:</span>
+          <span style="font-family:var(--font-mono);font-size:0.7rem;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-right:4px">Target Topography:</span>
           <button class="fba-chip ${fbaFilterBehavior === 'ALL' ? 'active' : ''}" onclick="act.setFbaBehavior('ALL')">
             All Behaviors (${totalAbc})
           </button>
@@ -1041,8 +1054,8 @@ async function clientView(id) {
           `).join('')}
         </div>
         ${hasActiveFilter ? `
-          <button class="sec" style="padding:4px 10px;font-size:0.76rem;color:var(--bad);border-color:#fecaca" onclick="act.resetFbaFilters()">
-            ✕ Reset Active Filters
+          <button class="sec" style="padding:4px 10px;font-size:0.74rem;color:var(--bad);border-color:var(--bad-border)" onclick="act.resetFbaFilters()">
+            ✕ Reset Filters
           </button>
         ` : ''}
       </div>
@@ -1053,16 +1066,16 @@ async function clientView(id) {
         <div class="fba-panel">
           <div class="flex-between" style="margin-bottom:10px;flex-wrap:wrap;gap:6px">
             <div>
-              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">📈 Longitudinal Behavior Frequency & BIP Phase-Change Graph</h4>
+              <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">Longitudinal Behavior Frequency & BIP Phase-Change Graph</h4>
               <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Daily episode count comparing Baseline vs. Post-BIP / FCT Intervention phase.</p>
             </div>
             <span class="badge tan">${rm.pctChange <= 0 ? `↓ ${Math.abs(rm.pctChange)}% Post-BIP Reduction` : 'Phase Tracking'}</span>
           </div>
           ${fbaTrendChart(abcSummary.dailySeries, rm)}
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-size:0.78rem;color:var(--slate-600)">
-            <span><b style="color:#be123c">● Baseline Phase:</b> ${rm.baselineRate} episodes/day</span>
-            <span><b style="color:#4f46e5">┆ Phase Change:</b> FCT & Visual Countdown Introduced</span>
-            <span><b style="color:#047857">● Intervention Phase:</b> ${rm.currentRate} episodes/day</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-family:var(--font-mono);font-size:0.72rem;color:var(--slate-600)">
+            <span><b style="color:var(--escape)">● Baseline:</b> ${rm.baselineRate}/day</span>
+            <span><b style="color:#C8923A">┆ Phase Change:</b> FCT & Visual Countdown</span>
+            <span><b style="color:var(--ok)">● Intervention:</b> ${rm.currentRate}/day</span>
           </div>
         </div>
 
@@ -1070,7 +1083,7 @@ async function clientView(id) {
         <div class="fba-panel">
           <div class="flex-between" style="margin-bottom:10px;flex-wrap:wrap;gap:6px">
             <div>
-              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">🧭 4-Function Contingency Weighting (FBA)</h4>
+              <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">4-Function Contingency Weighting (FBA)</h4>
               <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Relative distribution across the 4 BACB functions. Click any function to filter logs.</p>
             </div>
             <span class="badge p">Dominant: ${esc(domFn.name)} (${domFn.pct}%)</span>
@@ -1083,15 +1096,15 @@ async function clientView(id) {
                 const pct = totalAbc ? Math.round((cnt / totalAbc) * 100) : 0;
                 const isSelected = fbaFilterFunction === f.key;
                 return `
-                  <div class="fba-fn-row ${isSelected ? 'selected' : ''}" style="border-left:4px solid ${f.color};background:${isSelected ? f.bg : '#fff'}" onclick="act.setFbaFunction('${f.key}')">
+                  <div class="fba-fn-row ${isSelected ? 'selected' : ''}" style="border-left:4px solid ${f.color};background:${isSelected ? f.bg : '#FFFDF9'}" onclick="act.setFbaFunction('${f.key}')">
                     <div class="flex-between" style="gap:8px">
                       <div>
-                        <span style="font-weight:800;font-size:0.84rem;color:var(--slate-900)">${f.label}</span>
+                        <span style="font-family:var(--font-serif);font-weight:600;font-size:0.88rem;color:var(--slate-900)">${f.label}</span>
                         <div style="font-size:0.71rem;color:var(--slate-500)">${f.desc}</div>
                       </div>
-                      <div style="text-align:right;white-space:nowrap">
-                        <span style="font-weight:900;font-size:0.95rem;color:${f.color}">${pct}%</span>
-                        <span style="font-size:0.75rem;color:var(--slate-500);margin-left:3px">(${cnt})</span>
+                      <div style="text-align:right;white-space:nowrap;font-family:var(--font-mono)">
+                        <span style="font-weight:700;font-size:0.9rem;color:${f.color}">${pct}%</span>
+                        <span style="font-size:0.72rem;color:var(--slate-500);margin-left:3px">(${cnt})</span>
                       </div>
                     </div>
                     <div class="fba-bar-track" style="margin-top:5px">
@@ -1111,7 +1124,7 @@ async function clientView(id) {
         <div class="fba-panel">
           <div class="flex-between" style="margin-bottom:10px">
             <div>
-              <h4 style="margin:0;font-size:0.96rem;color:var(--slate-900)">⚡ Antecedent Conditional Probability Matrix</h4>
+              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">Antecedent Conditional Probability Matrix</h4>
               <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Environmental triggers ranked by conditional probability of evoking maladaptive behavior.</p>
             </div>
             <span class="badge esc">Trigger Ranking</span>
@@ -1123,11 +1136,11 @@ async function clientView(id) {
                   <span style="font-weight:700;color:var(--slate-800)">${esc(item.antecedent)}</span>
                   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                     <span class="badge ${item.primaryFunction.toLowerCase().slice(0, 3)}" style="font-size:0.68rem">${esc(item.primaryFunction)}</span>
-                    <b style="color:var(--slate-900)">${item.pct}% (${item.count}x)</b>
+                    <b style="font-family:var(--font-mono);color:var(--slate-900)">${item.pct}% (${item.count}x)</b>
                   </div>
                 </div>
-                <div class="fba-bar-track" style="margin-top:5px;height:8px">
-                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#e11d48,#6366f1)"></div>
+                <div class="fba-bar-track" style="margin-top:5px;height:7px">
+                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#B6362C,#C8923A)"></div>
                 </div>
                 <div style="font-size:0.72rem;color:var(--slate-500);margin-top:3px">
                   Primary Topography: <b>${esc(item.primaryBehavior)}</b>
@@ -1141,7 +1154,7 @@ async function clientView(id) {
         <div class="fba-panel">
           <div class="flex-between" style="margin-bottom:10px">
             <div>
-              <h4 style="margin:0;font-size:0.96rem;color:var(--slate-900)">🛡️ Consequence & FCT Intervention Effectiveness</h4>
+              <h4 style="margin:0;font-size:0.98rem;color:var(--slate-900)">Consequence & FCT Intervention Effectiveness</h4>
               <p style="font-size:0.78rem;color:var(--slate-500);margin:2px 0 0">Staff consequence delivery frequency and post-prompt de-escalation / FCT fidelity.</p>
             </div>
             <span class="badge tan">BIP Fidelity</span>
@@ -1153,11 +1166,11 @@ async function clientView(id) {
                   <span style="font-weight:700;color:var(--slate-800)">${esc(item.consequence)}</span>
                   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
                     <span class="badge tan" style="font-size:0.68rem">${item.deescalationRate}% De-escalated</span>
-                    <b style="color:var(--slate-900)">${item.count}x (${item.pct}%)</b>
+                    <b style="font-family:var(--font-mono);color:var(--slate-900)">${item.count}x (${item.pct}%)</b>
                   </div>
                 </div>
-                <div class="fba-bar-track" style="margin-top:5px;height:8px">
-                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#059669,#10b981)"></div>
+                <div class="fba-bar-track" style="margin-top:5px;height:7px">
+                  <div class="fba-bar-fill" style="width:${Math.max(6, item.pct)}%;background:linear-gradient(90deg,#173F33,#1E6B4E)"></div>
                 </div>
                 <div style="font-size:0.72rem;color:var(--slate-500);margin-top:3px">
                   Targets Function: <b>${esc(item.primaryFunction)}</b>
@@ -1172,15 +1185,15 @@ async function clientView(id) {
       <div style="margin-top:16px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-lg);padding:16px">
         <div class="flex-between" style="flex-wrap:wrap;gap:8px">
           <div>
-            <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">🕒 Temporal Behavior Scatterplot & Hourly Setting Event Bar-Heatmap</h4>
+            <h4 style="margin:0;font-size:1rem;color:var(--slate-900)">Temporal Behavior Scatterplot & Hourly Setting Event Bar-Heatmap</h4>
             <p style="font-size:0.8rem;color:var(--slate-500);margin:2px 0 0">Distribution of incidents across clinic operational hours (8:00 AM – 5:00 PM). Click any hour slot to filter logs.</p>
           </div>
           <span class="badge p">FBA Scatterplot Analysis</span>
         </div>
 
         ${abcSummary.scatterplot && abcSummary.scatterplot.peakWindow ? `
-          <div class="stalled-banner" style="margin-top:12px;background:#fef2f2;border-color:#fecaca;color:#991b1b">
-            ⚡ <b>Peak Behavioral Disruption Window:</b> <b>${esc(abcSummary.scatterplot.peakWindow.label)}</b> (${abcSummary.scatterplot.peakWindow.count} incident${abcSummary.scatterplot.peakWindow.count === 1 ? '' : 's'}). Primary Trigger: <b>${esc(abcSummary.scatterplot.peakWindow.primaryAntecedent)}</b>. Recommend antecedent visual schedules & high-density reinforcement 5 minutes prior to this transition window.
+          <div class="stalled-banner" style="margin-top:12px;background:var(--bad-light);border-color:var(--bad-border);color:#7D1F18">
+            <b>Peak Behavioral Disruption Window:</b> <b>${esc(abcSummary.scatterplot.peakWindow.label)}</b> (${abcSummary.scatterplot.peakWindow.count} incident${abcSummary.scatterplot.peakWindow.count === 1 ? '' : 's'}). Primary Trigger: <b>${esc(abcSummary.scatterplot.peakWindow.primaryAntecedent)}</b>. Recommend antecedent visual schedules & high-density reinforcement 5 minutes prior to this transition window.
           </div>
         ` : ''}
 
@@ -1683,7 +1696,7 @@ async function sessionView(id) {
           <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
             <button class="bad" style="padding:12px 24px;font-size:1rem" onclick="act.endSession(${s.id})">⏹ End Clinical Session</button>
             <button class="ok" style="padding:12px 20px;font-size:1rem" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Quick ABC Incident Logger</button>
-            <button class="btn" style="background:linear-gradient(135deg,#9333ea 0%,#ec4899 100%);padding:12px 22px;font-size:1rem;box-shadow:0 8px 20px rgba(147,51,234,0.35)" onclick="act.toggleKidMode()">🌟 ${showKidMode ? 'Hide Kid Mode' : 'Open Interactive Kid Mode'}</button>
+            <button class="btn" style="background:var(--accent);border-color:#7C3016;box-shadow:0 2px 0 #7C3016;padding:12px 22px;font-size:1rem" onclick="act.toggleKidMode()">★ ${showKidMode ? 'Hide Kid Mode' : 'Open Interactive Kid Mode'}</button>
           </div>
         `}
     </div>
@@ -1790,16 +1803,16 @@ async function sessionView(id) {
           </div>
         </div>
       ` : `
-        <div style="text-align:center;font-size:0.9rem;font-weight:700;color:#6b21a8;margin-bottom:14px">
-          👆 Tap any token above (or log a trial below with Auto-Token ON) — <b>${targetTokens - tokenCount} more</b> to unlock <b>${activeRewardObj.icon} ${esc(activeRewardObj.label)}</b>!
+        <div style="text-align:center;font-size:0.9rem;font-weight:700;color:var(--primary);margin-bottom:14px">
+          Tap any token above (or log a trial below with Auto-Token ON) — <b>${targetTokens - tokenCount} more</b> to unlock <b>${activeRewardObj.icon} ${esc(activeRewardObj.label)}</b>!
         </div>
       `}
 
       <!-- Interactive Visual Reinforcer Choice Board -->
       <div class="kid-choice-section">
         <div class="flex-between" style="margin-bottom:8px;flex-wrap:wrap;gap:6px">
-          <div style="font-weight:800;font-size:0.9rem;color:#581c87;text-transform:uppercase;letter-spacing:0.04em">
-            🎁 Visual Choice Board — Tap to Choose What ${esc(client.name)} Is Working For:
+          <div style="font-weight:800;font-size:0.86rem;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;font-family:var(--font-mono)">
+            Visual Choice Board — Tap to Choose What ${esc(client.name)} Is Working For:
           </div>
           <span class="badge p">Selected: ${activeRewardObj.icon} ${esc(activeRewardObj.label)}</span>
         </div>
@@ -1821,7 +1834,7 @@ async function sessionView(id) {
       <div class="first-then-grid">
         <div class="first-box ${kidFirstDone ? 'done' : ''}">
           <div class="flex-between" style="margin-bottom:8px">
-            <div class="ft-label" style="color:#1d4ed8;margin:0">1️⃣ FIRST (My Learning Task)</div>
+            <div class="ft-label" style="color:#1d4ed8;margin:0">01 · FIRST (My Learning Task)</div>
             <button class="${kidFirstDone ? 'ok' : 'sec'}" style="font-size:0.78rem;padding:4px 10px;border-radius:999px" onclick="act.toggleKidFirstDone('${esc(client.name)}')">
               ${kidFirstDone ? '✓ Task Completed!' : '○ Mark Task Done'}
             </button>
@@ -1841,9 +1854,9 @@ async function sessionView(id) {
         </div>
         <div class="then-box ${tokenCount >= targetTokens || kidFirstDone ? 'unlocked' : ''}">
           <div class="flex-between" style="margin-bottom:8px">
-            <div class="ft-label" style="color:#15803d;margin:0">2️⃣ THEN (My Earned Reward!)</div>
+            <div class="ft-label" style="color:#15803d;margin:0">02 · THEN (My Earned Reward!)</div>
             <span class="tag ${tokenCount >= targetTokens || kidFirstDone ? 'approved' : 'draft'}">
-              ${tokenCount >= targetTokens || kidFirstDone ? '🔓 UNLOCKED!' : `🔒 ${targetTokens - tokenCount} more ${theme.tokenEarned}`}
+              ${tokenCount >= targetTokens || kidFirstDone ? 'UNLOCKED!' : `${targetTokens - tokenCount} more ${theme.tokenEarned}`}
             </span>
           </div>
           <div style="display:flex;align-items:center;gap:14px;justify-content:center;margin:10px 0">
@@ -1861,7 +1874,7 @@ async function sessionView(id) {
   <!-- Quick De-escalation Protocol Drawer -->
   ${plans.length ? `
     <details class="drawer">
-      <summary>🚨 Emergency Behavior Intervention Plan Quick-Reference (${esc(plans[0].behavior)})</summary>
+      <summary>Emergency Behavior Intervention Plan Quick-Reference (${esc(plans[0].behavior)})</summary>
       <div style="margin-top:10px;font-size:0.92rem;line-height:1.5">
         <div style="background:var(--ok-light);padding:8px 12px;border-radius:6px;margin-bottom:8px">
           <b style="color:#065f46">Replacement Behavior:</b> ${esc(plans[0].data.replacement)}
@@ -1875,7 +1888,7 @@ async function sessionView(id) {
   <!-- In-Session ABC Incidents -->
   ${abcLogs.length ? `
     <div class="card" style="background:#fffbeb;border:1px solid #fde68a">
-      <h4 style="margin:0 0 8px;color:#92400e">⚡ In-Session ABC Maladaptive Incidents (${abcLogs.length})</h4>
+      <h4 style="margin:0 0 8px;color:#92400e">In-Session ABC Maladaptive Incidents (${abcLogs.length})</h4>
       ${abcLogs.map(a => `
         <div style="font-size:0.85rem;margin-bottom:4px;color:#78350f">
           <b>${esc(a.behavior)}</b> (<span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function)}</span>): Antecedent: ${esc(a.antecedent)} · Response: ${esc(a.consequence)}
@@ -1887,11 +1900,11 @@ async function sessionView(id) {
   <!-- Teaching Mode Switcher (CentralReach Enhancement: DTT vs NET) -->
   <div class="mode-switcher-bar">
     <div style="display:flex;align-items:center;gap:12px">
-      <div class="vital-emblem" style="width:42px;height:42px;font-size:1.3rem">
-        ${sessionMode === 'net' ? '🎲' : '🎯'}
+      <div class="vital-emblem" style="width:42px;height:42px;font-size:0.78rem">
+        ${sessionMode === 'net' ? 'NET' : 'DTT'}
       </div>
       <div>
-        <div style="font-weight:800;font-size:0.98rem;color:var(--slate-900)">
+        <div style="font-weight:700;font-size:0.98rem;color:var(--slate-900);font-family:var(--font-serif)">
           ${sessionMode === 'net' ? 'Natural Environment Teaching (NET Multi-Target Grid)' : 'Discrete Trial Training (DTT Single-Focus View)'}
         </div>
         <div style="font-size:0.78rem;color:var(--slate-500)">
@@ -1903,8 +1916,8 @@ async function sessionView(id) {
       <button class="ok" style="font-size:0.84rem;padding:9px 14px" onclick="act.openCreateGoalModal(${client.id})">+ Add / Create Goal</button>
       ${!ended ? `<button class="sec" style="font-size:0.84rem;padding:9px 14px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>` : ''}
       <div class="mode-toggle-group">
-        <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('dtt')">🎯 DTT View</button>
-        <button class="${sessionMode === 'net' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('net')">🎲 NET Grid</button>
+        <button class="${sessionMode === 'dtt' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('dtt')">DTT View</button>
+        <button class="${sessionMode === 'net' ? 'ok' : 'sec'}" style="font-size:0.84rem;padding:9px 16px" onclick="act.setSessionMode('net')">NET Grid</button>
       </div>
     </div>
   </div>
@@ -1918,8 +1931,8 @@ async function sessionView(id) {
         <div class="net-card">
           <div>
             <div class="net-card-head" style="cursor:pointer" onclick="act.openGoalModal(${g.id})" title="Click to review data, edit, or master this goal">
-              <h4 style="margin:0;font-size:1.02rem;font-weight:800;color:var(--primary);line-height:1.35;text-decoration:underline;text-underline-offset:3px">${esc(g.title)}</h4>
-              <span class="badge p" style="font-size:0.72rem;flex-shrink:0">📊 Review #${g.id}</span>
+              <h4 style="margin:0;font-size:1.02rem;font-weight:700;color:var(--primary);line-height:1.35;text-decoration:underline;text-underline-offset:3px">${esc(g.title)}</h4>
+              <span class="badge p" style="font-size:0.72rem;flex-shrink:0">Review #${g.id}</span>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:4px">
               <div class="net-stats-row">
@@ -1927,29 +1940,29 @@ async function sessionView(id) {
                 <span style="color:var(--slate-300)">•</span>
                 <span>Target: <b>${g.target || 80}%</b></span>
               </div>
-              ${g.mastery_met ? `<span class="tag approved" style="font-size:0.68rem">🎯 Mastery Met</span>` : g.stalled ? `<span class="tag draft" style="font-size:0.68rem">⚠️ Stalled</span>` : ''}
+              ${g.mastery_met ? `<span class="tag approved" style="font-size:0.68rem">Mastery Met</span>` : g.stalled ? `<span class="tag draft" style="font-size:0.68rem">Stalled</span>` : ''}
             </div>
           </div>
           <div>
             ${ended ? '' : `
               <div class="net-actions">
                 <button class="net-btn btn-i" title="Independent (I)" onclick="act.trial(${s.id}, ${g.id}, 'I')">
-                  <span class="net-btn-ic">⭐</span><span>Indep</span>
+                  <span class="net-btn-ic">I</span><span>Indep</span>
                 </button>
                 <button class="net-btn btn-v" title="Verbal Prompt (V)" onclick="act.trial(${s.id}, ${g.id}, 'V')">
-                  <span class="net-btn-ic">🗣️</span><span>Verbal</span>
+                  <span class="net-btn-ic">V</span><span>Verbal</span>
                 </button>
                 <button class="net-btn btn-g" title="Gestural Prompt (G)" onclick="act.trial(${s.id}, ${g.id}, 'G')">
-                  <span class="net-btn-ic">👉</span><span>Gestural</span>
+                  <span class="net-btn-ic">G</span><span>Gestural</span>
                 </button>
                 <button class="net-btn btn-m" title="Model Prompt (M)" onclick="act.trial(${s.id}, ${g.id}, 'M')">
-                  <span class="net-btn-ic">👀</span><span>Model</span>
+                  <span class="net-btn-ic">M</span><span>Model</span>
                 </button>
                 <button class="net-btn btn-p" title="Physical Prompt (P)" onclick="act.trial(${s.id}, ${g.id}, 'P')">
-                  <span class="net-btn-ic">🤝</span><span>Physical</span>
+                  <span class="net-btn-ic">P</span><span>Physical</span>
                 </button>
                 <button class="net-btn btn-n" title="Refusal / Non-compliant (N)" onclick="act.trial(${s.id}, ${g.id}, 'N')">
-                  <span class="net-btn-ic">⛔</span><span>Refusal</span>
+                  <span class="net-btn-ic">N</span><span>Refusal</span>
                 </button>
               </div>
             `}
@@ -1963,35 +1976,35 @@ async function sessionView(id) {
     </div>
   ` : `
     ${goals.map((g) => `
-      <div class="card" style="border-top:4px solid ${g.mastery_met ? 'var(--ok)' : g.stalled ? 'var(--warn)' : 'var(--primary)'}">
+      <div class="card" style="border-left:4px solid ${g.mastery_met ? 'var(--ok)' : g.stalled ? 'var(--warn)' : 'var(--primary)'}">
         <div class="flex-between" style="flex-wrap:wrap;gap:10px">
           <div style="cursor:pointer" onclick="act.openGoalModal(${g.id})" title="Click to review longitudinal data & edit goal">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <h3 style="margin:0;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:4px">${esc(g.title)}</h3>
               <span class="badge p">Goal #${g.id}</span>
               <span class="tag ${g.mastery_met ? 'approved' : g.stalled ? 'draft' : 'approved'}">
-                ${g.mastery_met ? '🎯 Mastery Criteria Met' : g.stalled ? '⚠️ Plateau / Stalled' : esc(g.trend || 'Active')}
+                ${g.mastery_met ? 'Mastery Criteria Met' : g.stalled ? 'Plateau / Stalled' : esc(g.trend || 'Active')}
               </span>
             </div>
-            <div style="font-size:0.84rem;color:var(--slate-500);margin-top:4px">
+            <div style="font-size:0.84rem;color:var(--slate-500);margin-top:4px;font-family:var(--font-mono)">
               Baseline: <b>${g.baseline ?? 20}%</b> · 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null && g.current !== undefined ? '%' : ''}</b> · Mastery Target: <b>${g.target ?? 80}%</b>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="sec" style="font-size:0.82rem;padding:7px 13px" onclick="act.openGoalModal(${g.id})">📊 Review Data & Edit Goal</button>
-            <button class="ok" style="font-size:0.82rem;padding:7px 13px" onclick="act.quickMasterGoal(${g.id})">🏆 Master Goal</button>
+            <button class="sec" style="font-size:0.82rem;padding:7px 13px" onclick="act.openGoalModal(${g.id})">Review Data & Edit Goal</button>
+            <button class="ok" style="font-size:0.82rem;padding:7px 13px" onclick="act.quickMasterGoal(${g.id})">✓ Master Goal</button>
           </div>
         </div>
 
         ${g.mastery_met ? `
           <div class="mastery-banner" style="margin-top:10px">
-            <span><b>🎯 Ready for Mastery:</b> ${esc(g.recommendation)}</span>
+            <span><b>Ready for Mastery:</b> ${esc(g.recommendation)}</span>
             <button class="ok" style="font-size:0.78rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">✓ Advance to Mastered</button>
           </div>
         ` : g.stalled ? `
           <div class="stalled-banner" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-            <span><b>⚠️ Clinical Alert:</b> ${esc(g.recommendation)}</span>
-            <button class="sec" style="font-size:0.78rem;padding:4px 10px;background:#fff" onclick="act.openGoalModal(${g.id})">✏️ Modify Target / Criteria</button>
+            <span><b>Clinical Alert:</b> ${esc(g.recommendation)}</span>
+            <button class="sec" style="font-size:0.78rem;padding:4px 10px;background:#fff" onclick="act.openGoalModal(${g.id})">Modify Target / Criteria</button>
           </div>
         ` : ''}
 
@@ -2000,7 +2013,7 @@ async function sessionView(id) {
             ${Object.entries(LV).map(([k, cfg]) => `
               <button class="${cfg.cls}" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
                 <span>${cfg.icon} ${cfg.label}</span>
-                <span style="font-family:'JetBrains Mono',monospace;font-size:0.9rem;opacity:0.8">(${k})</span>
+                <span style="font-family:var(--font-mono);font-size:0.86rem;opacity:0.85">[${k}]</span>
               </button>
             `).join('')}
           </div>
@@ -2016,9 +2029,9 @@ async function sessionView(id) {
     `}
 
     <!-- Quick Add Goal Card inside DTT View -->
-    <div class="card" style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px dashed #818cf8;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+    <div class="card" style="background:var(--slate-100);border:1.5px dashed var(--slate-300);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
       <div>
-        <h4 style="margin:0;color:var(--slate-900)">🎯 Need to Introduce a New Skill Acquisition Goal?</h4>
+        <h4 style="margin:0;color:var(--slate-900)">Need to Introduce a New Skill Acquisition Goal?</h4>
         <p style="margin:2px 0 0;font-size:0.84rem;color:var(--slate-600)">Create a custom DTT/NET target or pick from clinical ABA templates without leaving the session.</p>
       </div>
       <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create / Set New Goal</button>
@@ -2387,8 +2400,8 @@ function renderModal() {
         ` : ''}
 
         <!-- Modify / Edit Goal Parameters Form -->
-        <div style="background:linear-gradient(135deg,#eef2ff 0%,#f8fafc 100%);border:1.5px solid #c7d2fe;border-radius:16px;padding:18px;margin-top:16px">
-          <h4 style="margin:0 0 10px;color:var(--slate-900)">✏️ Modify Goal Parameters, Criteria or Clinical Status</h4>
+        <div style="background:var(--slate-100);border:1.5px solid var(--slate-300);border-radius:10px;padding:18px;margin-top:16px">
+          <h4 style="margin:0 0 10px;color:var(--slate-900)">Modify Goal Parameters, Criteria or Clinical Status</h4>
           <div class="row">
             <div style="grid-column:span 2">
               <label>Operational Goal Title / Target Behavior</label>
@@ -2408,17 +2421,17 @@ function renderModal() {
               <label>Clinical Status</label>
               <select id="edit_g_status">
                 <option value="active" ${g.status === 'active' ? 'selected' : ''}>Active (Skill Acquisition)</option>
-                <option value="mastered" ${g.status === 'mastered' ? 'selected' : ''}>🏆 Mastered (Maintenance)</option>
+                <option value="mastered" ${g.status === 'mastered' ? 'selected' : ''}>Mastered (Maintenance)</option>
               </select>
             </div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
-            <button class="ok" style="background:linear-gradient(135deg,#059669 0%,#10b981 100%)" onclick="act.masterAndAddNext(${g.id}, ${g.client_id}, ${JSON.stringify(g.title).replace(/"/g, '&quot;')})">
-              🏆 Master This Goal & Create Next Progression Target →
+            <button class="ok" onclick="act.masterAndAddNext(${g.id}, ${g.client_id}, ${JSON.stringify(g.title).replace(/"/g, '&quot;')})">
+              ✓ Master This Goal & Create Next Progression Target →
             </button>
             <div style="display:flex;gap:8px">
               <button class="sec" onclick="act.closeModal()">Cancel</button>
-              <button class="ok" onclick="act.saveGoalModal(${g.id})">💾 Save Goal Changes</button>
+              <button class="ok" onclick="act.saveGoalModal(${g.id})">Save Goal Changes</button>
             </div>
           </div>
         </div>
@@ -2442,7 +2455,7 @@ function renderModal() {
         <div class="flex-between">
           <div>
             <span class="badge p">Skill Acquisition & DTT / NET Program</span>
-            <h3 style="margin:4px 0 0">🎯 Create & Set New Skill Acquisition Goal</h3>
+            <h3 style="margin:4px 0 0">Create & Set New Skill Acquisition Goal</h3>
           </div>
           <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
         </div>
@@ -2451,10 +2464,10 @@ function renderModal() {
         </p>
 
         <div style="margin-bottom:14px">
-          <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px">⚡ 1-Tap Clinical ABA Goal Templates:</div>
+          <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">1-Tap Clinical ABA Goal Templates:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${templates.map((t) => `
-              <button class="sec" style="font-size:0.76rem;padding:5px 10px;border-radius:999px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target})">
+              <button class="sec" style="font-size:0.76rem;padding:5px 10px;border-radius:6px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target})">
                 + ${esc(t.title)}
               </button>
             `).join('')}
@@ -2497,33 +2510,33 @@ function renderModal() {
         </div>
 
         <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0">
-          <div style="background:#fff1f2;border:1px solid #fecdd3;padding:10px 12px;border-radius:12px;text-align:center">
-            <div style="font-size:0.7rem;font-weight:800;color:#9f1239;text-transform:uppercase">Primary Function</div>
-            <div style="font-size:1.25rem;font-weight:900;color:#be123c">${esc(report.primaryFunction)} (${report.primaryFunctionPct}%)</div>
+          <div style="background:var(--bad-light);border:1px solid var(--bad-border);padding:10px 12px;border-radius:8px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--bad);text-transform:uppercase;font-family:var(--font-mono)">Primary Function</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--bad);font-family:var(--font-serif)">${esc(report.primaryFunction)} (${report.primaryFunctionPct}%)</div>
           </div>
-          <div style="background:#f8fafc;border:1px solid var(--slate-200);padding:10px 12px;border-radius:12px;text-align:center">
-            <div style="font-size:0.7rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Baseline → Current</div>
-            <div style="font-size:1.25rem;font-weight:900;color:var(--slate-900)">${report.baselineRate}/d → ${report.currentRate}/d</div>
+          <div style="background:var(--slate-100);border:1px solid var(--slate-200);padding:10px 12px;border-radius:8px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase;font-family:var(--font-mono)">Baseline → Current</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--slate-900);font-family:var(--font-serif)">${report.baselineRate}/d → ${report.currentRate}/d</div>
           </div>
-          <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 12px;border-radius:12px;text-align:center">
-            <div style="font-size:0.7rem;font-weight:800;color:#065f46;text-transform:uppercase">Net Rate Change</div>
-            <div style="font-size:1.25rem;font-weight:900;color:#047857">${report.pctChange <= 0 ? `↓ ${Math.abs(report.pctChange)}%` : `↑ ${report.pctChange}%`}</div>
+          <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 12px;border-radius:8px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:700;color:#065f46;text-transform:uppercase;font-family:var(--font-mono)">Net Rate Change</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--ok);font-family:var(--font-serif)">${report.pctChange <= 0 ? `↓ ${Math.abs(report.pctChange)}%` : `↑ ${report.pctChange}%`}</div>
           </div>
-          <div style="background:#eef2ff;border:1px solid #c7d2fe;padding:10px 12px;border-radius:12px;text-align:center">
-            <div style="font-size:0.7rem;font-weight:800;color:#3730a3;text-transform:uppercase">FCT De-escalation</div>
-            <div style="font-size:1.25rem;font-weight:900;color:#4f46e5">${report.replacementSuccessRate}%</div>
+          <div style="background:var(--primary-light);border:1px solid var(--primary-border);padding:10px 12px;border-radius:8px;text-align:center">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--primary);text-transform:uppercase;font-family:var(--font-mono)">FCT De-escalation</div>
+            <div style="font-size:1.25rem;font-weight:700;color:var(--primary);font-family:var(--font-serif)">${report.replacementSuccessRate}%</div>
           </div>
         </div>
 
-        <div class="report-content" id="report_text_body" style="background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:18px;font-size:0.86rem;line-height:1.65;white-space:pre-wrap;font-family:'JetBrains Mono',monospace;color:var(--slate-800)">${esc(report.text)}</div>
+        <div class="report-content" id="report_text_body" style="background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:18px;font-size:0.86rem;line-height:1.65;white-space:pre-wrap;font-family:var(--font-mono);color:var(--slate-800)">${esc(report.text)}</div>
 
         <div style="display:flex;gap:10px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap">
           <div style="font-size:0.8rem;color:var(--slate-500)">
-            🔒 BACB Functional Behavior Assessment & Progress Report Draft · Supervising BCBA Signature Required
+            BACB Functional Behavior Assessment & Progress Report Draft · Supervising BCBA Signature Required
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="sec" onclick="act.copyReport()">📋 Copy FBA Report</button>
-            <button class="ok" onclick="window.print()">🖨️ Print / Save as PDF</button>
+            <button class="sec" onclick="act.copyReport()">Copy FBA Report</button>
+            <button class="ok" onclick="window.print()">Print / Save as PDF</button>
             <button class="sec" onclick="act.closeModal()">Close</button>
           </div>
         </div>
@@ -2938,17 +2951,17 @@ function presentationView() {
         </div>
       </div>
 
-      <div class="card" style="background:var(--slate-50);margin-bottom:0">
+      <div class="card" style="background:var(--slate-100);margin-bottom:0">
         <div class="flex-between" style="flex-wrap:wrap;gap:12px">
           <div style="display:flex;align-items:center;gap:14px">
-            <div class="pitch-emblem" style="margin:0;background:linear-gradient(135deg,#4f46e5,#06b6d4);color:#fff;border:none">🎯</div>
+            <div class="pitch-emblem" style="margin:0;background:var(--primary);color:var(--brass-light);border:1px solid var(--brass);font-size:0.85rem">DEMO</div>
             <div>
               <h4 style="margin:0;color:var(--slate-900);font-size:1.05rem">Interactive Presentation Mode: Jump Straight into Live Prototype</h4>
-              <p style="margin:4px 0 0;font-size:0.86rem;color:var(--slate-600)">Every slide includes a <b>"🚀 Live Demo"</b> button that logs into the right role, opens the exact feature, and gives you a floating <b>"↩ Back to Deck"</b> button.</p>
+              <p style="margin:4px 0 0;font-size:0.86rem;color:var(--slate-600)">Every slide includes a <b>"Launch Live Demo"</b> button that logs into the right role, opens the exact feature, and gives you a floating <b>"↩ Back to Deck"</b> button.</p>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="ok" onclick="act.pitchDemo('client360_crisis', 0)">🚀 Preview Eleanor's Client 360</button>
+            <button class="ok" onclick="act.pitchDemo('client360_crisis', 0)">Preview Eleanor's Client 360 →</button>
             <button class="sec" onclick="act.setPitchSlide(1)">Explore Competitive Landscape →</button>
           </div>
         </div>
@@ -3387,8 +3400,8 @@ function presentationView() {
         Adjust the clinic size below to see how much clinician time and unbilled administrative overhead EBA returns to direct child care every year—or use the 5-step buttons below to run the live walkthrough.
       </p>
 
-      <div class="card" style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8">
-        <h3 style="margin:0 0 12px;color:var(--slate-900)">📊 Interactive Practice Time-Savings & ROI Estimator</h3>
+      <div class="card" style="background:var(--slate-100);border:1.5px solid var(--slate-300)">
+        <h3 style="margin:0 0 12px;color:var(--slate-900)">Interactive Practice Time-Savings & ROI Estimator</h3>
         <div class="row" style="margin-bottom:16px">
           <div>
             <label>Supervising BCBAs in Clinic: <b>${roiBcba} BCBAs</b> (~${caseload} active clients)</label>
@@ -3412,7 +3425,7 @@ function presentationView() {
           </div>
           <div class="stat-card ok">
             <div class="stat-label">Total Clinical Capacity Reclaimed</div>
-            <div class="stat" style="color:#0f172a">${totalHoursSaved} hrs/yr</div>
+            <div class="stat" style="color:var(--slate-900)">${totalHoursSaved} hrs/yr</div>
             <div class="stat-sub">~$${estFinancialValue}/yr in clinical labor value</div>
           </div>
         </div>
