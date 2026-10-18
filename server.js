@@ -72,8 +72,11 @@ function seed() {
     ).lastInsertRowid;
   run('INSERT INTO assignments VALUES(?,?)', el, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt2);
   const g1 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Following teacher directions', 32, 80).lastInsertRowid;
-  run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Waiting for a turn', 20, 80);
-  run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', le, 'Asking for help', 10, 70);
+  const g2 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Waiting for a turn', 20, 80).lastInsertRowid;
+  const g3 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Requesting sensory break ("Break please")', 15, 80).lastInsertRowid;
+  const gLe1 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', le, 'Asking for help', 10, 70).lastInsertRowid;
+  run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', le, 'Transitioning from train table with visual timer', 20, 80);
+
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', el, '97153', 480, 440);
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', el, '97155', 40, 12);
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', le, '97153', 400, 120);
@@ -81,29 +84,88 @@ function seed() {
   const day = getLocalDate();
   const mk = (cid, uid, s, e, role, setting) => run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', cid, uid, `${day}T${s}`, `${day}T${e}`, role, setting);
   mk(el, rbt, '09:00', '12:00', 'RBT', 'School'); mk(le, rbt, '15:00', '17:00', 'RBT', 'Home'); mk(el, bcba, '17:00', '18:00', 'BCBA', 'Home');
-  // past session with data so progress shows
+
+  // Past sessions for Eleanor showing Mastery on g1 (≥80% x 3), Plateau/Stall on g2 (~20% x 3), and Improving trend on g3
+  const g1Mixes = [
+    [['I', 5], ['V', 1]],              // 83% Independent
+    [['I', 6], ['G', 1]],              // 86% Independent
+    [['I', 9], ['V', 1]]               // 90% Independent -> Mastery Criteria Met!
+  ];
+  const g2Mixes = [
+    [['I', 1], ['V', 2], ['P', 2]],    // 20% Independent
+    [['I', 1], ['G', 2], ['P', 2]],    // 20% Independent
+    [['I', 1], ['V', 2], ['M', 1], ['P', 1]] // 20% Independent -> Target Stalled!
+  ];
+  const g3Mixes = [
+    [['I', 2], ['V', 2], ['G', 1]],    // 40% Independent
+    [['I', 3], ['V', 1], ['G', 1]],    // 60% Independent
+    [['I', 6], ['G', 2]]               // 75% Independent -> Improving!
+  ];
   for (let i = 0; i < 3; i++) {
-    const t = new Date(Date.now() - (3 - i) * 86400000).toISOString();
-    const sid = run('INSERT INTO sessions(client_id,user_id,start,end,units,note_status) VALUES(?,?,?,?,?,?)', el, rbt, t, t, 12, 'signed').lastInsertRowid;
-    const mix = [['I', 4], ['V', 4], ['P', 2], ['N', 1]].map(([l, n]) => Array(n + i * 1).fill(l)).flat();
-    mix.forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sid, g1, l, t));
+    const t = new Date(Date.now() - (4 - i) * 86400000).toISOString();
+    const noteText = `Session Note — Eleanor\nDate: ${t.slice(0, 10)}\nDuration: 180 minutes (12 billable 15-min units)\nStaff: Sam Lee, RBT\n\nObjectives worked on:\n• Following teacher directions: ${[83, 86, 90][i]}% independent (target 80%).\n• Waiting for a turn: 20% independent (target 80%).\n• Requesting sensory break ("Break please"): ${[40, 60, 75][i]}% independent (target 80%).\n\nReinforcers used: LEGO, stickers, tablet time.\nClinical summary: Client engaged well with visual First/Then schedule.`;
+    const sid = run('INSERT INTO sessions(client_id,user_id,start,end,units,note,note_status,submitted_by,rbt_signed_at,signed_by,bcba_signed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      el, rbt, t, t, 12, noteText, 'signed', 'Sam Lee, RBT', t, 'Dr. Dana Rivera, BCBA', t).lastInsertRowid;
+    const insertMix = (gid, mix) => {
+      mix.map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sid, gid, l, t));
+    };
+    insertMix(g1, g1Mixes[i]);
+    insertMix(g2, g2Mixes[i]);
+    insertMix(g3, g3Mixes[i]);
   }
-  // Seed sample ABC data
+
+  // 1 Session in pending_approval status so BCBA Dual-Sign Queue is active immediately in demo
+  const tYest = new Date(Date.now() - 86400000).toISOString();
+  const pendingNote = `Session Note — Leon\nDate: ${tYest.slice(0, 10)}\nDuration: 120 minutes (8 billable 15-min units)\nStaff: Sam Lee, RBT\n\nObjectives worked on:\n• Asking for help: 5 trials — 60% independent, 40% verbal prompt, 0% physical prompt, 0% non-compliant (target 70%).\n\nBehavior Reduction & ABC Data:\n• [Tangible] Antecedent: Denied immediate access to tablet → Behavior: Crying → Consequence: Prompted PECS card for alternate activity (trains)\n\nReinforcers used: Trains, bubbles, spin toys.\nClinical summary: Client practiced PECS Phase III exchanges during natural environment play. Ready for BCBA co-signature.`;
+  const sidLeon = run('INSERT INTO sessions(client_id,user_id,start,end,units,note,note_status,submitted_by,rbt_signed_at) VALUES(?,?,?,?,?,?,?,?,?)',
+    le, rbt, tYest, tYest, 8, pendingNote, 'pending_approval', 'Sam Lee, RBT', tYest).lastInsertRowid;
+  [['I', 3], ['V', 2]].map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sidLeon, gLe1, l, tYest));
+
+  // Pre-seed Approved BIP for Eleanor so Client 360 & In-Session Emergency BIP Drawer are live immediately
+  const bipData = G.generatePlan({ child: 'Eleanor', behavior: 'Screaming', antecedents: ['Transition from preferred activity', 'Peer proximity / space'], reinforcers: ['LEGO', 'stickers', 'tablet time'] });
+  run('INSERT INTO plans(client_id,behavior,data,status,approved_by) VALUES(?,?,?,?,?)',
+    el, 'Screaming', JSON.stringify(bipData), 'approved', 'Dr. Dana Rivera, BCBA');
+
+  // Pre-seed 1 Shared Social Story (visible in Parent Portal) + 1 Draft Social Story (to demo BCBA clinical guardrail)
+  const storySharedInput = { child: 'Eleanor', situation: 'Sharing the LEGO Table at School', challenge: 'Peers reaching near her LEGO castle', goal: 'Use my "My Space Please" card and take a deep breath', interest: 'LEGO builders', visuals: true };
+  const storySharedContent = G.generateStory(storySharedInput);
+  run('INSERT INTO stories(client_id,inputs,content,status,approved_by,token) VALUES(?,?,?,?,?,?)',
+    el, JSON.stringify(storySharedInput), JSON.stringify(storySharedContent), 'shared', 'Dr. Dana Rivera, BCBA', 'demo-story-eleanor-lego');
+
+  const storyDraftInput = { child: 'Eleanor', situation: 'When the School Fire Drill Bell Rings', challenge: 'Loud sudden alarm noise in hallway', goal: 'Put on my headphones and hold teacher\'s hand calmly', interest: 'Space rockets', visuals: true };
+  const storyDraftContent = G.generateStory(storyDraftInput);
+  run('INSERT INTO stories(client_id,inputs,content,status) VALUES(?,?,?,?)',
+    el, JSON.stringify(storyDraftInput), JSON.stringify(storyDraftContent), 'draft');
+
+  // Seed ABC data with specific daytime hours (09:00, 11:00 peak cluster, 14:00) so the Hourly Scatterplot Heatmap shines
+  const mkTime = (daysAgo, hhmm) => {
+    const d = new Date(Date.now() - daysAgo * 86400000);
+    const [hh, mm] = hhmm.split(':');
+    d.setHours(+hh, +mm, 0, 0);
+    return d.toISOString();
+  };
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(3, '09:15'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'De-escalated in 2 mins after seeing visual schedule');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(3, '11:10'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Placed LEGO build on safe shelf and washed hands');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 2, rbt, mkTime(2, '11:25'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Independent vocal follow-up after card prompt');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 3, rbt, mkTime(1, '11:45'), 'Loud cafeteria line transition before lunch', 'Task refusal', 'Offered noise-reducing headphones & sensory squeeze', 'Sensory', 'Entered cafeteria calmly with headphones on');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    el, 3, rbt, mkTime(1, '14:20'), 'End of afternoon tablet reinforcement interval', 'Crying', 'Reviewed token board & next earned choice', 'Tangible', 'Transitioned to sticker book within 45 seconds');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
+    le, sidLeon, rbt, mkTime(1, '15:30'), 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set');
+
+  // Seed supervision logs so BACB 5% compliance is healthy (≥5%)
   const tRecent = new Date().toISOString();
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, tRecent, 'Transition from preferred play', 'Screaming', 'Offered visual countdown & calm breathing', 'Escape', 'De-escalated in 3 mins without physical intervention');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, tRecent, 'Peer reached for LEGO creation', 'Screaming', 'Prompted "My turn" replacement card', 'Tangible', 'Accepted replacement phrase');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    le, 2, rbt, tRecent, 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set');
-  // Seed sample supervision log
   run('INSERT INTO supervision_logs(client_id,bcba_id,rbt_id,session_id,ts,minutes,type,notes) VALUES(?,?,?,?,?,?,?,?)',
-    el, bcba, rbt, 1, tRecent, 60, 'Direct Observation', 'Observed DTT trials on turn-taking. RBT demonstrated excellent prompt fading.');
+    el, bcba, rbt, 1, tRecent, 60, 'Direct Observation', 'Observed DTT trials on turn-taking and FCT replacement cards. RBT demonstrated 95% procedural fidelity.');
 }
 seed();
 
 function upgradeExistingData() {
-  const el = get('SELECT id, communication FROM clients WHERE name=?', 'Eleanor');
+  const el = get('SELECT * FROM clients WHERE name=?', 'Eleanor');
   if (el && !el.communication) {
     run('UPDATE clients SET communication=?, crisis_plan=? WHERE name=?',
       'Verbal (full sentences, needs 5s processing time)',
@@ -113,6 +175,19 @@ function upgradeExistingData() {
       'PECS Phase III & 2-word vocal requests ("train please")',
       '1. Offer deep pressure pillow\n2. Provide choice of 2 alternative preferred toys\n3. Maintain neutral facial tone',
       'Leon');
+  }
+  if (el && !get('SELECT COUNT(*) c FROM plans WHERE client_id=?', el.id).c) {
+    const bipData = G.generatePlan({ child: 'Eleanor', behavior: 'Screaming', antecedents: ['Transition from preferred activity', 'Peer proximity / space'], reinforcers: ['LEGO', 'stickers', 'tablet time'] });
+    run('INSERT INTO plans(client_id,behavior,data,status,approved_by) VALUES(?,?,?,?,?)',
+      el.id, 'Screaming', JSON.stringify(bipData), 'approved', 'Dr. Dana Rivera, BCBA');
+  }
+  if (el && !get('SELECT COUNT(*) c FROM stories WHERE client_id=?', el.id).c) {
+    const storySharedInput = { child: 'Eleanor', situation: 'Sharing the LEGO Table at School', challenge: 'Peers reaching near her LEGO castle', goal: 'Use my "My Space Please" card and take a deep breath', interest: 'LEGO builders', visuals: true };
+    run('INSERT INTO stories(client_id,inputs,content,status,approved_by,token) VALUES(?,?,?,?,?,?)',
+      el.id, JSON.stringify(storySharedInput), JSON.stringify(G.generateStory(storySharedInput)), 'shared', 'Dr. Dana Rivera, BCBA', 'demo-story-eleanor-lego');
+    const storyDraftInput = { child: 'Eleanor', situation: 'When the School Fire Drill Bell Rings', challenge: 'Loud sudden alarm noise in hallway', goal: 'Put on my headphones and hold teacher\'s hand calmly', interest: 'Space rockets', visuals: true };
+    run('INSERT INTO stories(client_id,inputs,content,status) VALUES(?,?,?,?)',
+      el.id, JSON.stringify(storyDraftInput), JSON.stringify(G.generateStory(storyDraftInput)), 'draft');
   }
 }
 upgradeExistingData();
@@ -135,7 +210,7 @@ function goalProgress(goal) {
   rows.forEach((r) => { (bySession[r.session_id] ||= []).push(r.level); });
   const series = Object.entries(bySession).map(([sid, ls]) => {
     const total = ls.length;
-    const counts = { I: 0, V: 0, G: 0, P: 0, N: 0 };
+    const counts = { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
     ls.forEach((l) => { if (counts[l] !== undefined) counts[l]++; });
     return {
       session: +sid,

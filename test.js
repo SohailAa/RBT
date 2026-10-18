@@ -1,4 +1,7 @@
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+['eba.db', 'eba.db-shm', 'eba.db-wal'].forEach((f) => { try { fs.unlinkSync(path.join(__dirname, f)); } catch {} });
 const handler = require('./server');
 
 let fails = 0;
@@ -189,7 +192,12 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(s2g1 && s2g1.summary && s2g1.summary.total === 2, 'NET multi-target trials recorded for Goal 1');
   ok(s2g2 && s2g2.summary && s2g2.summary.total === 1, 'NET multi-target trials recorded for Goal 2');
 
+  // 14. Founder Presentation & Demo State Verification
+  ok(c360.plans.some(pl => pl.status === 'approved'), 'Demo seed includes pre-approved BIP for immediate Client 360 & in-session drawer showcase');
+  ok(c360.stories.some(st => st.status === 'shared') && c360.stories.some(st => st.status === 'draft'), 'Demo seed includes both shared and draft Social Stories');
+  ok(c360.goals[0].mastery_met === true && c360.goals[1].stalled === true, 'Demo seed showcases both Mastery Criteria Met and Target Stalled intelligence');
+
   server.close();
-  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record & CentralReach Enhancements Verified)');
+  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, CentralReach Enhancements & Founder Demo Ready)');
   process.exit(fails ? 1 : 0);
 })();

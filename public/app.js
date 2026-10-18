@@ -7,6 +7,10 @@ let showKidMode = false;
 let tokenCount = 0;
 let targetTokens = 5;
 let sessionMode = 'dtt';
+let pitchSlide = 0;
+let pitchTourActive = false;
+let roiBcba = 3;
+let roiRbt = 12;
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const val = (id) => (document.getElementById(id) || {}).value || '';
 const LV = {
@@ -34,22 +38,33 @@ const NAV = {
     ['clients', '👧', 'Clients 360'],
     ['schedule', '📅', 'Clinical Schedule'],
     ['notes', '📝', 'Notes & Dual-Sign'],
-    ['supervision', '🎯', 'BACB Supervision']
+    ['supervision', '🎯', 'BACB Supervision'],
+    ['presentation', '🚀', 'Founder Pitch Deck']
   ],
   RBT: [
     ['dashboard', '🏠', 'My Clinical Day'],
     ['schedule', '📅', 'Schedule'],
     ['clients', '👧', 'My Clients'],
     ['notes', '📝', 'Session Notes'],
-    ['supervision', '🎯', 'My Supervision']
+    ['supervision', '🎯', 'My Supervision'],
+    ['presentation', '🚀', 'Founder Pitch Deck']
   ],
   PARENT: [
-    ['clients', '👧', 'My Child']
+    ['clients', '👧', 'My Child'],
+    ['presentation', '🚀', 'Founder Pitch Deck']
   ]
 };
 
 function shell(content, route) {
   const userInitials = getInitials(me.name);
+  const floatBar = (pitchTourActive && route !== 'presentation') ? `
+    <div class="pitch-float-bar">
+      <span style="font-size:0.8rem;font-weight:700;color:#38bdf8">🎯 Live Demo Tour (Slide ${pitchSlide + 1}/10)</span>
+      <button class="ok" style="padding:5px 12px;font-size:0.78rem;border-radius:999px" onclick="go('presentation')">↩ Back to Deck</button>
+      ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem;border-radius:999px;background:#1e293b;color:#fff;border-color:#475569" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide (${pitchSlide + 2}/10) →</button>` : ''}
+      <button style="background:transparent;border:none;color:#94a3b8;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
+    </div>
+  ` : '';
   return `
   <div class="layout">
     <nav>
@@ -85,6 +100,7 @@ function shell(content, route) {
       ${content}
     </main>
   </div>
+  ${floatBar}
   ${activeModal ? renderModal() : ''}`;
 }
 
@@ -104,9 +120,17 @@ function loginView(err) {
         </div>
       </div>
       
-      <p style="font-size:0.88rem;color:var(--slate-600);margin:12px 0 20px">
+      <p style="font-size:0.88rem;color:var(--slate-600);margin:12px 0 16px">
         Sign in to access real-time session tracking, unified ABC behavioral records, and dual-signature documentation.
       </p>
+
+      <div style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8;border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.05em">🎯 Founder & Therapist Showcase</div>
+          <div style="font-size:0.83rem;font-weight:600;color:var(--slate-800)">Interactive Competitive Deck + Live Feature Tour</div>
+        </div>
+        <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap" onclick="go('presentation')">🚀 Launch Pitch Deck</button>
+      </div>
 
       <label>Clinician / Guardian Email</label>
       <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
@@ -152,7 +176,8 @@ async function dashboardView() {
       <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Dashboard'}</h1>
       <p class="page-sub">Today is <b>${todayStr}</b> · Active Shift Status: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Operational</span></p>
     </div>
-    <div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ok" onclick="go('presentation')">🚀 Founder Pitch & Competitive Deck</button>
       <button class="sec" onclick="go('schedule')">📅 View Full Schedule</button>
     </div>
   </div>
@@ -1639,11 +1664,686 @@ const act = {
       alert('✓ 6-Month Re-Authorization Progress Report copied to clipboard!');
     }
   },
+  setPitchSlide: (idx) => {
+    pitchSlide = Math.max(0, Math.min(9, idx));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    render();
+  },
+  endPitchTour: () => {
+    pitchTourActive = false;
+    render();
+  },
+  updateRoi: (bcbaCount, rbtCount) => {
+    if (bcbaCount !== null) roiBcba = Math.max(1, +bcbaCount || 1);
+    if (rbtCount !== null) roiRbt = Math.max(1, +rbtCount || 1);
+    render();
+  },
+  pitchDemo: safe(async (target, slideIdx) => {
+    if (typeof slideIdx === 'number') pitchSlide = slideIdx;
+    pitchTourActive = true;
+    activeModal = null;
+
+    const ensureRole = async (role, email) => {
+      if (!me || me.role !== role) {
+        me = await api('POST', '/api/login', { email, password: 'password' });
+      }
+    };
+
+    if (target === 'client360_crisis') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      tab = 'overview';
+      showCrisis = true;
+      location.hash = 'client/1';
+      render();
+    } else if (target === 'session_kidmode') {
+      await ensureRole('RBT', 'rbt@eba.test');
+      const r = await api('POST', '/api/appointments/1/start');
+      showKidMode = true;
+      tokenCount = 4;
+      sessionMode = 'dtt';
+      location.hash = 'session/' + r.id;
+      render();
+    } else if (target === 'session_net') {
+      await ensureRole('RBT', 'rbt@eba.test');
+      const r = await api('POST', '/api/appointments/1/start');
+      showKidMode = false;
+      sessionMode = 'net';
+      location.hash = 'session/' + r.id;
+      render();
+    } else if (target === 'fba_scatterplot') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      tab = 'behavior_abc';
+      showCrisis = false;
+      location.hash = 'client/1';
+      render();
+    } else if (target === 'mastery_intelligence') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      tab = 'skills';
+      showCrisis = false;
+      location.hash = 'client/1';
+      render();
+    } else if (target === 'reauth_report') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      tab = 'overview';
+      showCrisis = false;
+      location.hash = 'client/1';
+      const report = await api('GET', '/api/clients/1/reauth-report');
+      activeModal = { type: 'reauth_report', report };
+      render();
+    } else if (target === 'dual_sign') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      location.hash = 'session/4';
+      render();
+    } else if (target === 'ai_guardrails') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      tab = 'stories';
+      showCrisis = false;
+      location.hash = 'client/1';
+      render();
+    } else if (target === 'parent_portal') {
+      await ensureRole('PARENT', 'parent@eba.test');
+      tab = 'stories';
+      location.hash = 'clients';
+      render();
+    } else if (target === 'supervision_radar') {
+      await ensureRole('BCBA', 'bcba@eba.test');
+      location.hash = 'supervision';
+      render();
+    }
+  }),
 };
 window.act = act;
 
+function presentationView() {
+  const slideTitles = [
+    '1. Executive Vision',
+    '2. Broken Status Quo',
+    '3. Competitive Matrix',
+    '4. Unified Client 360',
+    '5. Field Cockpit & Kid Mode',
+    '6. FBA & Hourly Scatterplot',
+    '7. Mastery & Stall AI',
+    '8. Zero "Pajama Time"',
+    '9. Guardrails & Parent Portal',
+    '10. Clinic ROI & Demo Script'
+  ];
+
+  // Calculate ROI metrics for Slide 10
+  const caseload = roiBcba * 10;
+  const reauthHoursSavedYr = Math.round(caseload * 2 * 4.5); // 2 re-auths/yr * 4.5 hrs saved each
+  const soapHoursSavedYr = Math.round(roiRbt * 250 * 0.35); // 250 clinic days * 21 mins saved/day
+  const totalHoursSaved = reauthHoursSavedYr + soapHoursSavedYr;
+  const estFinancialValue = (reauthHoursSavedYr * 95 + soapHoursSavedYr * 35).toLocaleString();
+
+  const slides = [
+    // SLIDE 0: Executive Vision
+    `
+      <div class="pitch-kicker">🌟 Slide 1 of 10 · Executive Vision & Therapist-First Thesis</div>
+      <h1 class="pitch-title">Effective Behavioral Approach (EBA): Built for the Therapy Floor, Not Billing Clearinghouses</h1>
+      <p class="pitch-lead">
+        Most ABA software was designed top-down by insurance billing clearinghouses 15 years ago—forcing clinicians to juggle fragmented binders, clunky spreadsheets, and 12-tab enterprise menus while trying to support a child in crisis. <b>EBA unifies all 8 clinical pillars into a single, field-ready Unified Behavioral Health Record (UBHR).</b>
+      </p>
+
+      <div class="pitch-quote">
+        "Every minute an RBT spends hunting through nested menus or re-typing trial counts at 8:00 PM is a minute stolen from direct clinical care with the child."
+        <div style="font-size:0.8rem;color:#38bdf8;margin-top:6px;font-weight:700">— Core Clinical Design Principle behind EBA</div>
+      </div>
+
+      <div class="pitch-grid-3">
+        <div class="pitch-box highlight">
+          <div style="font-size:1.4rem;margin-bottom:6px">⚡</div>
+          <h3 style="margin:0 0 6px;font-size:1rem">Zero Context Switching</h3>
+          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">Vitals, Crisis De-escalation, DTT/NET Trials, ABC Logs, Token Boards, SOAP Notes, and BACB Supervision live in one cohesive record.</p>
+        </div>
+        <div class="pitch-box highlight">
+          <div style="font-size:1.4rem;margin-bottom:6px">📱</div>
+          <h3 style="margin:0 0 6px;font-size:1rem">One-Handed Field Ergonomics</h3>
+          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">60px+ thumb-friendly prompt buttons, instant 1-tap undo, embedded Kid Mode token economy, and zero-lag architecture for school hallways.</p>
+        </div>
+        <div class="pitch-box highlight">
+          <div style="font-size:1.4rem;margin-bottom:6px">🛡️</div>
+          <h3 style="margin:0 0 6px;font-size:1rem">Clinical Guardrails Built In</h3>
+          <p style="margin:0;font-size:0.86rem;color:var(--slate-600)">AI drafts BIPs, Social Stories, and 6-month Re-Auth packets in seconds—but nothing reaches a parent or payer without BCBA co-signature.</p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-50);margin-bottom:0">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+          <div>
+            <h4 style="margin:0;color:var(--slate-900)">🎯 Interactive Presentation Mode: Jump Straight into Live Prototype</h4>
+            <p style="margin:4px 0 0;font-size:0.84rem;color:var(--slate-600)">Every slide includes a <b>"🚀 Live Demo"</b> button that logs into the right role, opens the exact feature, and gives you a floating <b>"↩ Back to Deck"</b> button.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ok" onclick="act.pitchDemo('client360_crisis', 0)">🚀 Preview Eleanor's Client 360</button>
+            <button class="sec" onclick="act.setPitchSlide(1)">Explore Competitive Landscape →</button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 1: The Broken Status Quo in Existing Technology
+    `
+      <div class="pitch-kicker">🔍 Slide 2 of 10 · Market Analysis & Existing Technology Pain Points</div>
+      <h1 class="pitch-title">Why Existing ABA Technology Frustrates Clinicians</h1>
+      <p class="pitch-lead">
+        Today's behavioral therapy practices are forced to choose between bloated enterprise billing portals, disconnected point apps, or manual paper binders. None of them solve the complete clinical loop.
+      </p>
+
+      <div class="pitch-grid-2">
+        <div class="pitch-box pain">
+          <div class="flex-between" style="margin-bottom:8px">
+            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">1. Legacy Enterprise EHRs</h3>
+            <span class="badge bad">CentralReach · RethinkBH</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li><b>Built for Billing Clearinghouses, Not RBTs:</b> Requires 10–14 clicks across nested tabs just to check a child's BIP or sensory triggers mid-session.</li>
+            <li><b>Desktop Grid UI on Tablets:</b> Tiny hit targets cause accidental mis-taps while an RBT is actively blocking elopement or managing behavior on the floor.</li>
+            <li><b>"Pajama Time" Burnout:</b> Session data doesn't automatically synthesize with ABC logs into a clean dual-signed SOAP narrative.</li>
+          </ul>
+        </div>
+
+        <div class="pitch-box pain">
+          <div class="flex-between" style="margin-bottom:8px">
+            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">2. Standalone Data Collection Apps</h3>
+            <span class="badge bad">Catalyst · Passage Health · Hi Rasmus</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li><b>Siloed from Practice Ops:</b> Disconnected from CPT authorization burn-down counters, CMS 8-minute unit math, and BACB 5% supervision tracking.</li>
+            <li><b>Manual 6-Month Re-Auth Agony:</b> BCBAs still spend 4–6 hours per child screenshotting graphs and pasting into Word templates for insurance re-authorization.</li>
+            <li><b>No Embedded Kid Tools:</b> RBTs still carry physical laminated Velcro token boards and paper First/Then cards alongside their iPad.</li>
+          </ul>
+        </div>
+
+        <div class="pitch-box pain">
+          <div class="flex-between" style="margin-bottom:8px">
+            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">3. Generic Mental Health EHRs</h3>
+            <span class="badge bad">SimplePractice · TherapyNotes</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li><b>Built for 50-Min Talk Therapy:</b> Zero support for Discrete Trial Training (DTT), prompt fading hierarchies (I/V/G/M/P/N), or multi-target NET play grids.</li>
+            <li><b>Zero Functional Behavior Analysis (FBA):</b> No Antecedent-Behavior-Consequence logging, no 4-function matrices, and no temporal scatterplot heatmaps.</li>
+          </ul>
+        </div>
+
+        <div class="pitch-box pain">
+          <div class="flex-between" style="margin-bottom:8px">
+            <h3 style="margin:0;color:#9f1239;font-size:1.05rem">4. Paper Binders, Clickers & Excel</h3>
+            <span class="badge bad">The Manual Workaround</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li><b>Delayed Clinical Decisions:</b> Paper tally sheets sit in backpacks until Friday—so children stay on mastered or stalled targets for weeks too long.</li>
+            <li><b>Compliance & Audit Risk:</b> Missing RBT/BCBA timestamps, unmonitored 5% BACB supervision ratios, and zero parent transparency.</li>
+          </ul>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 2: Head-to-Head Competitive Matrix
+    `
+      <div class="pitch-kicker">⚔️ Slide 3 of 10 · Head-to-Head Competitive Matrix</div>
+      <h1 class="pitch-title">How EBA Compares to Existing ABA Platforms</h1>
+      <p class="pitch-lead">
+        We took the enterprise power of CentralReach, the field speed of modern mobile apps, and added automated clinical intelligence and child-facing tools that <b>no single platform offers under one roof</b>.
+      </p>
+
+      <div style="overflow-x:auto">
+        <table class="comp-table">
+          <thead>
+            <tr>
+              <th style="width:22%">Clinical / Operational Capability</th>
+              <th style="width:24%">CentralReach / RethinkBH<br><span style="font-weight:400;opacity:0.8">(Legacy Enterprise EHRs)</span></th>
+              <th style="width:22%">Catalyst / Point Apps<br><span style="font-weight:400;opacity:0.8">(Standalone Data Apps)</span></th>
+              <th class="eba-col" style="width:32%">🚀 Effective Behavioral Approach (EBA)<br><span style="font-weight:400;opacity:0.95">(Our Unified Clinical Cockpit)</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>1. Access to Crisis Plan & BIP Mid-Session</b></td>
+              <td>❌ Buried 5–8 clicks deep in separate "Documents" tab</td>
+              <td>⚠️ PDF attachment viewer; requires leaving trial screen</td>
+              <td class="eba-cell">✅ 1-Tap Pinned Crisis Banner + In-Session Emergency BIP Drawer</td>
+            </tr>
+            <tr>
+              <td><b>2. DTT ↔ NET Teaching Mode Toggle</b></td>
+              <td>⚠️ Rigid program sheets; slow switching during natural play</td>
+              <td>✅ Good trial buttons, but separate setup for NET vs DTT</td>
+              <td class="eba-cell">✅ Instant 1-Tap Toggle between Focused DTT & Multi-Target NET Play Grid</td>
+            </tr>
+            <tr>
+              <td><b>3. Child-Facing Token Board & First/Then</b></td>
+              <td>❌ None (RBTs must carry physical laminated Velcro boards)</td>
+              <td>❌ None built into the data collection screen</td>
+              <td class="eba-cell">✅ Embedded Interactive "⭐ Kid Mode" (5-Star Token Board + First/Then)</td>
+            </tr>
+            <tr>
+              <td><b>4. Temporal FBA Scatterplot Heatmap</b></td>
+              <td>⚠️ Requires manual Excel export or complex custom BI report</td>
+              <td>⚠️ Basic frequency bar charts; no time-of-day setting event heatmap</td>
+              <td class="eba-cell">✅ Live 8 AM–5 PM Hourly Scatterplot Heatmap + Peak Window Detection</td>
+            </tr>
+            <tr>
+              <td><b>5. Mastery & Plateau Detection</b></td>
+              <td>⚠️ Manual rule configuration per target; buried alerts</td>
+              <td>⚠️ Flags mastery, but weak plateau/prompt-dependency diagnostics</td>
+              <td class="eba-cell">✅ Auto Mastery (≥80% × 3) + Stall Alerts + Prompt Hierarchy Breakdown</td>
+            </tr>
+            <tr>
+              <td><b>6. End-of-Session SOAP Note Synthesis</b></td>
+              <td>❌ Manual template typing or copy-pasting trial percentages</td>
+              <td>⚠️ Exports raw numbers; clinician still writes narrative</td>
+              <td class="eba-cell">✅ 1-Click Auto-Compiled SOAP Note (Trials + ABC + CMS 8-Min Units)</td>
+            </tr>
+            <tr>
+              <td><b>7. 6-Month Insurance Re-Auth Packet</b></td>
+              <td>❌ 4–6 hours assembling Word docs & pasting chart screenshots</td>
+              <td>❌ Requires exporting data to external EHR/Word template</td>
+              <td class="eba-cell">✅ 1-Click 5-Section CPT 97151/97155 Medical Necessity Progress Report</td>
+            </tr>
+            <tr>
+              <td><b>8. Caregiver Social Stories & Portal</b></td>
+              <td>❌ Separate parent portal; no integrated Social Story builder</td>
+              <td>❌ No family-facing story generator or read-aloud tools</td>
+              <td class="eba-cell">✅ AI Social Story Builder + Web Speech Read-Aloud + Guarded Parent View</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `,
+
+    // SLIDE 3: Uniqueness #1 - Unified Client 360 & Crisis Safety
+    `
+      <div class="pitch-kicker">🛡️ Slide 4 of 10 · Core Innovation #1: Unified Clinical Record (UBHR)</div>
+      <h1 class="pitch-title">The Client 360 Cockpit & 1-Tap Crisis De-Escalation</h1>
+      <p class="pitch-lead">
+        When an RBT walks into a classroom or home session, they shouldn't have to open four PDFs to remember how a child communicates, what sensory triggers to avoid, or what to do during an escalation.
+      </p>
+
+      <div class="pitch-grid-2">
+        <div class="pitch-box">
+          <span class="badge bad" style="margin-bottom:8px">The Old Way (Legacy Systems)</span>
+          <h3 style="margin:4px 0 8px">Fragmented Across 5 Tabs</h3>
+          <p style="font-size:0.88rem;color:var(--slate-600);line-height:1.6">
+            Communication modality is in the intake PDF. Reinforcers are on a clipboard. The Crisis Plan is buried in a folder called <code>BIP_Final_v3_Signed.pdf</code>. By the time an RBT opens it on tablet Wi-Fi, the behavior has already escalated.
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge p" style="margin-bottom:8px">The EBA Advantage</span>
+          <h3 style="margin:4px 0 8px">Pinned Vitals Header + Instant Crisis Protocol</h3>
+          <p style="font-size:0.88rem;color:var(--slate-700);line-height:1.6">
+            Every client record pins <b>Communication Modality</b>, <b>Sensory Profile</b>, <b>Known Antecedents</b>, <b>Reinforcer Hierarchy</b>, live <b>CPT Unit Counters</b>, and a red <b>"🚨 Emergency / Crisis Plan"</b> toggle at the top of every view—plus an in-session BIP drawer.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">See Eleanor's Consolidated Client 360 & Crisis Banner</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Automatically logs in as <b>Dr. Dana Rivera, BCBA</b>, opens Eleanor's 360 Cockpit, and expands the Crisis De-escalation Protocol.</p>
+          </div>
+          <button class="ok" style="padding:12px 20px;font-size:0.95rem" onclick="act.pitchDemo('client360_crisis', 3)">🚀 Launch Live Client 360 Demo</button>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 4: Uniqueness #2 - Field Session Cockpit, DTT <-> NET & Kid Mode
+    `
+      <div class="pitch-kicker">⚡ Slide 5 of 10 · Core Innovation #2: Field Ergonomics & Child Engagement</div>
+      <h1 class="pitch-title">One-Handed Session Cockpit, DTT ↔ NET Toggle & Embedded Kid Mode</h1>
+      <p class="pitch-lead">
+        Real pediatric therapy isn't static. Clinicians move constantly between structured table work (<b>Discrete Trial Training</b>) and child-led play on the floor (<b>Natural Environment Teaching</b>)—while reinforcing the child with visual tokens.
+      </p>
+
+      <div class="pitch-grid-3">
+        <div class="pitch-box highlight">
+          <span class="badge p">1-Tap Mode Switch</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">🎯 DTT Mode ↔ 🧩 NET Play Grid</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            In <b>DTT Mode</b>, focus on one skill with oversized 60px+ buttons across all 6 BACB prompt levels (<code>I / V / G / M / P / N</code>) + instant undo. Tap <b>🧩 NET Mode</b> to see all active goals in a compact multi-target grid for floor play!
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge tan">Industry First</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">⭐ Embedded Interactive Kid Mode</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            Tap <b>"⭐ Kid Mode"</b> inside any active session to open an interactive <b>5-Star Token Economy Board</b> + <b>Digital First/Then Visual Schedule</b> right on the tablet—no more lost Velcro stars!
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge sen">Automated Billing Math</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">⏱️ CMS 8-Minute Rule Engine</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            Dark-mode elapsed timer calculates billable 15-minute CPT units in real time using the exact CMS 8-minute threshold rule (e.g., 23 mins = 2 units; 180 mins = 12 units).
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">Test the RBT Session Cockpit: Kid Mode Token Board & NET Grid</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Logs in as <b>Sam Lee, RBT</b> and launches Eleanor's active school session so you can tap stars, switch between DTT and NET, and log trials.</p>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="ok" style="padding:12px 18px;font-size:0.9rem" onclick="act.pitchDemo('session_kidmode', 4)">⭐ Launch Session + Kid Mode</button>
+            <button class="sec" style="padding:12px 18px;font-size:0.9rem;background:#1e293b;color:#fff;border-color:#475569" onclick="act.pitchDemo('session_net', 4)">🧩 Launch NET Multi-Target Grid</button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 5: Uniqueness #3 - Functional Behavior Reduction & Hourly Scatterplot Heatmap
+    `
+      <div class="pitch-kicker">📊 Slide 6 of 10 · Core Innovation #3: Functional Behavior Analytics</div>
+      <h1 class="pitch-title">4-Function FBA Matrix & Live Hourly Scatterplot Heatmap</h1>
+      <p class="pitch-lead">
+        Standard ABA apps let RBTs log an ABC event, but bury the data in a chronological table. EBA transforms every ABC log into an instant <b>Functional Behavior Assessment (FBA)</b> with an automated <b>8:00 AM – 5:00 PM Temporal Scatterplot Heatmap</b>.
+      </p>
+
+      <div class="pitch-grid-2">
+        <div class="pitch-box">
+          <h3 style="margin:0 0 8px;font-size:1.05rem">🧠 Automatic 4-Function Classification</h3>
+          <p style="font-size:0.86rem;color:var(--slate-600);line-height:1.6;margin:0 0 12px">
+            Every behavior incident is tagged and color-coded across the four clinical functions of behavior:
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span class="badge esc">Escape / Avoidance</span>
+            <span class="badge att">Attention Seeking</span>
+            <span class="badge tan">Tangible / Access</span>
+            <span class="badge sen">Sensory / Automatic</span>
+          </div>
+        </div>
+
+        <div class="pitch-box highlight">
+          <h3 style="margin:0 0 8px;font-size:1.05rem">⏰ Why the Hourly Scatterplot Matters to BCBAs</h3>
+          <p style="font-size:0.86rem;color:var(--slate-700);line-height:1.6;margin:0">
+            In Eleanor's pre-loaded clinical record, our heatmap immediately reveals that <b>60% of her behaviors cluster in the 11:00 AM hour</b> (right before noisy cafeteria transition). Instead of guessing, the BCBA can immediately introduce a 10:55 AM visual countdown and sensory headphones!
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">Inspect Eleanor's 11:00 AM Setting Event Peak on the Scatterplot</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Opens Eleanor's <b>Behavior & ABC</b> portal showing the 4-Function Matrix and the 8 AM–5 PM Temporal Scatterplot Heatmap.</p>
+          </div>
+          <button class="ok" style="padding:12px 20px;font-size:0.95rem" onclick="act.pitchDemo('fba_scatterplot', 5)">🚀 View Live Scatterplot Heatmap</button>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 6: Uniqueness #4 - Automated Mastery & Plateau Intelligence
+    `
+      <div class="pitch-kicker">🎯 Slide 7 of 10 · Core Innovation #4: Clinical Decision Support</div>
+      <h1 class="pitch-title">Automated Mastery Detection & Target Plateau Alerts</h1>
+      <p class="pitch-lead">
+        When a BCBA manages a caseload of 10–15 children, manually reviewing 150 skill acquisition graphs every week is nearly impossible. EBA's <code>goalProgress()</code> engine audits every session automatically.
+      </p>
+
+      <div class="pitch-grid-3">
+        <div class="pitch-box" style="background:#f0fdf4;border-color:#86efac">
+          <span class="tag approved">🎯 Mastery Criteria Met</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem;color:#065f46">Auto-Detects ≥80% × 3 Sessions</h3>
+          <p style="margin:0;font-size:0.85rem;color:#047857">
+            Eleanor's <i>"Following teacher directions"</i> goal hit 83%, 86%, and 90% independent across her last 3 sessions. EBA flags it with a 1-tap <b>"✓ Advance to Mastered"</b> button for the BCBA.
+          </p>
+        </div>
+
+        <div class="pitch-box" style="background:#fffbeb;border-color:#fde68a">
+          <span class="tag draft">⚠️ Target Stalled / Plateau</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem;color:#92400e">Flags Stagnant Targets Early</h3>
+          <p style="margin:0;font-size:0.85rem;color:#b45309">
+            Eleanor's <i>"Waiting for a turn"</i> goal has stayed flat at 20% across 3 sessions (baseline 20%). EBA alerts the BCBA to modify the prompt hierarchy before weeks are wasted.
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge p">Prompt Dependency Audit</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">Prompt Fading Breakdown</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            Under every skill graph, EBA displays the exact prompt distribution (<code>I / V / G / M / P / N</code>) from the latest session so BCBAs can spot verbal or physical prompt dependency at a glance.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">See Live Mastery, Plateau & Improving Targets Side-by-Side</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Opens Eleanor's <b>Skills & DTT</b> tab with 3 pre-seeded clinical trajectories (Mastery Met, Stalled Alert, and Improving).</p>
+          </div>
+          <button class="ok" style="padding:12px 20px;font-size:0.95rem" onclick="act.pitchDemo('mastery_intelligence', 6)">🚀 Open Skills & Mastery Radar</button>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 7: Uniqueness #5 - Eliminating "Pajama Time" (Auto-SOAP + 6-Month Re-Auth)
+    `
+      <div class="pitch-kicker">📝 Slide 8 of 10 · Core Innovation #5: Zero "Pajama Time" Documentation</div>
+      <h1 class="pitch-title">1-Click Auto-SOAP Notes & 6-Month Insurance Re-Auth Packets</h1>
+      <p class="pitch-lead">
+        Clinician burnout in ABA is driven by unpaid evening documentation. EBA automates both daily RBT session notes and 6-month BCBA insurance re-authorization reports while enforcing 21 CFR Part 11 dual-signature compliance.
+      </p>
+
+      <div class="pitch-grid-2">
+        <div class="pitch-box highlight">
+          <span class="badge tan">Daily RBT → BCBA Workflow</span>
+          <h3 style="margin:8px 0 6px">Auto-Compiled SOAP Note + Co-Signature</h3>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li>Combines session duration, CMS 8-minute billable units, exact trial percentages per goal, client reinforcers, and in-session ABC incidents into a structured narrative in 1 click.</li>
+            <li><b>Strict Role Separation:</b> RBTs click <i>"Submit for BCBA Co-Signature"</i> (<code>pending_approval</code>). Only a BCBA can click <i>"✍️ Co-Sign & Finalize"</i> (<code>signed</code>).</li>
+          </ul>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge p">Every 6 Months · Saves 4–6 Hours/Client</span>
+          <h3 style="margin:8px 0 6px">1-Click Insurance Re-Authorization Generator</h3>
+          <ul style="margin:0;padding-left:18px;font-size:0.86rem;color:var(--slate-700);line-height:1.6">
+            <li>Generates a complete 5-section <b>CPT 97151 / 97155 Treatment Plan & Re-Authorization Progress Report</b> directly from live Client 360 data.</li>
+            <li>Includes Client Vitals, Skill Mastery Table, FBA Behavior Reduction Summary, BACB 5% Supervision Audit, and Medical Necessity Justification—ready to Copy or Print to PDF.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">Test Both Documentation Superpowers Live</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Generate Eleanor's 6-Month Insurance Re-Authorization Packet or co-sign Leon's pending RBT session note in 1 click.</p>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="ok" style="padding:12px 18px;font-size:0.9rem" onclick="act.pitchDemo('reauth_report', 7)">📄 Generate 6-Month Re-Auth Packet</button>
+            <button class="sec" style="padding:12px 18px;font-size:0.9rem;background:#1e293b;color:#fff;border-color:#475569" onclick="act.pitchDemo('dual_sign', 7)">✍️ Co-Sign Pending RBT Note</button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 8: Uniqueness #6 - AI Clinical Guardrails, BACB 5% Radar & Parent Portal
+    `
+      <div class="pitch-kicker">🔒 Slide 9 of 10 · Core Innovation #6: Compliance, Ethics & Family Care</div>
+      <h1 class="pitch-title">AI Clinical Guardrails, BACB 5% Radar & Guarded Parent Portal</h1>
+      <p class="pitch-lead">
+        Unlike generic AI wrappers that hallucinate clinical advice, EBA enforces deterministic ABA taxonomy and hard BACB ethical guardrails across every AI tool, supervision tracker, and parent view.
+      </p>
+
+      <div class="pitch-grid-3">
+        <div class="pitch-box highlight">
+          <span class="badge p">Hard Clinical Guardrail</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">📖 AI Social Stories & BIPs</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            Generates child-tailored Social Stories (incorporating special interests like LEGO or Space Rockets + Web Speech Read-Aloud) and FCT Behavior Plans. <b>Locked as <code>draft</code> until BCBA approval.</b>
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge esc">Zero-Leakage RBAC</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">👨‍👩‍👧 Guarded Parent Portal</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            When Mrs. Carter signs in, the API strips all raw ABC logs, internal clinical notes, CPT billing units, and unapproved drafts—showing only her child's progress and BCBA-shared stories.
+          </p>
+        </div>
+
+        <div class="pitch-box highlight">
+          <span class="badge tan">Licensure Protection</span>
+          <h3 style="margin:8px 0 6px;font-size:1rem">🎯 BACB 5% Supervision Radar</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-600)">
+            Automatically tracks supervised minutes against total RBT direct therapy hours, alerting the clinic if supervision drops below the mandatory 5% BACB threshold.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" style="background:var(--slate-900);color:#fff;border:none">
+        <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+          <div>
+            <div style="font-size:0.75rem;color:#38bdf8;font-weight:700;text-transform:uppercase;letter-spacing:0.05em">Live Prototype Walkthrough</div>
+            <h3 style="margin:4px 0;color:#fff">Experience the BCBA Approval Guardrail & Mrs. Carter's Parent View</h3>
+            <p style="margin:0;font-size:0.85rem;color:#cbd5e1">Compare what the BCBA sees (1 Shared LEGO Story + 1 Draft Fire Drill Story) vs. what Mrs. Carter sees in the Parent Portal.</p>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="ok" style="padding:12px 16px;font-size:0.88rem" onclick="act.pitchDemo('ai_guardrails', 8)">📖 BCBA Social Story & Audio Demo</button>
+            <button class="sec" style="padding:12px 16px;font-size:0.88rem;background:#1e293b;color:#fff;border-color:#475569" onclick="act.pitchDemo('parent_portal', 8)">👨‍👩‍👧 Switch to Parent Portal</button>
+            <button class="sec" style="padding:12px 16px;font-size:0.88rem;background:#1e293b;color:#fff;border-color:#475569" onclick="act.pitchDemo('supervision_radar', 8)">🎯 5% Supervision Radar</button>
+          </div>
+        </div>
+      </div>
+    `,
+
+    // SLIDE 9: Interactive Clinic ROI Calculator & 5-Minute Live Demo Choreography
+    `
+      <div class="pitch-kicker">🚀 Slide 10 of 10 · Practice Impact & Guided Demo Script</div>
+      <h1 class="pitch-title">Interactive Clinic ROI Calculator & 5-Minute Live Demo Flow</h1>
+      <p class="pitch-lead">
+        Adjust the clinic size below to see how much clinician time and unbilled administrative overhead EBA returns to direct child care every year—or use the 5-step buttons below to run the live walkthrough.
+      </p>
+
+      <div class="card" style="background:linear-gradient(135deg,#eef2ff 0%,#f0fdf4 100%);border:1.5px solid #818cf8">
+        <h3 style="margin:0 0 12px;color:var(--slate-900)">📊 Interactive Practice Time-Savings & ROI Estimator</h3>
+        <div class="row" style="margin-bottom:16px">
+          <div>
+            <label>Supervising BCBAs in Clinic: <b>${roiBcba} BCBAs</b> (~${caseload} active clients)</label>
+            <input type="range" min="1" max="25" value="${roiBcba}" oninput="act.updateRoi(this.value, null)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>Field RBTs in Clinic: <b>${roiRbt} RBTs</b></label>
+            <input type="range" min="1" max="80" value="${roiRbt}" oninput="act.updateRoi(null, this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+        <div class="grid" style="margin-bottom:0">
+          <div class="stat-card ok">
+            <div class="stat-label">BCBA Re-Auth & Audit Time Saved</div>
+            <div class="stat" style="color:var(--ok)">${reauthHoursSavedYr} hrs/yr</div>
+            <div class="stat-sub">1-click 6-month packets + auto mastery alerts</div>
+          </div>
+          <div class="stat-card ok">
+            <div class="stat-label">RBT SOAP Note Time Saved</div>
+            <div class="stat" style="color:var(--primary)">${soapHoursSavedYr} hrs/yr</div>
+            <div class="stat-sub">Auto-compiled trial + ABC session narratives</div>
+          </div>
+          <div class="stat-card ok">
+            <div class="stat-label">Total Clinical Capacity Reclaimed</div>
+            <div class="stat" style="color:#0f172a">${totalHoursSaved} hrs/yr</div>
+            <div class="stat-sub">~$${estFinancialValue}/yr in clinical labor value</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin:20px 0 10px">🎬 Recommended 5-Minute Live Demo Choreography for the Founding Therapist</h3>
+      <div class="pitch-grid-2" style="margin-bottom:0">
+        <div class="pitch-box">
+          <b>Step 1: The Client 360 & Crisis Safety (1 Min)</b>
+          <p style="font-size:0.83rem;color:var(--slate-600);margin:4px 0 10px">Show how Vitals, Communication, Reinforcers, and the 1-Tap Crisis Plan live in one header.</p>
+          <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('client360_crisis', 9)">1. Launch Client 360 →</button>
+        </div>
+        <div class="pitch-box">
+          <b>Step 2: Active Session Cockpit, Kid Mode & NET (1.5 Mins)</b>
+          <p style="font-size:0.83rem;color:var(--slate-600);margin:4px 0 10px">Tap the 5-Star Kid Mode token board, switch from DTT to NET Play Grid, and log trials.</p>
+          <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('session_kidmode', 9)">2. Launch Session Cockpit →</button>
+        </div>
+        <div class="pitch-box">
+          <b>Step 3: 11 AM FBA Scatterplot & Mastery AI (1.5 Mins)</b>
+          <p style="font-size:0.83rem;color:var(--slate-600);margin:4px 0 10px">Show Eleanor's 11:00 AM pre-lunch behavior cluster and the Mastery vs. Stalled goal alerts.</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('fba_scatterplot', 9)">3a. FBA Scatterplot →</button>
+            <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('mastery_intelligence', 9)">3b. Mastery AI →</button>
+          </div>
+        </div>
+        <div class="pitch-box">
+          <b>Step 4: 1-Click 6-Month Re-Auth & Parent Portal (1 Min)</b>
+          <p style="font-size:0.83rem;color:var(--slate-600);margin:4px 0 10px">Generate the 5-section CPT 97151/97155 insurance packet and preview Mrs. Carter's Parent Portal.</p>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('reauth_report', 9)">4a. Re-Auth Packet →</button>
+            <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="act.pitchDemo('parent_portal', 9)">4b. Parent View →</button>
+          </div>
+        </div>
+      </div>
+    `
+  ];
+
+  const inner = `
+  <div class="pitch-deck-wrap">
+    <div class="pitch-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="brand-icon" style="width:36px;height:36px;font-size:0.95rem">EBA</div>
+        <div>
+          <div style="font-weight:800;font-size:1rem;letter-spacing:-0.01em">Founder & Clinical Advisor Pitch Deck</div>
+          <div style="font-size:0.75rem;color:#94a3b8">Existing ABA Technology vs. Effective Behavioral Approach · Use ← / → keys or buttons below</div>
+        </div>
+      </div>
+      <div class="pitch-dots">
+        ${slides.map((_, i) => `
+          <button class="pitch-dot ${pitchSlide === i ? 'active' : ''}" title="${esc(slideTitles[i])}" onclick="act.setPitchSlide(${i})">${i + 1}</button>
+        `).join('')}
+      </div>
+      <div>
+        ${me ? `<button class="sec" style="padding:6px 12px;font-size:0.78rem;background:#1e293b;color:#fff;border-color:#475569" onclick="go('dashboard')">Exit to App</button>`
+             : `<button class="ok" style="padding:6px 12px;font-size:0.78rem" onclick="act.demoLogin('bcba@eba.test')">Sign In to Live App →</button>`}
+      </div>
+    </div>
+
+    <div class="pitch-slide">
+      ${slides[pitchSlide]}
+
+      <div class="pitch-cta-bar">
+        <button class="sec" ${pitchSlide === 0 ? 'disabled' : ''} onclick="act.setPitchSlide(${pitchSlide - 1})">← Previous Slide</button>
+        <div style="font-size:0.82rem;font-weight:700;color:var(--slate-500)">
+          ${esc(slideTitles[pitchSlide])} (${pitchSlide + 1} / ${slides.length})
+        </div>
+        ${pitchSlide < slides.length - 1
+          ? `<button class="ok" onclick="act.setPitchSlide(${pitchSlide + 1})">Next: ${esc(slideTitles[pitchSlide + 1])} →</button>`
+          : `<button class="ok" onclick="act.pitchDemo('client360_crisis', 9)">🚀 Start Full Live Demo Tour</button>`}
+      </div>
+    </div>
+  </div>`;
+
+  return me ? inner : `<div class="pitch-public-shell">${inner}</div>`;
+}
+
+window.addEventListener('keydown', (e) => {
+  if (!location.hash.startsWith('#presentation')) return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target || {}).tagName)) return;
+  if (e.key === 'ArrowRight' && pitchSlide < 9) act.setPitchSlide(pitchSlide + 1);
+  if (e.key === 'ArrowLeft' && pitchSlide > 0) act.setPitchSlide(pitchSlide - 1);
+});
+
 async function render() {
-  if (!me) { try { me = await api('GET', '/api/me'); } catch { $app.innerHTML = loginView(); return; } }
+  const rawRoute = (location.hash.slice(1) || '').split('/')[0];
+  if (!me) {
+    try { me = await api('GET', '/api/me'); } catch {
+      if (rawRoute === 'presentation') { $app.innerHTML = presentationView(); return; }
+      $app.innerHTML = loginView();
+      return;
+    }
+  }
   const [route, id] = (location.hash.slice(1) || (me.role === 'PARENT' ? 'clients' : 'dashboard')).split('/');
   try {
     let html;
@@ -1654,6 +2354,7 @@ async function render() {
     else if (route === 'session') html = await sessionView(id);
     else if (route === 'notes') html = await notesView();
     else if (route === 'supervision') html = await supervisionView();
+    else if (route === 'presentation') html = presentationView();
     else html = '<h1>View Not Found</h1><div class="card">Please select an option from the navigation menu.</div>';
     $app.innerHTML = shell(html, route === 'client' ? 'clients' : route === 'session' ? 'notes' : route);
   } catch (e) { $app.innerHTML = shell(`<div class="card err">${esc(e.message)}</div>`, ''); }
