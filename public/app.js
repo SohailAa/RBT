@@ -129,9 +129,44 @@ const LV = {
   I: { label: 'Independent', code: 'I', icon: '☑', cls: 'ok' },
   V: { label: 'Verbal prompt', code: 'V', icon: '💬', cls: 'btn-v' },
   G: { label: 'Gestural prompt', code: 'G', icon: '👉', cls: 'btn-g' },
+  Vi: { label: 'Visual prompt', code: 'Vi', icon: '🖼️', cls: 'btn-vi' },
   M: { label: 'Model prompt', code: 'M', icon: '🧑‍🏫', cls: 'btn-m' },
-  P: { label: 'Physical prompt', code: 'P', icon: '🤝', cls: 'btn-p' },
-  N: { label: 'Did not comply', code: 'N', icon: '✕', cls: 'bad' }
+  PP: { label: 'Partial Physical', code: 'PP', icon: '🤚', cls: 'btn-pp' },
+  P: { label: 'Full Physical', code: 'P', icon: '🤝', cls: 'btn-p' },
+  INC: { label: 'Incorrect response', code: 'INC', icon: '✗', cls: 'btn-inc' },
+  N: { label: 'No response / Refusal', code: 'N', icon: '⊘', cls: 'bad' },
+  NA: { label: 'Not presented / N/A', code: 'NA', icon: '—', cls: 'sec' }
+};
+let activeTrialType = 'acquisition';
+let behTimers = {};
+let behTimerInterval = null;
+let taDraftSteps = {};
+const GOAL_DOMAINS = [
+  'Communication / Manding',
+  'Tacting / Labeling',
+  'Listener Responding / Receptive',
+  'Social / Peer Play',
+  'Motor Imitation',
+  'Daily Living / Adaptive (ADL)',
+  'Academic / Pre-Academic',
+  'Replacement Behavior (FCT)',
+  'Executive Functioning / Transitions'
+];
+const PROMPT_STRATEGIES = [
+  'Least-to-Most (LTM)',
+  'Most-to-Least (MTL)',
+  'Constant Time Delay (CTD)',
+  'Progressive Time Delay (PTD)',
+  'Errorless Learning',
+  'Graduated Guidance',
+  'Naturalistic / Incidental'
+];
+const GOAL_STATUS_META = {
+  active: { label: 'Active', cls: 'approved' },
+  on_hold: { label: 'On Hold', cls: 'draft' },
+  mastered: { label: 'Mastered', cls: 'approved' },
+  discontinued: { label: 'Discontinued', cls: 'bad' },
+  revised: { label: 'Revised', cls: 'draft' }
 };
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
@@ -803,16 +838,21 @@ const BEHAVIORS = ['Screaming', 'Aggression', 'Elopement', 'Task refusal', 'Cryi
 
 async function clientView(id) {
   const data = await api('GET', '/api/clients/' + id);
-  const { client: c, goals, plans, stories, auths, assigned, abcLogs = [], abcSummary = { functions: {}, total: 0 }, supervisionLogs = [] } = data;
+  const {
+    client: c, goals, plans, stories, auths, assigned,
+    abcLogs = [], abcSummary = { functions: {}, total: 0 }, supervisionLogs = [],
+    behaviorPrograms = [], behaviorEvents = [], behaviorSummary = {},
+    taskAnalyses = [], fidelityIoaLogs = [], auditLogs = []
+  } = data;
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
   const tabs = P ? [['goals', '01 · Skill Goals'], ['stories', '02 · Social Stories']] : [
     ['overview', '01 · 360 Overview'],
-    ['skills', '02 · Skills & DTT'],
-    ['behavior_abc', '03 · FBA & ABC Analytics'],
+    ['skills', '02 · Skills, DTT & Task Analysis'],
+    ['behavior_abc', '03 · Behavior Reduction & FBA'],
     ['plans', '04 · Behavior Plans (BIP)'],
     ['stories', '05 · Social Stories'],
     ['profile', '06 · Clinical Vitals'],
-    ['services', '07 · Authorizations']
+    ['services', '07 · Authorizations & Audit']
   ];
   if (P && !['goals', 'stories'].includes(tab)) tab = 'goals';
   if (!P && !tabs.map(t=>t[0]).includes(tab)) tab = 'overview';
@@ -834,6 +874,11 @@ async function clientView(id) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${!P ? `
+          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Trials CSV</button>
+          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=behaviors','_blank')">📥 Behavior CSV</button>
+          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Trail (${auditLogs.length})</button>
+        ` : ''}
         ${B ? `<button class="sec" style="padding:9px 15px;font-size:0.84rem" onclick="act.openReauthReportModal(${c.id})">6-Month Re-Auth Dossier</button>` : ''}
         ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used}u rem</span>`).join(' ') : ''}
         <button class="bad" style="padding:9px 15px;font-size:0.84rem" onclick="act.toggleCrisis()">
@@ -900,29 +945,33 @@ async function clientView(id) {
               <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.setTab('skills')">All Targets →</button>
             </div>
           </div>
-          ${goals.slice(0, 3).map(g => `
+          ${goals.slice(0, 3).map(g => {
+            const stMeta = GOAL_STATUS_META[g.status] || GOAL_STATUS_META.active;
+            return `
             <div class="goal-click-card" onclick="act.openGoalModal(${g.id})">
               <div class="flex-between" style="gap:8px;flex-wrap:wrap">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <b style="font-family:var(--font-serif);font-size:1.02rem;color:var(--primary)">${esc(g.title)}</b>
-                  <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
+                  <span class="tag ${stMeta.cls}">${esc(g.status === 'active' ? g.trend : stMeta.label)}</span>
+                  <span class="badge" style="font-size:0.68rem">${esc(g.domain || 'Skill Acquisition')}</span>
                 </div>
                 <span class="badge p" style="font-size:0.68rem">Review / Edit →</span>
               </div>
-              <div style="font-family:var(--font-mono);font-size:0.76rem;color:var(--slate-500);margin:5px 0 6px">
-                Baseline: <b>${g.baseline}%</b> · Current: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Criterion: <b>${g.target}%</b>
+              <div style="font-family:var(--font-mono);font-size:0.76rem;color:var(--slate-600);margin:5px 0 6px">
+                Baseline: <b>${g.baseline}%</b> · Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Criterion: <b>${g.target}% (${g.mastery_sessions || 3} sess)</b>
+                · Indep: <b>${g.indep_pct ?? 0}% (${esc(g.indep_num_denom || '0/0')})</b> · Prompted: <b>${g.prompted_pct ?? 0}% (${esc(g.prompted_num_denom || '0/0')})</b>
               </div>
               ${g.mastery_met && g.status !== 'mastered' ? `
                 <div class="mastery-banner" onclick="event.stopPropagation()">
                   <span>${esc(g.recommendation)}</span>
                   ${!P ? `<button class="ok" style="font-size:0.75rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">Master Goal</button>` : ''}
                 </div>
-              ` : g.stalled ? `
+              ` : g.stalled || g.regression ? `
                 <div class="stalled-banner">${esc(g.recommendation)}</div>
               ` : ''}
               ${chart(g.series, g.baseline, g.target)}
-            </div>
-          `).join('') || '<p style="color:var(--slate-400)">No skill targets active yet.</p>'}
+            </div>`;
+          }).join('') || '<p style="color:var(--slate-400)">No skill targets active yet.</p>'}
         </div>
 
         <div class="card">
@@ -950,10 +999,13 @@ async function clientView(id) {
       <div>
         <div class="card">
           <div class="flex-between">
-            <h3>ABC Behavior Reduction Center</h3>
-            <button class="ok" style="font-size:0.84rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
+            <h3>ABC & Behavior Reduction Center</h3>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="sec" style="font-size:0.8rem;padding:5px 10px" onclick="act.setTab('behavior_abc')">9-Method Suite →</button>
+              <button class="ok" style="font-size:0.84rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
+            </div>
           </div>
-          <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Total of <b>${abcSummary.total || 0}</b> incidents recorded across the 4 functional classifications:</p>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 12px">Total of <b>${abcSummary.total || 0}</b> ABC incidents & <b>${behaviorSummary.totalEvents || 0}</b> continuous/interval measurements recorded:</p>
           <div class="abc-grid">
             <div class="abc-metric Escape">
               <div class="abc-num">${abcSummary.functions.Escape || 0}</div>
@@ -978,10 +1030,13 @@ async function clientView(id) {
             <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-md);margin-bottom:8px;border:1px solid var(--slate-200);font-size:0.85rem">
               <div class="flex-between">
                 <b style="font-family:var(--font-serif)">${esc(a.behavior)}</b>
-                <span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span>
+                <div style="display:flex;gap:4px">
+                  ${a.intensity ? `<span class="badge">${esc(a.intensity)}</span>` : ''}
+                  <span class="badge ${a.perceived_function ? a.perceived_function.toLowerCase().slice(0,3) : 'esc'}">${esc(a.perceived_function || 'Escape')}</span>
+                </div>
               </div>
               <div style="color:var(--slate-500);font-size:0.8rem;margin-top:2px">
-                Antecedent: ${esc(a.antecedent)} · Consequence: ${esc(a.consequence)}
+                Antecedent: ${esc(a.antecedent)} · Consequence: ${esc(a.consequence)}${a.setting ? ` · Setting: ${esc(a.setting)}` : ''}
               </div>
             </div>
           `).join('') || '<p style="color:var(--slate-400)">Zero maladaptive behavior episodes logged.</p>'}
@@ -1006,17 +1061,21 @@ async function clientView(id) {
     </div>`;
   }
 
-  // Tab: Skills & Targets
-  else if (tab === 'skills') {
+  // Tab: Skills, DTT & Task Analysis (also used for Parent 'goals' tab)
+  else if (tab === 'skills' || tab === 'goals') {
     body = `
     <div class="card">
       <div class="flex-between" style="flex-wrap:wrap;gap:12px">
         <div>
-          <h3>Skill Targets & Discrete Trial Training (DTT)</h3>
-          <p style="font-size:0.85rem;color:var(--slate-500);margin:0">Click any target below to inspect session-by-session trial data, modify mastery criteria, or mark as mastered.</p>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 style="margin:0">Skill Targets & Discrete Trial Training (DTT / NET)</h3>
+            <span class="badge p">Explicit Numerator / Denominator · 10 Prompt Levels</span>
+          </div>
+          <p style="font-size:0.85rem;color:var(--slate-500);margin:4px 0 0">Core Data-Quality Rule: Independent and prompted responses are tracked separately. N/A trials are excluded from the opportunity denominator.</p>
         </div>
         ${!P ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials CSV</button>
             <button class="ok" onclick="act.openCreateGoalModal(${c.id})">+ Create New Skill Target</button>
           </div>
         ` : ''}
@@ -1025,13 +1084,19 @@ async function clientView(id) {
       <div style="margin-top:16px">
         ${goals.map((g) => {
           const lastSession = g.series && g.series.length ? g.series[g.series.length - 1] : null;
+          const stMeta = GOAL_STATUS_META[g.status] || GOAL_STATUS_META.active;
           return `
           <div class="goal-click-card" style="background:var(--surface);padding:20px;border-radius:var(--radius-lg);border:1px solid var(--slate-200);margin-bottom:16px" onclick="act.openGoalModal(${g.id})">
             <div class="flex-between" style="flex-wrap:wrap;gap:10px">
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                 <h4 style="margin:0;font-size:1.14rem;color:var(--slate-900)">${esc(g.title)}</h4>
                 <span class="badge p">#${g.id}</span>
-                <span class="tag ${g.status === 'mastered' ? 'approved' : g.trend === 'Improving' ? 'approved' : 'draft'}">${esc(g.status === 'mastered' ? 'Mastered' : g.trend)}</span>
+                <span class="tag ${stMeta.cls}">${esc(g.status === 'active' ? g.trend : stMeta.label)}</span>
+                <span class="badge">${esc(g.domain || 'Communication / Manding')}</span>
+                <span class="badge">${esc(g.prompt_strategy || 'Least-to-Most (LTM)')}</span>
+                <span class="badge ${g.scoring_rule === 'include_prompted' ? 'att' : 'tan'}">
+                  ${g.scoring_rule === 'include_prompted' ? 'Scoring: Indep + Prompted' : 'Scoring: Independent Only'}
+                </span>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
                 <button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.openGoalModal(${g.id})">Review Data & Edit Goal</button>
@@ -1039,31 +1104,101 @@ async function clientView(id) {
                 ${!P && g.status === 'mastered' ? `<button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.quickReactivateGoal(${g.id})">Reactivate</button>` : ''}
               </div>
             </div>
-            <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin:6px 0 10px">
-              Baseline: <b>${g.baseline}%</b> · 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b> · Criterion: <b>${g.target}%</b> · Sessions: <b>${g.series ? g.series.length : 0}</b>
+            <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin:8px 0 10px;display:flex;gap:12px;flex-wrap:wrap">
+              <span>Baseline: <b>${g.baseline}%</b></span>
+              <span>${g.mastery_sessions || 3}-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b></span>
+              <span>Criterion: <b>${g.target}% (${g.mastery_sessions || 3} sess)</b></span>
+              <span>Independent: <b style="color:var(--ok)">${g.indep_pct ?? 0}% (${esc(g.indep_num_denom || '0/0')})</b></span>
+              <span>Prompted: <b>${g.prompted_pct ?? 0}% (${esc(g.prompted_num_denom || '0/0')})</b></span>
+              <span>Latest Session: <b>${lastSession ? `${lastSession.pct}% (${esc(lastSession.numDenom || `${lastSession.prompts?.I || 0}/${lastSession.n}`)})` : '—'}</b></span>
+              <span>Completeness: <b>${g.data_completeness_pct ?? 100}%</b></span>
             </div>
             ${g.mastery_met && g.status !== 'mastered' ? `
               <div class="mastery-banner" onclick="event.stopPropagation()">
                 <span><b>Clinical Intelligence:</b> ${esc(g.recommendation)}</span>
                 ${!P ? `<button class="ok" style="font-size:0.78rem;padding:5px 12px" onclick="act.quickMasterGoal(${g.id})">Advance to Mastered</button>` : ''}
               </div>
-            ` : g.stalled ? `
-              <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)} — <i>Click card to adjust prompt level or target criteria.</i></div>
+            ` : g.stalled || g.regression ? `
+              <div class="stalled-banner"><b>Clinical Alert:</b> ${esc(g.recommendation)} — <i>Click card to adjust prompt level, status, or target criteria.</i></div>
             ` : ''}
             ${chart(g.series, g.baseline, g.target)}
             ${lastSession && lastSession.prompts ? `
               <div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--slate-200);font-size:0.8rem;color:var(--slate-600);display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                <span style="font-family:var(--font-mono);font-size:0.72rem;font-weight:600">PROMPT FADING (LATEST SESSION):</span>
-                ${Object.entries(lastSession.prompts).map(([code, cnt]) => cnt > 0 ? `<span class="badge ${code==='I'?'tan':'p'}">${code} (${LV[code]?.label || code}): <b>${cnt}</b></span>` : '').join('')}
+                <span style="font-family:var(--font-mono);font-size:0.72rem;font-weight:600">PROMPT FADING (LATEST SESSION · ${lastSession.n} OPPS):</span>
+                ${Object.entries(lastSession.prompts).map(([code, cnt]) => cnt > 0 ? `<span class="badge ${code==='I'?'tan':'p'}">${code} (${LV[code]?.label || code}): <b>${cnt}/${lastSession.n}</b></span>` : '').join('')}
               </div>
             ` : ''}
           </div>`;
         }).join('') || '<p style="color:var(--slate-400)">No skill targets defined yet.</p>'}
       </div>
-    </div>`;
+    </div>
+
+    ${!P ? `
+      <!-- Task Analysis & Chaining Section (Build Spec §6) -->
+      <div class="card">
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <h3 style="margin:0">Task Analysis & Chaining Programs (Step-by-Step Scoring)</h3>
+              <span class="badge p">Forward · Backward · Total-Task Presentation</span>
+            </div>
+            <p style="font-size:0.85rem;color:var(--slate-500);margin:4px 0 0">Track multi-step adaptive & daily living routines with step-level prompt fading and explicit independent steps / total steps ratios.</p>
+          </div>
+          <button class="ok" onclick="act.openCreateTaModal(${c.id})">+ Create Task Analysis Routine</button>
+        </div>
+
+        <div style="margin-top:16px;display:grid;gap:16px">
+          ${taskAnalyses.map((ta) => {
+            const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
+            const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
+            return `
+              <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:var(--radius-lg);padding:18px">
+                <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <h4 style="margin:0;font-size:1.08rem;color:var(--slate-900)">${esc(ta.title)}</h4>
+                      <span class="badge p">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
+                      <span class="tag approved">${ta.steps.length} Steps · Target ${ta.target_pct || 80}%</span>
+                    </div>
+                    <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin-top:4px">
+                      Latest Run: <b>${latestRun ? `${latestRun.indepPct}% (${esc(latestRun.numDenom || `${latestRun.indepCount}/${ta.steps.length}`)}) on ${esc(latestRun.date)}` : 'No runs logged yet'}</b>
+                      · Total Logged Runs: <b>${(ta.history || []).length}</b>
+                    </div>
+                  </div>
+                  <button class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="act.submitTaRun(${ta.id})">✓ Log Step-by-Step Run</button>
+                </div>
+
+                <div style="display:grid;gap:8px;margin-top:10px">
+                  ${ta.steps.map((stepName, sIdx) => {
+                    const curCode = draftArr[sIdx] || 'I';
+                    return `
+                      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--slate-200)">
+                        <div style="font-size:0.86rem;font-weight:600;color:var(--slate-800)">
+                          <span style="font-family:var(--font-mono);color:var(--primary);margin-right:6px">Step ${sIdx + 1}:</span>
+                          ${esc(stepName)}
+                        </div>
+                        <div style="display:flex;gap:4px;flex-wrap:wrap">
+                          ${['I', 'V', 'G', 'Vi', 'M', 'PP', 'P', 'INC', 'N', 'NA'].map((code) => `
+                            <button class="${curCode === code ? (code === 'I' ? 'ok' : code === 'INC' || code === 'N' ? 'bad' : 'btn-v') : 'sec'}"
+                              style="padding:4px 8px;font-size:0.73rem;min-height:28px"
+                              onclick="act.setTaDraftStep(${ta.id}, ${sIdx}, '${code}', ${ta.steps.length})">
+                              ${code}
+                            </button>
+                          `).join('')}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('') || '<p style="color:var(--slate-400)">No task analyses configured yet.</p>'}
+        </div>
+      </div>
+    ` : ''}`;
   }
 
-  // Tab: Behavior & ABC Logs (FBA Analytics & Behavior Reduction Suite)
+  // Tab: Behavior & ABC Logs (FBA Analytics & 9-Method Behavior Reduction Suite)
   else if (tab === 'behavior_abc') {
     const totalAbc = abcSummary.total || abcLogs.length || 0;
     const rm = abcSummary.reductionMetrics || { baselineRate: 0, currentRate: 0, pctChange: 0, trendDirection: 'Stable', replacementSuccessRate: 100, observationDays: 0 };
@@ -1072,6 +1207,7 @@ async function clientView(id) {
     const conMatrix = abcSummary.consequenceMatrix || [];
     const behMatrix = abcSummary.behaviorMatrix || [];
     const topAnt = antMatrix[0] || null;
+    const bSum = behaviorSummary || {};
 
     const filteredAbc = abcLogs.filter((a) => {
       if (fbaFilterBehavior !== 'ALL' && a.behavior !== fbaFilterBehavior) return false;
@@ -1091,6 +1227,94 @@ async function clientView(id) {
     const maxHourlyCount = Math.max(1, ...((abcSummary.scatterplot ? abcSummary.scatterplot.hourly : []).map((h) => h.count)));
 
     body = `
+    <!-- Clinical Advisor Principle Banner (Durriya Anwar, MS, BCBA Checklist §14) -->
+    <div class="card" style="background:linear-gradient(135deg,#072a30 0%,#0b4650 100%);color:#ecfeff;border:1.5px solid #14b8a6;padding:16px 20px">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:0.7rem;color:#6ee7b7;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">CLINICAL DATA INTEGRITY STANDARD · DURRIYA ANWAR, MS, BCBA</div>
+          <div style="font-family:var(--font-serif);font-size:1.02rem;font-style:italic;margin-top:4px;color:#ffffff">
+            "Every number in the app should trace back to a clear operational definition, a known observation period, a consistent measurement method, and a separated prompt history."
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="sec" style="background:rgba(255,255,255,0.12);color:#ecfeff;border-color:#6ee7b7;font-size:0.78rem;padding:6px 12px" onclick="window.open('/api/clients/${c.id}/export-csv?type=behaviors','_blank')">📥 Export Behavior & ABC CSV</button>
+          <button class="ok" style="font-size:0.78rem;padding:6px 12px" onclick="act.openBehaviorProgramModal(${c.id})">+ Define Target Behavior</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Behavior Operational Definitions & 9-Method Measurement Suite (Build Spec §2 & §5) -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 style="margin:0">Target Behavior Operational Definitions & 9-Method Measurement Suite</h3>
+            <span class="badge p">Frequency · Rate · Duration · Latency · IRT · Partial/Whole Interval · MTS · ABC</span>
+          </div>
+          <p style="font-size:0.84rem;color:var(--slate-500);margin:3px 0 0">Individualized operational definitions per client with automatic continuous and discontinuous interval calculations.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.openBehaviorEventModal(${c.id})">+ Log Continuous / Interval Data</button>
+          <button class="ok" style="font-size:0.8rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
+        </div>
+      </div>
+
+      <!-- 6-Card Continuous & Interval Calculation Strip -->
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:16px">
+        <div class="fba-kpi-card" style="border-left:4px solid var(--primary)">
+          <div class="fba-kpi-label">Frequency & Rate</div>
+          <div class="fba-kpi-val" style="font-size:1.15rem">${bSum.frequencyCount || 0} events · ${bSum.ratePerHour || 0}/hr</div>
+          <div class="fba-kpi-sub">${bSum.ratePerMinute || 0}/min across ${bSum.sessionMinutes || 180}m observed</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid var(--warn)">
+          <div class="fba-kpi-label">Duration Recording</div>
+          <div class="fba-kpi-val" style="font-size:1.15rem">Avg ${bSum.avgDurationSec || 0}s</div>
+          <div class="fba-kpi-sub">Total: ${bSum.totalDurationSec || 0}s (${bSum.durationCount || 0} episodes)</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid var(--sensory)">
+          <div class="fba-kpi-label">Latency from SD</div>
+          <div class="fba-kpi-val" style="font-size:1.15rem">Avg ${bSum.avgLatencySec || 0}s</div>
+          <div class="fba-kpi-sub">${bSum.latencyCount || 0} latency probes recorded</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid #0284c7">
+          <div class="fba-kpi-label">Inter-Response Time (IRT)</div>
+          <div class="fba-kpi-val" style="font-size:1.15rem">Avg ${bSum.avgIrtSec || 0}s</div>
+          <div class="fba-kpi-sub">${bSum.irtCount || 0} inter-response intervals</div>
+        </div>
+        <div class="fba-kpi-card" style="border-left:4px solid var(--ok)">
+          <div class="fba-kpi-label">Partial / Whole / MTS</div>
+          <div class="fba-kpi-val" style="font-size:1.15rem">${bSum.intervalPct ?? 0}% (${esc(bSum.intervalNumDenom || '0/0')})</div>
+          <div class="fba-kpi-sub">Discontinuous interval sampling</div>
+        </div>
+      </div>
+
+      <!-- Individualized Target Behavior Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px">
+        ${behaviorPrograms.map((bp) => {
+          const bpStats = (bSum.byBehavior && bSum.byBehavior[bp.name]) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          return `
+            <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:14px">
+              <div class="flex-between" style="gap:8px;flex-wrap:wrap">
+                <div>
+                  <b style="font-family:var(--font-serif);font-size:1rem;color:var(--slate-900)">${esc(bp.name)}</b>
+                  <span class="badge ${bp.function_hypothesis ? bp.function_hypothesis.toLowerCase().slice(0,3) : 'esc'}" style="margin-left:6px">${esc(bp.function_hypothesis || 'Escape')}</span>
+                </div>
+                <span class="badge p" style="text-transform:uppercase">${esc((bp.measurement_type || 'frequency').replace('_', ' '))}</span>
+              </div>
+              <div style="font-size:0.81rem;color:var(--slate-700);margin:6px 0">
+                <b>Operational Definition:</b> ${esc(bp.operational_definition || 'Defined per BIP protocol.')}
+              </div>
+              ${bp.non_examples ? `<div style="font-size:0.76rem;color:var(--slate-500);margin-bottom:6px"><b>Non-Examples:</b> ${esc(bp.non_examples)}</div>` : ''}
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px dashed var(--slate-200);font-family:var(--font-mono);font-size:0.75rem">
+                <span>Freq: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}</span>
+                <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')})">+1 Tally</button>
+              </div>
+            </div>
+          `;
+        }).join('') || '<div style="color:var(--slate-400)">No individualized target behavior definitions yet.</div>'}
+      </div>
+    </div>
+
     <div class="card">
       <div class="flex-between" style="flex-wrap:wrap;gap:12px">
         <div>
@@ -1695,11 +1919,15 @@ async function scheduleView() {
 let timer = null;
 async function sessionView(id) {
   const v = await api('GET', '/api/sessions/' + id);
-  const { session: s, client, goals, allGoals = goals, plans, stories, abcLogs = [] } = v;
+  const {
+    session: s, client, goals, allGoals = goals, plans, stories,
+    abcLogs = [], behaviorPrograms = [], behaviorEvents = [], behaviorSummary = {}, taskAnalyses = []
+  } = v;
   const masteredGoals = (allGoals || []).filter((g) => g.status !== 'active');
   const ended = !!s.end;
   const startMs = new Date(s.start).getTime();
   clearInterval(timer);
+  clearInterval(behTimerInterval);
   if (!ended) {
     timer = setInterval(() => {
       const el = document.getElementById('clock');
@@ -1714,6 +1942,14 @@ async function sessionView(id) {
         const curUnits = fullUnits + (remMin >= 8 ? 1 : 0);
         unitsEl.textContent = `${curUnits} unit${curUnits === 1 ? '' : 's'} (${curUnits * 15} mins) · CMS 8-Minute Rule`;
       }
+      // Update any running behavior duration/latency timers
+      Object.entries(behTimers).forEach(([bpId, tInfo]) => {
+        const bEl = document.getElementById(`beh_timer_${bpId}`);
+        if (bEl && tInfo && tInfo.startMs) {
+          const sec = Math.max(1, Math.round((Date.now() - tInfo.startMs) / 1000));
+          bEl.textContent = `⏹ Stop ${tInfo.mode === 'latency' ? 'Latency' : 'Duration'} (${sec}s)`;
+        }
+      });
     }, 1000);
   }
 
@@ -1754,18 +1990,25 @@ async function sessionView(id) {
   const activeFirstGoal = goals.find((g) => g.id === +kidFirstGoalId) || goals[0] || { id: 0, title: 'Tabletop Skill Trials' };
 
   const sum = (g) => {
-    if (!g.summary || !g.summary.total) return '<div style="color:var(--slate-400);font-size:0.85rem;margin-top:8px">No trials recorded yet this session. Tap a prompt button above to log a trial, or click the goal title to review historical data.</div>';
+    if (!g.summary || (!g.summary.total && !g.summary.rawTotal)) return '<div style="color:var(--slate-400);font-size:0.85rem;margin-top:8px">No trials recorded yet this session. Tap a prompt button above to log a trial, or click the goal title to review historical data.</div>';
+    const indepND = g.summary.indepNumDenom || `${g.summary.counts.I || 0}/${g.summary.total}`;
+    const promptND = g.summary.promptedNumDenom || `${g.summary.promptedCount || 0}/${g.summary.total}`;
     return `
     <div style="margin-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px">
-        <span>Session Independent Mastery: <b style="color:var(--ok)">${g.summary.pct.I}%</b></span>
-        <span><b>${g.summary.total}</b> Trials Recorded This Session</span>
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:0.85rem;margin-bottom:4px">
+        <span>Session Independent Mastery: <b style="color:var(--ok)">${g.summary.pct.I}% (${indepND})</b> · Prompted: <b>${g.summary.promptedPct ?? 0}% (${promptND})</b></span>
+        <span><b>${g.summary.total}</b> Scored Opportunities${g.summary.naCount ? ` <span class="badge">(${g.summary.naCount} N/A excluded from denom)</span>` : ''}</span>
       </div>
       <div class="bar">
         <div style="width:${g.summary.pct.I}%"></div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.78rem;color:var(--slate-600);margin-top:6px">
-        ${Object.keys(LV).map(k => `<span class="badge ${k === 'I' ? 'tan' : 'p'}">${LV[k].code} (${LV[k].label}): <b>${g.summary.counts[k] || 0}</b> (${g.summary.pct[k] || 0}%)</span>`).join('')}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:0.76rem;color:var(--slate-600);margin-top:6px">
+        ${Object.keys(LV).map(k => {
+          const cnt = g.summary.counts[k] || 0;
+          if (!cnt && ['Vi', 'PP', 'INC', 'NA'].includes(k)) return '';
+          const nd = k === 'NA' ? `${cnt} excl` : `${cnt}/${g.summary.total}`;
+          return `<span class="badge ${k === 'I' ? 'tan' : 'p'}">${LV[k].code} (${LV[k].label}): <b>${nd}</b> (${g.summary.pct[k] || 0}%)</span>`;
+        }).join('')}
       </div>
     </div>`;
   };
@@ -1774,7 +2017,7 @@ async function sessionView(id) {
   <div class="page-header">
     <div>
       <h1>Active Session Cockpit</h1>
-      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording, Goal Review & Interactive Kid Mode</p>
+      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording, 9-Method Behavior Tracker & Interactive Kid Mode</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create New Goal</button>
@@ -1982,6 +2225,70 @@ async function sessionView(id) {
     </details>
   ` : ''}
 
+  <!-- Live Behavior Reduction Data Collection Bar (9 Measurement Methods · Build Spec §2) -->
+  <div class="card" style="border-left:4px solid var(--bad)">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <h4 style="margin:0;font-size:1.02rem;color:var(--slate-900)">Live Behavior Reduction Data Collection (9 Measurement Methods)</h4>
+          <span class="badge p">Frequency · Rate · Duration · Latency · IRT · Partial/Whole Interval · MTS · ABC</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:0.76rem;color:var(--slate-600);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
+          <span>Session Frequency: <b>${behaviorSummary.frequencyCount || 0}</b></span>
+          <span>Rate: <b>${behaviorSummary.ratePerHour || 0}/hr (${behaviorSummary.ratePerMinute || 0}/min)</b></span>
+          <span>Duration: <b>${behaviorSummary.totalDurationSec || 0}s total (Avg ${behaviorSummary.avgDurationSec || 0}s)</b></span>
+          <span>Avg Latency: <b>${behaviorSummary.avgLatencySec || 0}s</b></span>
+          <span>Avg IRT: <b>${behaviorSummary.avgIrtSec || 0}s</b></span>
+          <span>Intervals: <b>${behaviorSummary.intervalPct ?? 0}% (${esc(behaviorSummary.intervalNumDenom || '0/0')})</b></span>
+        </div>
+      </div>
+      ${!ended ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="sec" style="font-size:0.78rem;padding:6px 10px" onclick="act.undoBehaviorEvent(${s.id})">↩ Undo Behavior Entry</button>
+          <button class="sec" style="font-size:0.78rem;padding:6px 10px" onclick="act.openBehaviorEventModal(${client.id}, ${s.id})">+ Custom Duration / Latency / Interval</button>
+          <button class="ok" style="font-size:0.78rem;padding:6px 10px" onclick="act.openAbcModal(${client.id}, ${s.id})">+ Log ABC Episode</button>
+        </div>
+      ` : ''}
+    </div>
+
+    ${!ended && behaviorPrograms.length ? `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:10px;margin-top:12px">
+        ${behaviorPrograms.map((bp) => {
+          const bpStats = (behaviorSummary.byBehavior && behaviorSummary.byBehavior[bp.name]) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          const runningTimer = behTimers[bp.id];
+          return `
+            <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:10px 12px">
+              <div class="flex-between" style="gap:6px;margin-bottom:4px">
+                <b style="font-size:0.9rem;color:var(--slate-900)" title="${esc(bp.operational_definition)}">${esc(bp.name)}</b>
+                <span class="badge p" style="font-size:0.68rem">${esc(bp.measurement_type)}</span>
+              </div>
+              <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--slate-600);margin-bottom:8px">
+                Count: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="bad" style="padding:6px 12px;font-size:0.78rem;flex:1" onclick="act.quickTallyBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')})">
+                  +1 Tally
+                </button>
+                <button id="beh_timer_${bp.id}" class="${runningTimer ? 'ok' : 'sec'}" style="padding:6px 10px;font-size:0.76rem"
+                  onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 'duration')">
+                  ${runningTimer ? '⏹ Stop Duration' : '⏱ Start Duration'}
+                </button>
+                <button class="sec" style="padding:6px 9px;font-size:0.74rem" title="Record Partial/Whole Interval Occurrence (+)"
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 1)">
+                  Int +
+                </button>
+                <button class="sec" style="padding:6px 9px;font-size:0.74rem" title="Record Interval Non-Occurrence (-)"
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 0)">
+                  Int −
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : ''}
+  </div>
+
   <!-- In-Session ABC Incidents -->
   ${abcLogs.length ? `
     <div class="card" style="background:#fffbeb;border:1px solid #fde68a">
@@ -1994,7 +2301,7 @@ async function sessionView(id) {
     </div>
   ` : ''}
 
-  <!-- Teaching Mode Switcher (CentralReach Enhancement: DTT vs NET) -->
+  <!-- Teaching Mode Switcher (CentralReach Enhancement: DTT vs NET + Trial Type Selector) -->
   <div class="mode-switcher-bar">
     <div style="display:flex;align-items:center;gap:12px">
       <div class="vital-emblem" style="width:42px;height:42px;font-size:0.78rem">
@@ -2005,11 +2312,16 @@ async function sessionView(id) {
           ${sessionMode === 'net' ? 'Natural Environment Teaching (NET Multi-Target Grid)' : 'Discrete Trial Training (DTT Single-Focus View)'}
         </div>
         <div style="font-size:0.78rem;color:var(--slate-500)">
-          Click any goal below to inspect collected data, modify mastery criteria, or mark as mastered
+          10 Prompt Categories · N/A Excluded from Denominator · Independent vs Prompted Separated
         </div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="mode-toggle-group" title="Select Trial Condition (Acquisition, Probe, Maintenance, Generalization)">
+        ${[['acquisition', 'Acquisition'], ['probe', 'Cold Probe'], ['maintenance', 'Maintenance'], ['generalization', 'Generalization']].map(([tKey, tLbl]) => `
+          <button class="${activeTrialType === tKey ? 'ok' : 'sec'}" style="font-size:0.76rem;padding:7px 11px" onclick="act.setTrialType('${tKey}')">${tLbl}</button>
+        `).join('')}
+      </div>
       <button class="ok" style="font-size:0.84rem;padding:9px 14px" onclick="act.openCreateGoalModal(${client.id})">+ Add / Create Goal</button>
       ${!ended ? `<button class="sec" style="font-size:0.84rem;padding:9px 14px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>` : ''}
       <div class="mode-toggle-group">
@@ -2024,6 +2336,7 @@ async function sessionView(id) {
       ${goals.map((g) => {
         const total = g.summary ? g.summary.total : 0;
         const indepPct = g.summary ? g.summary.pct.I : 0;
+        const indepND = g.summary ? (g.summary.indepNumDenom || `${g.summary.counts?.I || 0}/${total}`) : '0/0';
         return `
         <div class="net-card">
           <div>
@@ -2033,7 +2346,7 @@ async function sessionView(id) {
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:4px">
               <div class="net-stats-row">
-                <span>Session: <b>${total}</b> trials (<b>${indepPct}%</b> Indep)</span>
+                <span>Session: <b>${indepPct}% (${indepND})</b> Indep</span>
                 <span style="color:var(--slate-300)">•</span>
                 <span>Target: <b>${g.target || 80}%</b></span>
               </div>
@@ -2055,10 +2368,10 @@ async function sessionView(id) {
                 <button class="net-btn btn-m" title="Model Prompt (M)" onclick="act.trial(${s.id}, ${g.id}, 'M')">
                   <span class="net-btn-ic">M</span><span>Model</span>
                 </button>
-                <button class="net-btn btn-p" title="Physical Prompt (P)" onclick="act.trial(${s.id}, ${g.id}, 'P')">
+                <button class="net-btn btn-p" title="Full Physical Prompt (P)" onclick="act.trial(${s.id}, ${g.id}, 'P')">
                   <span class="net-btn-ic">P</span><span>Physical</span>
                 </button>
-                <button class="net-btn btn-n" title="Refusal / Non-compliant (N)" onclick="act.trial(${s.id}, ${g.id}, 'N')">
+                <button class="net-btn btn-n" title="No Response / Refusal (N)" onclick="act.trial(${s.id}, ${g.id}, 'N')">
                   <span class="net-btn-ic">N</span><span>Refusal</span>
                 </button>
               </div>
@@ -2079,12 +2392,14 @@ async function sessionView(id) {
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <h3 style="margin:0;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:4px">${esc(g.title)}</h3>
               <span class="badge p">Goal #${g.id}</span>
+              <span class="badge">${esc(g.domain || 'Skill Acquisition')}</span>
+              <span class="badge">${esc(g.prompt_strategy || 'Least-to-Most (LTM)')}</span>
               <span class="tag ${g.mastery_met ? 'approved' : g.stalled ? 'draft' : 'approved'}">
                 ${g.mastery_met ? 'Mastery Criteria Met' : g.stalled ? 'Plateau / Stalled' : esc(g.trend || 'Active')}
               </span>
             </div>
             <div style="font-size:0.84rem;color:var(--slate-500);margin-top:4px;font-family:var(--font-mono)">
-              Baseline: <b>${g.baseline ?? 20}%</b> · 3-Session Avg: <b>${g.current ?? '—'}${g.current !== null && g.current !== undefined ? '%' : ''}</b> · Mastery Target: <b>${g.target ?? 80}%</b>
+              Baseline: <b>${g.baseline ?? 20}%</b> · ${g.mastery_sessions || 3}-Session Avg: <b>${g.current ?? '—'}${g.current !== null && g.current !== undefined ? '%' : ''}</b> · Mastery Target: <b>${g.target ?? 80}%</b> · Scoring: <b>${g.scoring_rule === 'include_prompted' ? 'Include Prompted' : 'Independent Only'}</b>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2098,7 +2413,7 @@ async function sessionView(id) {
             <span><b>Ready for Mastery:</b> ${esc(g.recommendation)}</span>
             <button class="ok" style="font-size:0.78rem;padding:4px 10px" onclick="act.quickMasterGoal(${g.id})">✓ Advance to Mastered</button>
           </div>
-        ` : g.stalled ? `
+        ` : g.stalled || g.regression ? `
           <div class="stalled-banner" style="margin-top:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
             <span><b>Clinical Alert:</b> ${esc(g.recommendation)}</span>
             <button class="sec" style="font-size:0.78rem;padding:4px 10px;background:#fff" onclick="act.openGoalModal(${g.id})">Modify Target / Criteria</button>
@@ -2110,7 +2425,7 @@ async function sessionView(id) {
             ${Object.entries(LV).map(([k, cfg]) => `
               <button class="${cfg.cls}" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
                 <span>${cfg.icon} ${cfg.label}</span>
-                <span style="font-family:var(--font-mono);font-size:0.86rem;opacity:0.85">[${k}]</span>
+                <span style="font-family:var(--font-mono);font-size:0.82rem;opacity:0.85">[${k}]</span>
               </button>
             `).join('')}
           </div>
@@ -2136,21 +2451,23 @@ async function sessionView(id) {
 
     ${masteredGoals.length ? `
       <details class="drawer" style="background:#f0fdf4;border-color:#86efac">
-        <summary style="color:#065f46">🏆 Mastered & Maintenance Targets (${masteredGoals.length}) — Click to Review Data or Reactivate</summary>
+        <summary style="color:#065f46">🏆 Mastered, On-Hold & Discontinued Targets (${masteredGoals.length}) — Click to Review Data or Reactivate</summary>
         <div style="margin-top:12px;display:grid;gap:10px">
-          ${masteredGoals.map((mg) => `
+          ${masteredGoals.map((mg) => {
+            const stMeta = GOAL_STATUS_META[mg.status] || GOAL_STATUS_META.mastered;
+            return `
             <div style="background:#ffffff;padding:12px 16px;border-radius:12px;border:1px solid #bbf7d0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;cursor:pointer" onclick="act.openGoalModal(${mg.id})">
               <div>
                 <b style="color:#065f46">${esc(mg.title)}</b>
-                <span class="tag approved" style="margin-left:8px">🏆 Mastered</span>
-                <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">Baseline: ${mg.baseline}% · 3-Session Avg: ${mg.current ?? '—'}% · Target: ${mg.target}%</div>
+                <span class="tag ${stMeta.cls}" style="margin-left:8px">${esc(stMeta.label)}</span>
+                <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">Baseline: ${mg.baseline}% · Avg: ${mg.current ?? '—'}% · Target: ${mg.target}% · Indep: ${mg.indep_pct ?? 0}% (${esc(mg.indep_num_denom || '0/0')})</div>
               </div>
               <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
                 <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.openGoalModal(${mg.id})">📊 Review Data</button>
                 <button class="sec" style="font-size:0.78rem;padding:5px 10px" onclick="act.quickReactivateGoal(${mg.id})">🔄 Move to Active</button>
               </div>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       </details>
     ` : ''}
@@ -2166,16 +2483,31 @@ async function sessionView(id) {
             ${s.note_status === 'pending_approval' ? 'Pending BCBA Approval' : s.note_status}
           </span>
         </h3>
-        <p style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 0">SOAP Narrative & Multi-Disciplinary Dual-Signature</p>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:2px 0 0">Attendance, Barriers, SOAP Narrative & Multi-Disciplinary Dual-Signature</p>
       </div>
       ${ended && s.note_status !== 'signed' ? `
-        <button class="sec" onclick="act.genNote(${s.id})">🤖 Auto-Draft Note from Trials & ABC</button>
+        <button class="sec" onclick="act.genNote(${s.id})">🤖 Auto-Draft Note from Trials, Behavior & ABC</button>
       ` : ''}
     </div>
 
+    <div class="row" style="margin-top:12px">
+      <div>
+        <label>Attendance Status</label>
+        <select id="sess_attendance" onchange="act.saveSessionMeta(${s.id})" ${s.note_status === 'signed' ? 'disabled' : ''}>
+          ${['Present - Full Session', 'Late Arrival', 'Early Departure', 'Cancelled - Client Sick', 'No Show'].map((opt) => `
+            <option value="${opt}" ${(s.attendance_status || 'Present - Full Session') === opt ? 'selected' : ''}>${opt}</option>
+          `).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Environmental / Setting Event Barriers (Sleep, Illness, Meds, Schedule Change)</label>
+        <input id="sess_barriers" value="${esc(s.barriers || 'None reported')}" onchange="act.saveSessionMeta(${s.id})" ${s.note_status === 'signed' ? 'disabled' : ''}>
+      </div>
+    </div>
+
     ${ended ? `
-      <div style="margin-top:14px">
-        <label>Session Narrative (Trials + ABC Incidents + Interventions)</label>
+      <div style="margin-top:8px">
+        <label>Session Narrative (Trials + Continuous/Interval Behavior + ABC Incidents + Interventions)</label>
         <textarea id="note" rows="10" ${s.note_status === 'signed' ? 'disabled' : ''}>${esc(s.note)}</textarea>
         
         ${s.submitted_by ? `<div style="font-size:0.85rem;color:var(--slate-600);margin:6px 0"><b>RBT Author:</b> ${esc(s.submitted_by)} ${s.rbt_signed_at ? `(${fmtT(s.rbt_signed_at)})` : ''}</div>` : ''}
@@ -2189,7 +2521,7 @@ async function sessionView(id) {
           </div>
         ` : `<div style="color:var(--ok);font-weight:700;margin-top:10px">✓ Clinical note finalized, co-signed by BCBA, and units deducted from authorization.</div>`}
       </div>
-    ` : '<p style="color:var(--slate-500);margin-top:12px">End the session when complete to synthesize trial percentages and ABC incidents into the clinical documentation.</p>'}
+    ` : '<p style="color:var(--slate-500);margin-top:12px">End the session when complete to synthesize trial percentages, behavior rates, and ABC incidents into the clinical documentation.</p>'}
   </div>`;
 }
 
@@ -2236,6 +2568,7 @@ async function supervisionView() {
   const sup = await api('GET', '/api/supervision');
   const B = me.role === 'BCBA';
   let form = '';
+  let fidelityForm = '';
   if (B) {
     const [cs, st] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
     const rbts = st.filter(s => s.role === 'RBT');
@@ -2260,13 +2593,63 @@ async function supervisionView() {
       <textarea id="sup_n" rows="2" placeholder="e.g. Observed prompt-fading procedures during tabletop trials."></textarea>
       <button class="ok" onclick="act.addSupervision()">Log Supervision Event</button>
     </div>`;
+
+    const fidSteps = [
+      'Antecedent environment & visual schedule prepared prior to SD',
+      'Discriminative stimulus (SD) delivered clearly and concisely',
+      'Prescribed prompt hierarchy (LTM / MTL / Time Delay) followed accurately',
+      'Immediate differential reinforcement delivered per FR/VR token schedule',
+      'BIP replacement communication (FCT) prompted prior to escalation',
+      'Trial-by-trial and continuous/interval behavior data recorded immediately'
+    ];
+    fidelityForm = `
+    <div class="card" style="border-left:4px solid var(--primary)">
+      <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div>
+          <h3 style="margin:0">Treatment Integrity (Fidelity %) & Interobserver Agreement (IOA %) Calculator</h3>
+          <p style="font-size:0.84rem;color:var(--slate-500);margin:2px 0 0">Clinical Quality Assurance: Calculate RBT procedural fidelity and Observer 1 vs Observer 2 IOA (Target ≥80%).</p>
+        </div>
+        <span class="badge p">BACB Quality & IOA Standard</span>
+      </div>
+      <div class="row">
+        <div><label>Client</label><select id="fid_c">${cs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+        <div><label>RBT Observed</label><select id="fid_r">${rbts.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></div>
+        <div>
+          <label>IOA Calculation Method</label>
+          <select id="fid_method">
+            <option value="trial_by_trial">Trial-by-Trial IOA (Agreements / Total Trials)</option>
+            <option value="total_count">Total Count IOA (Smaller / Larger Count)</option>
+            <option value="interval_by_interval">Interval-by-Interval IOA</option>
+            <option value="exact_count_interval">Exact Count-Per-Interval IOA</option>
+            <option value="duration">Total Duration IOA</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>Observer 1 (RBT Count or Agreed Trials)</label><input id="fid_o1" type="number" value="11"></div>
+        <div><label>Observer 2 (BCBA Count or Total Trials)</label><input id="fid_o2" type="number" value="12"></div>
+        <div><label>Clinical Feedback & Action Plan</label><input id="fid_notes" placeholder="e.g. 92% Trial-by-Trial IOA; 100% BIP fidelity"></div>
+      </div>
+      <label>Treatment Integrity Checklist (Check all steps implemented correctly by RBT):</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin:8px 0 14px">
+        ${fidSteps.map((st, idx) => `
+          <label style="display:flex;align-items:center;gap:8px;background:var(--slate-50);padding:8px 12px;border-radius:6px;border:1px solid var(--slate-200);cursor:pointer;font-weight:500;text-transform:none">
+            <input type="checkbox" class="fid-step-cb" data-step="${esc(st)}" checked style="width:auto;margin:0">
+            <span style="font-size:0.82rem">${esc(st)}</span>
+          </label>
+        `).join('')}
+      </div>
+      <button class="ok" onclick="act.submitFidelityIoa()">✓ Calculate & Log Fidelity % + IOA %</button>
+    </div>`;
   }
+
+  const fidLogs = sup.fidelityIoaLogs || [];
 
   return `
   <div class="page-header">
     <div>
-      <h1>BACB Monthly Supervision Tracking</h1>
-      <p class="page-sub">Mandatory 5% Minimum Supervision of Direct RBT Applied Behavior Analysis Hours</p>
+      <h1>BACB Monthly Supervision, Fidelity & IOA Tracking</h1>
+      <p class="page-sub">Mandatory 5% Minimum RBT Supervision, Procedural Treatment Integrity & Interobserver Agreement (IOA)</p>
     </div>
   </div>
 
@@ -2287,6 +2670,41 @@ async function supervisionView() {
     </div>
   </div>
   ${form}
+  ${fidelityForm}
+  <div class="card">
+    <h3>Treatment Integrity (Fidelity %) & Interobserver Agreement (IOA %) Log</h3>
+    ${fidLogs.length ? `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Client</th>
+            <th>RBT Observed</th>
+            <th>BCBA Evaluator</th>
+            <th>Fidelity %</th>
+            <th>IOA % & Method</th>
+            <th>Feedback Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${fidLogs.map(fl => `
+            <tr>
+              <td><span style="font-family:'JetBrains Mono',monospace">${fmtT(fl.ts)}</span></td>
+              <td><b>${esc(fl.client)}</b></td>
+              <td>${esc(fl.rbt)}</td>
+              <td>${esc(fl.bcba)}</td>
+              <td><span class="tag ${(fl.fidelity_pct ?? 100) >= 80 ? 'approved' : 'draft'}">${fl.fidelity_pct ?? '—'}%</span></td>
+              <td>
+                <span class="tag ${(fl.ioa_pct ?? 100) >= 80 ? 'approved' : 'draft'}">${fl.ioa_pct ?? '—'}%</span>
+                <span style="font-size:0.76rem;color:var(--slate-500);margin-left:4px">(${esc((fl.ioa_method || 'trial_by_trial').replace(/_/g, ' '))})</span>
+              </td>
+              <td style="font-size:0.85rem">${esc(fl.notes || '—')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p style="color:var(--slate-400)">No treatment integrity or IOA logs recorded yet.</p>'}
+  </div>
   <div class="card">
     <h3>Supervision Audit Log</h3>
     ${sup.logs.length ? `
@@ -2327,37 +2745,290 @@ function renderModal() {
     const sid = activeModal.sessionId;
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card">
+      <div class="modal-card" style="max-width:640px;width:95%">
         <div class="flex-between">
           <h3 style="margin:0">⚡ Log ABC Incident</h3>
           <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
         </div>
-        <p style="font-size:0.85rem;color:var(--slate-500);margin:6px 0 16px">Rapid field entry for maladaptive behavioral episodes.</p>
+        <p style="font-size:0.85rem;color:var(--slate-500);margin:6px 0 14px">Structured Antecedent–Behavior–Consequence field entry with setting, activity, and intensity rating.</p>
         
-        <label>Target Maladaptive Behavior</label>
-        <select id="m_behavior">${BEHAVIORS.map(b => `<option>${b}</option>`).join('')}</select>
-        
-        <label>Antecedent (What immediately triggered the behavior?)</label>
+        <div class="row">
+          <div>
+            <label>Target Maladaptive Behavior</label>
+            <select id="m_behavior">${BEHAVIORS.map(b => `<option>${b}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label>Perceived Behavioral Function</label>
+            <select id="m_function">
+              <option value="Escape">Escape / Avoidance</option>
+              <option value="Attention">Attention Seeking</option>
+              <option value="Tangible">Access to Preferred Tangible / Item</option>
+              <option value="Sensory">Automatic / Sensory Reinforcement</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Antecedent (What immediately preceded the behavior?)</label>
         <select id="m_antecedent">${ANTS.map(a => `<option>${a}</option>`).join('')}</select>
         
         <label>Consequence / Staff Response</label>
         <input id="m_consequence" value="Prompted replacement communication, provided calm break space">
         
-        <label>Perceived Behavioral Function</label>
-        <select id="m_function">
-          <option value="Escape">Escape / Avoidance</option>
-          <option value="Attention">Attention Seeking</option>
-          <option value="Tangible">Access to Preferred Tangible / Item</option>
-          <option value="Sensory">Automatic / Sensory Reinforcement</option>
-        </select>
+        <div class="row">
+          <div>
+            <label>Setting</label>
+            <select id="m_setting">
+              <option>Clinic</option>
+              <option>School</option>
+              <option>Home</option>
+              <option>Community</option>
+            </select>
+          </div>
+          <div>
+            <label>Ongoing Activity</label>
+            <input id="m_activity" value="Tabletop DTT / Transition">
+          </div>
+          <div>
+            <label>Intensity Rating</label>
+            <select id="m_intensity">
+              <option>Mild</option>
+              <option selected>Moderate</option>
+              <option>Severe</option>
+            </select>
+          </div>
+          <div>
+            <label>Duration (seconds)</label>
+            <input id="m_duration_sec" type="number" min="0" value="45">
+          </div>
+        </div>
         
-        <label>Clinical Notes</label>
-        <textarea id="m_notes" rows="2" placeholder="e.g. Duration 3 mins, client accepted visual timer without aggression."></textarea>
+        <label>Clinical Notes & People Present</label>
+        <textarea id="m_notes" rows="2" placeholder="e.g. RBT + peer present; client accepted visual timer after FCT prompt."></textarea>
         
         <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
           <button class="sec" onclick="act.closeModal()">Cancel</button>
           <button class="ok" onclick="act.submitAbcModal(${cid}, ${sid || 'null'})">Save ABC Incident</button>
         </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'behavior_program') {
+    const cid = activeModal.clientId;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:640px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">Behavior Reduction Operational Definition</span>
+            <h3 style="margin:4px 0 0">Define Client Target Behavior</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Target Behavior Name</label>
+            <input id="bp_name" placeholder="e.g. Vocal Protest / Screaming" value="Vocal Protest / Screaming">
+          </div>
+          <div>
+            <label>Primary Measurement Method</label>
+            <select id="bp_method">
+              <option value="frequency">Frequency / Event Recording</option>
+              <option value="rate">Rate per Unit of Time</option>
+              <option value="duration">Duration Recording</option>
+              <option value="latency">Latency Recording</option>
+              <option value="irt">Inter-Response Time (IRT)</option>
+              <option value="partial_interval">Partial-Interval Recording</option>
+              <option value="whole_interval">Whole-Interval Recording</option>
+              <option value="mts">Momentary Time Sampling (MTS)</option>
+              <option value="abc">ABC Narrative Recording</option>
+            </select>
+          </div>
+        </div>
+        <label>Objective Operational Definition (Observable & Measurable)</label>
+        <textarea id="bp_def" rows="2" placeholder="Any vocalization above conversational volume lasting 3+ seconds..."></textarea>
+        <label>Non-Examples (What is excluded from counting?)</label>
+        <input id="bp_non" placeholder="e.g. Laughing or cheering during gross-motor play">
+        <div class="row">
+          <div>
+            <label>Hypothesized Function</label>
+            <select id="bp_fn">
+              <option value="Escape">Escape / Avoidance</option>
+              <option value="Attention">Attention Seeking</option>
+              <option value="Tangible">Access to Tangible</option>
+              <option value="Sensory">Automatic / Sensory</option>
+            </select>
+          </div>
+          <div>
+            <label>Baseline Rate (per day/hr)</label>
+            <input id="bp_base" type="number" step="0.1" value="3.0">
+          </div>
+          <div>
+            <label>Target Criterion Rate</label>
+            <input id="bp_target" type="number" step="0.1" value="0.5">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitBehaviorProgramModal(${cid})">✓ Save Target Behavior Definition</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'behavior_event') {
+    const cid = activeModal.clientId;
+    const sid = activeModal.sessionId;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:640px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">Continuous & Discontinuous Interval Recording</span>
+            <h3 style="margin:4px 0 0">Log Behavior Measurement Data</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Behavior Topography</label>
+            <select id="be_behavior">${BEHAVIORS.map(b => `<option>${b}</option>`).join('')}</select>
+          </div>
+          <div>
+            <label>Measurement Method</label>
+            <select id="be_type">
+              <option value="frequency">Frequency / Event Count</option>
+              <option value="duration">Duration (Seconds)</option>
+              <option value="latency">Latency from SD (Seconds)</option>
+              <option value="irt">Inter-Response Time / IRT (Seconds)</option>
+              <option value="partial_interval">Partial-Interval Recording</option>
+              <option value="whole_interval">Whole-Interval Recording</option>
+              <option value="mts">Momentary Time Sampling (MTS)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Frequency Count</label>
+            <input id="be_val" type="number" min="1" value="1">
+          </div>
+          <div>
+            <label>Duration (Seconds)</label>
+            <input id="be_dur" type="number" min="0" value="45">
+          </div>
+          <div>
+            <label>Latency (Seconds)</label>
+            <input id="be_lat" type="number" min="0" value="10">
+          </div>
+          <div>
+            <label>IRT (Seconds)</label>
+            <input id="be_irt" type="number" min="0" value="180">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Interval Outcome (For Partial / Whole / MTS)</label>
+            <select id="be_int_occ">
+              <option value="1">1 — Behavior Occurred in Interval (+)</option>
+              <option value="0">0 — Behavior Did Not Occur (−)</option>
+            </select>
+          </div>
+          <div>
+            <label>Total Intervals Observed in Block</label>
+            <input id="be_int_tot" type="number" min="1" value="1">
+          </div>
+          <div>
+            <label>Setting</label>
+            <select id="be_setting">
+              <option>Clinic</option>
+              <option>School</option>
+              <option>Home</option>
+            </select>
+          </div>
+        </div>
+        <label>Observation Notes</label>
+        <input id="be_notes" placeholder="e.g. Timed with digital stopwatch during transition.">
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitBehaviorEventModal(${cid}, ${sid || 'null'})">✓ Save Measurement Entry</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'create_ta') {
+    const cid = activeModal.clientId;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:600px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">Task Analysis & Chaining (Build Spec §6)</span>
+            <h3 style="margin:4px 0 0">Create Multi-Step Task Analysis</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Routine / Skill Title</label>
+            <input id="ta_title" value=" Independent Backpack Unpacking Routine (5-Step)">
+          </div>
+          <div>
+            <label>Chaining Method</label>
+            <select id="ta_chain">
+              <option value="Forward Chaining">Forward Chaining</option>
+              <option value="Backward Chaining">Backward Chaining</option>
+              <option value="Total-Task Presentation" selected>Total-Task Presentation</option>
+            </select>
+          </div>
+        </div>
+        <label>Task Analysis Steps (One step per line, in sequential order)</label>
+        <textarea id="ta_steps" rows="5">1. Walk to cubby hook
+2. Unzip main backpack compartment
+3. Place lunchbox on counter
+4. Place communication folder in bin
+5. Hang backpack on hook</textarea>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitCreateTaModal(${cid})">✓ Create Task Analysis</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'audit_logs') {
+    const logs = activeModal.logs || [];
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:780px;width:95%;max-height:88vh;overflow-y:auto">
+        <div class="flex-between">
+          <div>
+            <span class="badge p">21 CFR Part 11 / BACB Data Integrity Audit Trail</span>
+            <h3 style="margin:4px 0 0">Immutable Clinical Data & Undo Audit Log</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+        <p style="font-size:0.84rem;color:var(--slate-500);margin:6px 0 12px">All trial entries, undo corrections, goal status changes, and behavior logs are timestamped with staff attribution.</p>
+        ${logs.length ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Staff Member</th>
+                <th>Action</th>
+                <th>Entity</th>
+                <th>Audit Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${logs.map(l => `
+                <tr>
+                  <td><span style="font-family:var(--font-mono);font-size:0.78rem">${fmtT(l.ts)}</span></td>
+                  <td><b>${esc(l.user_name)}</b> <span class="badge">${esc(l.user_role)}</span></td>
+                  <td><span class="badge ${l.action.includes('UNDO') ? 'esc' : 'tan'}">${esc(l.action)}</span></td>
+                  <td>${esc(l.entity_type)} #${l.entity_id || '—'}</td>
+                  <td style="font-size:0.82rem">${esc(l.details)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<p style="color:var(--slate-400)">No audit events recorded yet.</p>'}
       </div>
     </div>`;
   }
@@ -2398,17 +3069,18 @@ function renderModal() {
   if (activeModal.type === 'goal_review') {
     const g = activeModal.goal;
     const totalTrials = g.total_trials || 0;
-    const pt = g.prompt_totals || { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
+    const pt = g.prompt_totals || { I: 0, V: 0, G: 0, Vi: 0, M: 0, PP: 0, P: 0, INC: 0, N: 0, NA: 0 };
+    const stMeta = GOAL_STATUS_META[g.status] || GOAL_STATUS_META.active;
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:780px;width:95%;max-height:92vh;overflow-y:auto">
+      <div class="modal-card" style="max-width:820px;width:95%;max-height:92vh;overflow-y:auto">
         <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--slate-200)">
           <div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span class="badge p">Goal #${g.id} · ${esc(g.client_name || 'Client')}</span>
-              <span class="tag ${g.status === 'mastered' ? 'approved' : g.mastery_met ? 'approved' : 'draft'}">
-                ${g.status === 'mastered' ? '🏆 Mastered (Maintenance)' : g.mastery_met ? '🎯 Mastery Criteria Met' : esc(g.trend || 'Active Acquisition')}
-              </span>
+              <span class="tag ${stMeta.cls}">${esc(stMeta.label)}</span>
+              <span class="badge">${esc(g.domain || 'Communication / Manding')}</span>
+              <span class="badge">${esc(g.prompt_strategy || 'Least-to-Most (LTM)')}</span>
             </div>
             <h3 style="margin:6px 0 0;font-size:1.3rem;color:var(--slate-900)">${esc(g.title)}</h3>
           </div>
@@ -2428,40 +3100,42 @@ function renderModal() {
           </div>
         ` : ''}
 
-        <!-- 4 KPI Summary Metrics Based on Collected Data -->
+        <!-- 4 KPI Summary Metrics Based on Collected Data (Explicit Numerator/Denominator) -->
         <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0">
           <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
             <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Baseline</div>
-            <div style="font-size:1.5rem;font-weight:800;color:var(--slate-800)">${g.baseline}%</div>
+            <div style="font-size:1.4rem;font-weight:800;color:var(--slate-800)">${g.baseline}%</div>
           </div>
           <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
-            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">3-Session Avg</div>
-            <div style="font-size:1.5rem;font-weight:800;color:${(g.current || 0) >= g.target ? 'var(--ok)' : 'var(--primary)'}">${g.current ?? '—'}${g.current !== null ? '%' : ''}</div>
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">${g.mastery_sessions || 3}-Session Avg</div>
+            <div style="font-size:1.4rem;font-weight:800;color:${(g.current || 0) >= g.target ? 'var(--ok)' : 'var(--primary)'}">${g.current ?? '—'}${g.current !== null ? '%' : ''}</div>
           </div>
           <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
-            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Mastery Criterion</div>
-            <div style="font-size:1.5rem;font-weight:800;color:var(--ok)">${g.target}%</div>
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Indep Ratio</div>
+            <div style="font-size:1.3rem;font-weight:800;color:var(--ok)">${g.indep_pct ?? 0}% (${esc(g.indep_num_denom || `${pt.I || 0}/${totalTrials}`)})</div>
           </div>
           <div style="background:var(--slate-50);padding:12px;border-radius:12px;border:1px solid var(--slate-200);text-align:center">
-            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Trials Collected</div>
-            <div style="font-size:1.5rem;font-weight:800;color:var(--slate-900)">${totalTrials}</div>
+            <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase">Prompted Ratio</div>
+            <div style="font-size:1.3rem;font-weight:800;color:var(--slate-900)">${g.prompted_pct ?? 0}% (${esc(g.prompted_num_denom || `0/${totalTrials}`)})</div>
           </div>
         </div>
 
         <!-- Longitudinal Trendline Chart -->
-        <h4 style="margin:14px 0 6px;font-size:0.95rem">📈 Longitudinal Mastery Trajectory (${(g.series || []).length} Sessions)</h4>
+        <h4 style="margin:14px 0 6px;font-size:0.95rem">📈 Longitudinal Mastery Trajectory (${(g.series || []).length} Sessions · Criterion: ${g.target}% across ${g.mastery_sessions || 3} sessions)</h4>
         ${chart(g.series || [], g.baseline, g.target)}
 
         <!-- Aggregate Prompt Hierarchy Breakdown -->
-        <h4 style="margin:16px 0 8px;font-size:0.95rem">🎯 Aggregate Prompt Hierarchy Breakdown (${totalTrials} Total Trials)</h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:16px">
+        <h4 style="margin:16px 0 8px;font-size:0.95rem">🎯 Aggregate 10-Level Prompt Hierarchy Breakdown (${totalTrials} Scored Opportunities)</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:16px">
           ${Object.entries(LV).map(([code, cfg]) => {
             const cnt = pt[code] || 0;
-            const pct = totalTrials ? Math.round((cnt / totalTrials) * 100) : 0;
+            const pct = code === 'NA' ? 0 : (totalTrials ? Math.round((cnt / totalTrials) * 100) : 0);
             return `
               <div style="background:var(--slate-50);padding:8px 10px;border-radius:10px;border:1px solid var(--slate-200);font-size:0.8rem">
                 <div style="font-weight:700;color:var(--slate-700)">${cfg.icon} ${code} (${cfg.label.split(' ')[0]})</div>
-                <div style="font-size:1.1rem;font-weight:800;color:var(--slate-900);margin-top:2px">${cnt} <span style="font-size:0.78rem;color:var(--slate-500);font-weight:600">(${pct}%)</span></div>
+                <div style="font-size:1rem;font-weight:800;color:var(--slate-900);margin-top:2px">
+                  ${code === 'NA' ? `${cnt} excl` : `${cnt}/${totalTrials} <span style="font-size:0.76rem;color:var(--slate-500);font-weight:600">(${pct}%)</span>`}
+                </div>
               </div>
             `;
           }).join('')}
@@ -2475,17 +3149,19 @@ function renderModal() {
               <thead>
                 <tr>
                   <th>Session</th>
-                  <th>Total Trials</th>
-                  <th>% Independent</th>
-                  <th>Prompt Distribution (I / V / G / M / P / N)</th>
+                  <th>Scored Opps</th>
+                  <th>% & Ratio</th>
+                  <th>Prompted Ratio</th>
+                  <th>Prompt Distribution</th>
                 </tr>
               </thead>
               <tbody>
                 ${g.series.map((sRow) => `
                   <tr>
                     <td><b>Session #${sRow.session}</b></td>
-                    <td>${sRow.n} trials</td>
-                    <td><b style="color:${sRow.pct >= g.target ? 'var(--ok)' : 'var(--slate-800)'}">${sRow.pct}%</b></td>
+                    <td>${sRow.n} opps${sRow.naCount ? ` (+${sRow.naCount} N/A)` : ''}</td>
+                    <td><b style="color:${sRow.pct >= g.target ? 'var(--ok)' : 'var(--slate-800)'}">${sRow.pct}% (${esc(sRow.numDenom || `${sRow.prompts?.I || 0}/${sRow.n}`)})</b></td>
+                    <td>${sRow.promptedPct ?? 0}% (${esc(sRow.promptedNumDenom || `0/${sRow.n}`)})</td>
                     <td style="font-size:0.8rem">
                       ${Object.entries(sRow.prompts || {}).filter(([, c]) => c > 0).map(([k, c]) => `<span class="badge ${k === 'I' ? 'tan' : 'p'}">${k}: ${c}</span>`).join(' ')}
                     </td>
@@ -2498,7 +3174,7 @@ function renderModal() {
 
         <!-- Modify / Edit Goal Parameters Form -->
         <div style="background:var(--slate-100);border:1.5px solid var(--slate-300);border-radius:10px;padding:18px;margin-top:16px">
-          <h4 style="margin:0 0 10px;color:var(--slate-900)">Modify Goal Parameters, Criteria or Clinical Status</h4>
+          <h4 style="margin:0 0 10px;color:var(--slate-900)">Modify Goal Parameters, Prompt Strategy, Scoring Rule & Clinical Status</h4>
           <div class="row">
             <div style="grid-column:span 2">
               <label>Operational Goal Title / Target Behavior</label>
@@ -2507,18 +3183,46 @@ function renderModal() {
           </div>
           <div class="row">
             <div>
-              <label>Baseline % Independent</label>
+              <label>Clinical Domain</label>
+              <select id="edit_g_domain">
+                ${GOAL_DOMAINS.map((d) => `<option value="${esc(d)}" ${g.domain === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>Prompt Fading Strategy</label>
+              <select id="edit_g_strategy">
+                ${PROMPT_STRATEGIES.map((ps) => `<option value="${esc(ps)}" ${g.prompt_strategy === ps ? 'selected' : ''}>${esc(ps)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>Mastery Scoring Rule</label>
+              <select id="edit_g_scoring">
+                <option value="independent_only" ${g.scoring_rule !== 'include_prompted' ? 'selected' : ''}>Independent Responses Only (Default)</option>
+                <option value="include_prompted" ${g.scoring_rule === 'include_prompted' ? 'selected' : ''}>Include Prompted Responses (BCBA Override)</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Baseline %</label>
               <input id="edit_g_base" type="number" min="0" max="100" value="${g.baseline}">
             </div>
             <div>
-              <label>Mastery Criterion % (3 consecutive sessions)</label>
+              <label>Mastery Criterion %</label>
               <input id="edit_g_target" type="number" min="1" max="100" value="${g.target}">
             </div>
             <div>
-              <label>Clinical Status</label>
+              <label>Consecutive Sessions</label>
+              <input id="edit_g_sess" type="number" min="1" max="10" value="${g.mastery_sessions || 3}">
+            </div>
+            <div>
+              <label>Clinical Status (5 States)</label>
               <select id="edit_g_status">
-                <option value="active" ${g.status === 'active' ? 'selected' : ''}>Active (Skill Acquisition)</option>
+                <option value="active" ${g.status === 'active' ? 'selected' : ''}>Active (Acquisition)</option>
+                <option value="on_hold" ${g.status === 'on_hold' ? 'selected' : ''}>On Hold</option>
                 <option value="mastered" ${g.status === 'mastered' ? 'selected' : ''}>Mastered (Maintenance)</option>
+                <option value="revised" ${g.status === 'revised' ? 'selected' : ''}>Revised (Phase Change)</option>
+                <option value="discontinued" ${g.status === 'discontinued' ? 'selected' : ''}>Discontinued</option>
               </select>
             </div>
           </div>
@@ -2548,7 +3252,7 @@ function renderModal() {
     ];
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:640px;width:95%">
+      <div class="modal-card" style="max-width:680px;width:95%">
         <div class="flex-between">
           <div>
             <span class="badge p">Skill Acquisition & DTT / NET Program</span>
@@ -2576,12 +3280,38 @@ function renderModal() {
 
         <div class="row">
           <div>
+            <label>Clinical Domain</label>
+            <select id="new_g_domain">
+              ${GOAL_DOMAINS.map((d) => `<option value="${esc(d)}">${esc(d)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Prompt Fading Strategy</label>
+            <select id="new_g_strategy">
+              ${PROMPT_STRATEGIES.map((ps) => `<option value="${esc(ps)}">${esc(ps)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Scoring Rule</label>
+            <select id="new_g_scoring">
+              <option value="independent_only">Independent Only (Standard)</option>
+              <option value="include_prompted">Include Prompted</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
             <label>Baseline % Independent</label>
             <input id="new_g_base" type="number" min="0" max="100" value="20">
           </div>
           <div>
-            <label>Mastery Criterion % (3 consecutive sessions)</label>
+            <label>Mastery Criterion %</label>
             <input id="new_g_target" type="number" min="1" max="100" value="80">
+          </div>
+          <div>
+            <label>Consecutive Sessions</label>
+            <input id="new_g_sess" type="number" min="1" max="10" value="3">
           </div>
         </div>
 
@@ -2687,6 +3417,144 @@ const act = {
   },
   toggleCrisis: () => { showCrisis = !showCrisis; render(); },
   openAbcModal: (cid, sid = null) => { activeModal = { type: 'abc', clientId: cid, sessionId: sid }; render(); },
+  openBehaviorProgramModal: (cid) => { activeModal = { type: 'behavior_program', clientId: cid }; render(); },
+  submitBehaviorProgramModal: safe(async (cid) => {
+    await api('POST', `/api/clients/${cid}/behaviors`, {
+      name: val('bp_name'),
+      measurement_type: val('bp_method'),
+      operational_definition: val('bp_def'),
+      non_examples: val('bp_non'),
+      function_hypothesis: val('bp_fn'),
+      baseline_rate: +val('bp_base') || 0,
+      target_rate: +val('bp_target') || 0
+    });
+    activeModal = null;
+    render();
+  }),
+  openBehaviorEventModal: (cid, sid = null) => { activeModal = { type: 'behavior_event', clientId: cid, sessionId: sid }; render(); },
+  submitBehaviorEventModal: safe(async (cid, sid) => {
+    const payload = {
+      behavior: val('be_behavior'),
+      measurement_type: val('be_type'),
+      value: +val('be_val') || 1,
+      duration_sec: +val('be_dur') || 0,
+      latency_sec: +val('be_lat') || 0,
+      irt_sec: +val('be_irt') || 0,
+      interval_occurred: +val('be_int_occ') ? 1 : 0,
+      interval_total: +val('be_int_tot') || 1,
+      setting: val('be_setting') || 'Clinic',
+      notes: val('be_notes')
+    };
+    if (sid) {
+      await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
+    } else {
+      await api('POST', `/api/clients/${cid}/behavior-events`, payload);
+    }
+    activeModal = null;
+    render();
+  }),
+  quickTallyBehavior: safe(async (cid, sid, bpId, behName) => {
+    const payload = {
+      behavior_program_id: bpId,
+      behavior: behName,
+      measurement_type: 'frequency',
+      value: 1,
+      setting: 'Clinic',
+      notes: '1-Tap Frequency Tally'
+    };
+    if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
+    else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
+    render();
+  }),
+  toggleBehaviorTimer: safe(async (cid, sid, bpId, behName, mode = 'duration') => {
+    if (behTimers[bpId]) {
+      const elapsedSec = Math.max(1, Math.round((Date.now() - behTimers[bpId].startMs) / 1000));
+      delete behTimers[bpId];
+      const payload = {
+        behavior_program_id: bpId,
+        behavior: behName,
+        measurement_type: mode,
+        value: 1,
+        duration_sec: mode === 'duration' ? elapsedSec : 0,
+        latency_sec: mode === 'latency' ? elapsedSec : 0,
+        setting: 'Clinic',
+        notes: `Live ${mode} stopwatch (${elapsedSec}s)`
+      };
+      if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
+      else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
+    } else {
+      behTimers[bpId] = { startMs: Date.now(), mode };
+    }
+    render();
+  }),
+  quickIntervalBehavior: safe(async (cid, sid, bpId, behName, occurred) => {
+    const payload = {
+      behavior_program_id: bpId,
+      behavior: behName,
+      measurement_type: 'partial_interval',
+      value: occurred ? 1 : 0,
+      interval_occurred: occurred ? 1 : 0,
+      interval_total: 1,
+      setting: 'Clinic',
+      notes: occurred ? 'Interval + (Occurred)' : 'Interval − (Did not occur)'
+    };
+    if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
+    else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
+    render();
+  }),
+  undoBehaviorEvent: safe(async (sid) => {
+    await api('DELETE', `/api/sessions/${sid}/behavior-events/last`);
+    render();
+  }),
+  openCreateTaModal: (cid) => { activeModal = { type: 'create_ta', clientId: cid }; render(); },
+  submitCreateTaModal: safe(async (cid) => {
+    const steps = val('ta_steps').split('\n').map(s => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+    await api('POST', `/api/clients/${cid}/task-analysis`, {
+      title: val('ta_title'),
+      chaining_type: val('ta_chain'),
+      steps
+    });
+    activeModal = null;
+    render();
+  }),
+  setTaDraftStep: (taId, stepIdx, code, totalSteps) => {
+    if (!taDraftSteps[taId]) taDraftSteps[taId] = Array.from({ length: totalSteps }, () => 'I');
+    taDraftSteps[taId][stepIdx] = code;
+    render();
+  },
+  submitTaRun: safe(async (taId) => {
+    const codes = taDraftSteps[taId] || ['I', 'I', 'I', 'I', 'I', 'I'];
+    const results = codes.map((c, idx) => ({ step: `Step ${idx + 1}`, status: c }));
+    await api('POST', `/api/task-analysis/${taId}/log`, { results });
+    render();
+  }),
+  openAuditModal: safe(async (cid) => {
+    const logs = await api('GET', `/api/clients/${cid}/audit-logs`);
+    activeModal = { type: 'audit_logs', logs };
+    render();
+  }),
+  submitFidelityIoa: safe(async () => {
+    const cbs = [...document.querySelectorAll('.fid-step-cb')];
+    const checklist = cbs.map((cb) => ({ step: cb.getAttribute('data-step'), completed: cb.checked }));
+    await api('POST', '/api/supervision/fidelity-ioa', {
+      client_id: +val('fid_c') || 1,
+      rbt_id: +val('fid_r') || 2,
+      ioa_method: val('fid_method'),
+      observer1_value: +val('fid_o1') || 0,
+      observer2_value: +val('fid_o2') || 0,
+      checklist,
+      notes: val('fid_notes')
+    });
+    alert('Treatment Integrity (Fidelity %) & IOA % Logged');
+    render();
+  }),
+  setTrialType: (tKey) => { activeTrialType = tKey; render(); },
+  saveSessionMeta: safe(async (sid) => {
+    await api('PUT', `/api/sessions/${sid}/meta`, {
+      attendance_status: val('sess_attendance'),
+      barriers: val('sess_barriers')
+    });
+  }),
   openFbaReportModal: safe(async (cid) => {
     const report = await api('GET', `/api/clients/${cid}/fba-report`);
     activeModal = { type: 'fba_report', report };
@@ -2717,6 +3585,10 @@ const act = {
       antecedent: val('m_antecedent'),
       consequence: val('m_consequence'),
       perceived_function: val('m_function'),
+      setting: val('m_setting') || 'Clinic',
+      activity: val('m_activity') || 'Structured Therapy',
+      intensity: val('m_intensity') || 'Moderate',
+      duration_sec: +val('m_duration_sec') || 0,
       notes: val('m_notes'),
       session_id: sid
     };
@@ -2750,7 +3622,11 @@ const act = {
     const baseline = +val('edit_g_base');
     const target = +val('edit_g_target');
     const status = val('edit_g_status');
-    await api('PUT', `/api/goals/${gid}`, { title, baseline, target, status });
+    const domain = val('edit_g_domain');
+    const prompt_strategy = val('edit_g_strategy');
+    const scoring_rule = val('edit_g_scoring');
+    const mastery_sessions = +val('edit_g_sess') || 3;
+    await api('PUT', `/api/goals/${gid}`, { title, baseline, target, status, domain, prompt_strategy, scoring_rule, mastery_sessions });
     activeModal = null;
     render();
   }),
@@ -2788,7 +3664,11 @@ const act = {
     if (!title) return alert('Please enter a Target Operational Title');
     const baseline = +val('new_g_base') || 20;
     const target = +val('new_g_target') || 80;
-    await api('POST', `/api/clients/${cid}/goals`, { title, baseline, target });
+    const domain = val('new_g_domain') || 'Communication / Manding';
+    const prompt_strategy = val('new_g_strategy') || 'Least-to-Most (LTM)';
+    const scoring_rule = val('new_g_scoring') || 'independent_only';
+    const mastery_sessions = +val('new_g_sess') || 3;
+    await api('POST', `/api/clients/${cid}/goals`, { title, baseline, target, domain, prompt_strategy, scoring_rule, mastery_sessions });
     activeModal = null;
     render();
   }),
@@ -2816,8 +3696,8 @@ const act = {
   addAppt: safe(async () => { await api('POST', '/api/appointments', { client_id: val('ac'), user_id: val('as'), start: val('astart'), end: val('aend'), setting: val('aset') }); render(); }),
   start: safe(async (id) => { const r = await api('POST', `/api/appointments/${id}/start`); go('session', r.id); }),
   trial: safe(async (sid, gid, level) => {
-    await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level });
-    if (showKidMode && kidAutoToken && level !== 'N' && tokenCount < targetTokens) {
+    await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level, trial_type: activeTrialType });
+    if (showKidMode && kidAutoToken && !['N', 'INC', 'NA'].includes(level) && tokenCount < targetTokens) {
       tokenCount++;
       if (tokenCount >= targetTokens) {
         playKidSound('victory');

@@ -1243,20 +1243,20 @@ tbody tr:hover td {
   margin-bottom: 14px;
 }
 
-/* 6-Prompt Keycap Buttons */
+/* 10-Prompt Keycap Buttons */
 .levels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 8px;
   margin: 14px 0;
 }
 
 .levels button {
-  padding: 15px 12px;
-  font-size: 0.94rem;
+  padding: 12px 10px;
+  font-size: 0.88rem;
   font-weight: 700;
   border-radius: var(--radius-md);
-  min-height: 64px;
+  min-height: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1264,12 +1264,15 @@ tbody tr:hover td {
   gap: 3px;
 }
 
-.btn-i { background: linear-gradient(135deg, #047857, #10b981); border-color: #064e3b; box-shadow: 0 3px 0 #064e3b; }
-.btn-v { background: linear-gradient(135deg, #0369a1, #0284c7); border-color: #0c4a6e; box-shadow: 0 3px 0 #0c4a6e; }
-.btn-g { background: linear-gradient(135deg, #0f766e, #14b8a6); border-color: #134e4a; box-shadow: 0 3px 0 #134e4a; }
-.btn-m { background: linear-gradient(135deg, #0e7490, #06b6d4); border-color: #164e63; box-shadow: 0 3px 0 #164e63; }
-.btn-p { background: linear-gradient(135deg, #1d4ed8, #2563eb); border-color: #1e3a8a; box-shadow: 0 3px 0 #1e3a8a; }
-.btn-n { background: linear-gradient(135deg, #be123c, #e11d48); border-color: #881337; box-shadow: 0 3px 0 #881337; }
+.btn-i { background: linear-gradient(135deg, #047857, #10b981); border-color: #064e3b; box-shadow: 0 3px 0 #064e3b; color: #ffffff; }
+.btn-v { background: linear-gradient(135deg, #0369a1, #0284c7); border-color: #0c4a6e; box-shadow: 0 3px 0 #0c4a6e; color: #ffffff; }
+.btn-g { background: linear-gradient(135deg, #0f766e, #14b8a6); border-color: #134e4a; box-shadow: 0 3px 0 #134e4a; color: #ffffff; }
+.btn-vi { background: linear-gradient(135deg, #0d9488, #0891b2); border-color: #115e59; box-shadow: 0 3px 0 #115e59; color: #ffffff; }
+.btn-m { background: linear-gradient(135deg, #0e7490, #06b6d4); border-color: #164e63; box-shadow: 0 3px 0 #164e63; color: #ffffff; }
+.btn-pp { background: linear-gradient(135deg, #0284c7, #3b82f6); border-color: #1e40af; box-shadow: 0 3px 0 #1e40af; color: #ffffff; }
+.btn-p { background: linear-gradient(135deg, #1d4ed8, #2563eb); border-color: #1e3a8a; box-shadow: 0 3px 0 #1e3a8a; color: #ffffff; }
+.btn-inc { background: linear-gradient(135deg, #b45309, #d97706); border-color: #78350f; box-shadow: 0 3px 0 #78350f; color: #ffffff; }
+.btn-n { background: linear-gradient(135deg, #be123c, #e11d48); border-color: #881337; box-shadow: 0 3px 0 #881337; color: #ffffff; }
 
 /* Progress Bars & Charts */
 .bar {

@@ -16,21 +16,40 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, pw TEXT, role TEXT);
 CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY, name TEXT, dob TEXT, diagnosis TEXT, guardian TEXT, school TEXT, emergency TEXT, insurance TEXT, reinforcers TEXT, sensory TEXT, triggers TEXT, communication TEXT, crisis_plan TEXT, parent_id INTEGER);
 CREATE TABLE IF NOT EXISTS assignments(client_id INTEGER, user_id INTEGER);
-CREATE TABLE IF NOT EXISTS goals(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, baseline INTEGER, target INTEGER, status TEXT DEFAULT 'active');
+CREATE TABLE IF NOT EXISTS goals(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, baseline INTEGER, target INTEGER, status TEXT DEFAULT 'active', domain TEXT DEFAULT 'DTT / Skill Acquisition', prompt_strategy TEXT DEFAULT 'Least-to-Most', scoring_rule TEXT DEFAULT 'independent_only', mastery_sessions INTEGER DEFAULT 3);
 CREATE TABLE IF NOT EXISTS plans(id INTEGER PRIMARY KEY, client_id INTEGER, behavior TEXT, data TEXT, status TEXT DEFAULT 'draft', approved_by TEXT);
 CREATE TABLE IF NOT EXISTS stories(id INTEGER PRIMARY KEY, client_id INTEGER, inputs TEXT, content TEXT, status TEXT DEFAULT 'draft', approved_by TEXT, token TEXT);
 CREATE TABLE IF NOT EXISTS appointments(id INTEGER PRIMARY KEY, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, role TEXT, setting TEXT);
-CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT, submitted_by TEXT, rbt_signed_at TEXT, bcba_signed_at TEXT);
-CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, goal_id INTEGER, level TEXT, ts TEXT);
+CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT, submitted_by TEXT, rbt_signed_at TEXT, bcba_signed_at TEXT, attendance_status TEXT DEFAULT 'Completed', barriers TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, goal_id INTEGER, level TEXT, ts TEXT, trial_type TEXT DEFAULT 'acquisition', notes TEXT DEFAULT '', user_id INTEGER);
 CREATE TABLE IF NOT EXISTS authorizations(id INTEGER PRIMARY KEY, client_id INTEGER, code TEXT, authorized INTEGER, used INTEGER DEFAULT 0);
-CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT);
+CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT, setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', intensity TEXT DEFAULT 'Moderate', duration_sec INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS supervision_logs(id INTEGER PRIMARY KEY, client_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, session_id INTEGER, ts TEXT, minutes INTEGER, type TEXT, notes TEXT);
+CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, status TEXT DEFAULT 'active');
+CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, chaining_type TEXT DEFAULT 'Forward Chaining', steps_json TEXT DEFAULT '[]', logs_json TEXT DEFAULT '[]', status TEXT DEFAULT 'active');
+CREATE TABLE IF NOT EXISTS fidelity_ioa_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, ts TEXT, log_type TEXT DEFAULT 'both', fidelity_pct INTEGER DEFAULT 100, ioa_pct INTEGER DEFAULT 100, data_json TEXT DEFAULT '{}', notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id INTEGER, user_name TEXT, client_id INTEGER, session_id INTEGER, entity_type TEXT, entity_id INTEGER, action TEXT, details TEXT);
 `);
 try { db.exec('ALTER TABLE clients ADD COLUMN communication TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE clients ADD COLUMN crisis_plan TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN submitted_by TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN rbt_signed_at TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN bcba_signed_at TEXT'); } catch (e) {}
+try { db.exec("ALTER TABLE sessions ADD COLUMN attendance_status TEXT DEFAULT 'Completed'"); } catch (e) {}
+try { db.exec("ALTER TABLE sessions ADD COLUMN barriers TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN domain TEXT DEFAULT 'DTT / Skill Acquisition'"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN prompt_strategy TEXT DEFAULT 'Least-to-Most'"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN scoring_rule TEXT DEFAULT 'independent_only'"); } catch (e) {}
+try { db.exec('ALTER TABLE goals ADD COLUMN mastery_sessions INTEGER DEFAULT 3'); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN trial_type TEXT DEFAULT 'acquisition'"); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE trials ADD COLUMN user_id INTEGER'); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN setting TEXT DEFAULT 'School'"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN activity TEXT DEFAULT 'Structured Tabletop'"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN people_present TEXT DEFAULT 'RBT, Peer'"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN intensity TEXT DEFAULT 'Moderate'"); } catch (e) {}
+try { db.exec('ALTER TABLE abc_logs ADD COLUMN duration_sec INTEGER DEFAULT 0'); } catch (e) {}
 
 // ---------- helpers ----------
 const getLocalDate = (d = new Date()) => {
@@ -43,6 +62,12 @@ const all = (sql, ...a) => db.prepare(sql).all(...a);
 const get = (sql, ...a) => db.prepare(sql).get(...a);
 const run = (sql, ...a) => db.prepare(sql).run(...a);
 const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
+const logAudit = (u, { client_id = null, session_id = null, entity_type = 'record', entity_id = null, action = 'UPDATE', details = '' } = {}) => {
+  try {
+    run('INSERT INTO audit_logs(ts,user_id,user_name,client_id,session_id,entity_type,entity_id,action,details) VALUES(?,?,?,?,?,?,?,?,?)',
+      new Date().toISOString(), u ? u.id : 0, u ? u.name : 'System', client_id, session_id, entity_type, entity_id, action, details);
+  } catch (e) {}
+};
 // Stateless signed tokens (work across serverless instances): uid.expiry.hmac
 const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('hex');
 const makeToken = (uid) => { const p = `${uid}.${Date.now() + 8 * 3600e3}`; return `${p}.${sign(p)}`; };
@@ -71,11 +96,11 @@ function seed() {
     '1. Offer deep pressure pillow\n2. Provide choice of 2 alternative preferred toys\n3. Maintain neutral facial tone',
     ).lastInsertRowid;
   run('INSERT INTO assignments VALUES(?,?)', el, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt); run('INSERT INTO assignments VALUES(?,?)', le, rbt2);
-  const g1 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Following teacher directions', 32, 80).lastInsertRowid;
-  const g2 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Waiting for a turn', 20, 80).lastInsertRowid;
-  const g3 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', el, 'Requesting sensory break ("Break please")', 15, 80).lastInsertRowid;
-  const gLe1 = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', le, 'Asking for help', 10, 70).lastInsertRowid;
-  run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', le, 'Transitioning from train table with visual timer', 20, 80);
+  const g1 = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)', el, 'Following teacher directions', 32, 80, 'DTT / Skill Acquisition', 'Least-to-Most', 'independent_only', 3).lastInsertRowid;
+  const g2 = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)', el, 'Waiting for a turn', 20, 80, 'Social & Play Skills', 'Most-to-Least', 'independent_only', 3).lastInsertRowid;
+  const g3 = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)', el, 'Requesting sensory break ("Break please")', 15, 80, 'Communication & Language (Mand / Tact / Intraverbal / AAC / PECS)', 'Time Delay', 'independent_only', 3).lastInsertRowid;
+  const gLe1 = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)', le, 'Asking for help', 10, 70, 'Communication & Language (Mand / Tact / Intraverbal / AAC / PECS)', 'Least-to-Most', 'independent_only', 3).lastInsertRowid;
+  run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)', le, 'Transitioning from train table with visual timer', 20, 80, 'Emotional Regulation & Coping', 'Least-to-Most', 'independent_only', 3);
 
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', el, '97153', 480, 440);
   run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,?)', el, '97155', 40, 12);
@@ -87,19 +112,19 @@ function seed() {
 
   // Past sessions for Eleanor showing Mastery on g1 (≥80% x 3), Plateau/Stall on g2 (~20% x 3), and Improving trend on g3
   const g1Mixes = [
-    [['I', 5], ['V', 1]],              // 83% Independent
-    [['I', 6], ['G', 1]],              // 86% Independent
-    [['I', 9], ['V', 1]]               // 90% Independent -> Mastery Criteria Met!
+    [['I', 5], ['V', 1]],              // 83% Independent (5/6)
+    [['I', 6], ['G', 1]],              // 86% Independent (6/7)
+    [['I', 9], ['V', 1]]               // 90% Independent (9/10) -> Mastery Criteria Met!
   ];
   const g2Mixes = [
-    [['I', 1], ['V', 2], ['P', 2]],    // 20% Independent
-    [['I', 1], ['G', 2], ['P', 2]],    // 20% Independent
-    [['I', 1], ['V', 2], ['M', 1], ['P', 1]] // 20% Independent -> Target Stalled!
+    [['I', 1], ['V', 2], ['P', 2]],    // 20% Independent (1/5)
+    [['I', 1], ['G', 2], ['P', 2]],    // 20% Independent (1/5)
+    [['I', 1], ['V', 2], ['M', 1], ['P', 1]] // 20% Independent (1/5) -> Target Stalled!
   ];
   const g3Mixes = [
-    [['I', 2], ['V', 2], ['G', 1]],    // 40% Independent
-    [['I', 3], ['V', 1], ['G', 1]],    // 60% Independent
-    [['I', 6], ['G', 2]]               // 75% Independent -> Improving!
+    [['I', 2], ['V', 2], ['G', 1]],    // 40% Independent (2/5)
+    [['I', 3], ['V', 1], ['G', 1]],    // 60% Independent (3/5)
+    [['I', 6], ['G', 2]]               // 75% Independent (6/8) -> Improving!
   ];
   for (let i = 0; i < 3; i++) {
     const t = new Date(Date.now() - (4 - i) * 86400000).toISOString();
@@ -107,7 +132,7 @@ function seed() {
     const sid = run('INSERT INTO sessions(client_id,user_id,start,end,units,note,note_status,submitted_by,rbt_signed_at,signed_by,bcba_signed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
       el, rbt, t, t, 12, noteText, 'signed', 'Sam Lee, RBT', t, 'Dr. Dana Rivera, BCBA', t).lastInsertRowid;
     const insertMix = (gid, mix) => {
-      mix.map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sid, gid, l, t));
+      mix.map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts,user_id) VALUES(?,?,?,?,?)', sid, gid, l, t, rbt));
     };
     insertMix(g1, g1Mixes[i]);
     insertMix(g2, g2Mixes[i]);
@@ -116,10 +141,10 @@ function seed() {
 
   // 1 Session in pending_approval status so BCBA Dual-Sign Queue is active immediately in demo
   const tYest = new Date(Date.now() - 86400000).toISOString();
-  const pendingNote = `Session Note — Leon\nDate: ${tYest.slice(0, 10)}\nDuration: 120 minutes (8 billable 15-min units)\nStaff: Sam Lee, RBT\n\nObjectives worked on:\n• Asking for help: 5 trials — 60% independent, 40% verbal prompt, 0% physical prompt, 0% non-compliant (target 70%).\n\nBehavior Reduction & ABC Data:\n• [Tangible] Antecedent: Denied immediate access to tablet → Behavior: Crying → Consequence: Prompted PECS card for alternate activity (trains)\n\nReinforcers used: Trains, bubbles, spin toys.\nClinical summary: Client practiced PECS Phase III exchanges during natural environment play. Ready for BCBA co-signature.`;
+  const pendingNote = `Session Note — Leon\nDate: ${tYest.slice(0, 10)}\nDuration: 120 minutes (8 billable 15-min units)\nStaff: Sam Lee, RBT\n\nObjectives worked on:\n• Asking for help: 5 trials — 60% independent (3/5), 40% verbal prompt (2/5), 0% physical prompt, 0% non-compliant (target 70%).\n\nBehavior Reduction & ABC Data:\n• [Tangible] Antecedent: Denied immediate access to tablet → Behavior: Crying → Consequence: Prompted PECS card for alternate activity (trains)\n\nReinforcers used: Trains, bubbles, spin toys.\nClinical summary: Client practiced PECS Phase III exchanges during natural environment play. Ready for BCBA co-signature.`;
   const sidLeon = run('INSERT INTO sessions(client_id,user_id,start,end,units,note,note_status,submitted_by,rbt_signed_at) VALUES(?,?,?,?,?,?,?,?,?)',
     le, rbt, tYest, tYest, 8, pendingNote, 'pending_approval', 'Sam Lee, RBT', tYest).lastInsertRowid;
-  [['I', 3], ['V', 2]].map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', sidLeon, gLe1, l, tYest));
+  [['I', 3], ['V', 2]].map(([l, n]) => Array(n).fill(l)).flat().forEach((l) => run('INSERT INTO trials(session_id,goal_id,level,ts,user_id) VALUES(?,?,?,?,?)', sidLeon, gLe1, l, tYest, rbt));
 
   // Pre-seed Approved BIP for Eleanor so Client 360 & In-Session Emergency BIP Drawer are live immediately
   const bipData = G.generatePlan({ child: 'Eleanor', behavior: 'Screaming', antecedents: ['Transition from preferred activity', 'Peer proximity / space'], reinforcers: ['LEGO', 'stickers', 'tablet time'] });
@@ -145,45 +170,122 @@ function seed() {
     return d.toISOString();
   };
   // Day 5 (Baseline Phase — 4 episodes)
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(5, '09:10'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Baseline observation prior to visual countdown schedule');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(5, '11:05'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'High intensity vocal protest when asked to clean up LEGO bricks');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(5, '11:40'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Required gestural prompt to hand FCT card to peer');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(5, '14:10'), 'Presented multi-step tabletop sorting worksheet', 'Task refusal', 'Offered First/Then token board & task modification', 'Escape', 'Completed 3 tokens after demand was chunked');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '09:10'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Baseline observation prior to visual countdown schedule', 'School', 'Morning Circle Transition', 'RBT, Classroom Teacher, 4 Peers', 'Moderate', 95);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '11:05'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'High intensity vocal protest when asked to clean up LEGO bricks', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Severe', 140);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '11:40'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Required gestural prompt to hand FCT card to peer', 'School', 'LEGO Center Free Play', 'RBT, 2 Peers', 'Moderate', 60);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(5, '14:10'), 'Presented multi-step tabletop sorting worksheet', 'Task refusal', 'Offered First/Then token board & task modification', 'Escape', 'Completed 3 tokens after demand was chunked', 'School', 'DTT Tabletop Block', 'RBT', 'Mild', 45);
   // Day 4 (Baseline Phase — 3 episodes)
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(4, '09:25'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Settled within 90 seconds after reviewing visual schedule');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(4, '11:15'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Used save-build tray with verbal reminder');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(4, '13:30'), 'Therapist conversing with classroom teacher', 'Crying', 'Prompted "Excuse me" tap card for attention', 'Attention', 'Used tap card and received immediate praise');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '09:25'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'Settled within 90 seconds after reviewing visual schedule', 'School', 'Morning Circle Transition', 'RBT, Teacher', 'Moderate', 90);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '11:15'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Used save-build tray with verbal reminder', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Moderate', 65);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(4, '13:30'), 'Therapist conversing with classroom teacher', 'Crying', 'Prompted "Excuse me" tap card for attention', 'Attention', 'Used tap card and received immediate praise', 'School', 'Classroom Consultation', 'RBT, Teacher', 'Mild', 35);
   // Day 3 (BIP / FCT Intervention Phase — 2 episodes)
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(3, '09:15'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'De-escalated in 2 mins after seeing visual schedule');
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 1, rbt, mkTime(3, '11:10'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Placed LEGO build on safe shelf and washed hands');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(3, '09:15'), 'Transition from morning free play to circle time', 'Screaming', 'Offered visual countdown & First/Then board', 'Escape', 'De-escalated in 2 mins after seeing visual schedule', 'School', 'Morning Circle Transition', 'RBT, Teacher', 'Mild', 40);
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 1, rbt, mkTime(3, '11:10'), 'Pre-lunch clean-up transition from LEGO center', 'Screaming', 'Prompted 2-minute sand timer & "save build" shelf', 'Escape', 'Placed LEGO build on safe shelf and washed hands', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Mild', 30);
   // Day 2 (BIP / FCT Intervention Phase — 1 episode)
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 2, rbt, mkTime(2, '11:25'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Independent vocal follow-up after card prompt');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 2, rbt, mkTime(2, '11:25'), 'Peer reached for LEGO creation before lunch', 'Screaming', 'Prompted "My turn" replacement communication card', 'Tangible', 'Independent vocal follow-up after card prompt', 'School', 'LEGO Center Free Play', 'RBT, Peer', 'Mild', 25);
   // Day 1 (BIP / FCT Intervention Phase — 1 episode)
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    el, 3, rbt, mkTime(1, '11:45'), 'Loud cafeteria line transition before lunch', 'Task refusal', 'Offered noise-reducing headphones & sensory squeeze', 'Sensory', 'Entered cafeteria calmly with headphones on');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    el, 3, rbt, mkTime(1, '11:45'), 'Loud cafeteria line transition before lunch', 'Task refusal', 'Offered noise-reducing headphones & sensory squeeze', 'Sensory', 'Entered cafeteria calmly with headphones on', 'School', 'Cafeteria Transition', 'RBT, Peers', 'Mild', 20);
   // Leon ABC log
-  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    le, sidLeon, rbt, mkTime(1, '15:30'), 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set');
+  run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    le, sidLeon, rbt, mkTime(1, '15:30'), 'Denied immediate access to tablet', 'Crying', 'Prompted PECS card for alternate activity (trains)', 'Tangible', 'Redirected successfully to wooden train set', 'Home', 'Living Room Play', 'RBT, Parent', 'Moderate', 45);
 
   // Seed supervision logs so BACB 5% compliance is healthy (≥5%)
   const tRecent = new Date().toISOString();
   run('INSERT INTO supervision_logs(client_id,bcba_id,rbt_id,session_id,ts,minutes,type,notes) VALUES(?,?,?,?,?,?,?,?)',
     el, bcba, rbt, 1, tRecent, 60, 'Direct Observation', 'Observed DTT trials on turn-taking and FCT replacement cards. RBT demonstrated 95% procedural fidelity.');
+
+  seedClinicalModules(el, le, bcba, rbt);
 }
+
+function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
+  if (!get('SELECT COUNT(*) c FROM behavior_programs WHERE client_id=?', el).c) {
+    const bp1 = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
+      el, 'Screaming / Vocal Protest',
+      'Any vocalization above conversational volume lasting ≥ 3 seconds, excluding appropriate cheering during play.',
+      'frequency', 'Escape',
+      'Mild: Whining <15s; Moderate: Loud screaming 15s–2m; Severe: Screaming >2m with ear-covering',
+      'active').lastInsertRowid;
+    const bp2 = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
+      el, 'Task Refusal / Leaving Tabletop',
+      'Sliding off chair, turning body >90° away from materials, or pushing instructional stimuli >12 inches away within 5 seconds of SD.',
+      'partial_interval', 'Escape',
+      'Mild: Verbal "no" or turning head; Moderate: Pushing materials away; Severe: Elopement >3 ft from table',
+      'active').lastInsertRowid;
+    run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
+      le, 'Crying / Tangible Protest',
+      'Audible crying with or without tears lasting ≥ 5 seconds following removal or denial of a preferred item.',
+      'duration', 'Tangible',
+      'Mild: Whimpering <30s; Moderate: Crying 30s–2m; Severe: Crying >2m with flopping',
+      'active');
+
+    // Seed continuous & interval behavior_events for Eleanor across sessions 1, 2, 3
+    const t3 = new Date(Date.now() - 3 * 86400000).toISOString();
+    const t2 = new Date(Date.now() - 2 * 86400000).toISOString();
+    const t1 = new Date(Date.now() - 1 * 86400000).toISOString();
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 1, bp1, 'Screaming / Vocal Protest', rbt, t3, 'frequency', 2, 65, 8, 240, 0, 0, 'Moderate', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Used 2-min sand timer; de-escalated');
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 2, bp1, 'Screaming / Vocal Protest', rbt, t2, 'duration', 1, 25, 14, 420, 0, 0, 'Mild', 'School', 'LEGO Center Free Play', 'RBT, Peer', 'Prompted "My turn" FCT card');
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 3, bp2, 'Task Refusal / Leaving Tabletop', rbt, t1, 'partial_interval', 1, 20, 18, 0, 10, 2, 'Mild', 'School', 'DTT Tabletop Block', 'RBT', '2/10 intervals (20%) occurred during 15-min block');
+  }
+
+  if (!get('SELECT COUNT(*) c FROM task_analyses WHERE client_id=?', el).c) {
+    const steps = [
+      '1. Stand at sink and turn on warm water faucet',
+      '2. Wet both hands under running water',
+      '3. Press soap dispenser 1 time',
+      '4. Rub palms and backs of hands together for 15 seconds',
+      '5. Rinse all soap off hands and turn off faucet',
+      '6. Dry hands with paper towel and place in bin'
+    ];
+    const logs = [
+      { date: new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10), staff: 'Sam Lee, RBT', indepSteps: 3, totalSteps: 6, pct: 50, numDenom: '3/6', durationSec: 95, stepResults: ['I', 'I', 'I', 'G', 'V', 'PP'] },
+      { date: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10), staff: 'Sam Lee, RBT', indepSteps: 4, totalSteps: 6, pct: 67, numDenom: '4/6', durationSec: 82, stepResults: ['I', 'I', 'I', 'I', 'G', 'V'] },
+      { date: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10), staff: 'Sam Lee, RBT', indepSteps: 5, totalSteps: 6, pct: 83, numDenom: '5/6', durationSec: 70, stepResults: ['I', 'I', 'I', 'I', 'I', 'G'] }
+    ];
+    run('INSERT INTO task_analyses(client_id,title,chaining_type,steps_json,logs_json,status) VALUES(?,?,?,?,?,?)',
+      el, 'Independent Handwashing Routine (Before Lunch)', 'Forward Chaining', JSON.stringify(steps), JSON.stringify(logs), 'active');
+  }
+
+  if (!get('SELECT COUNT(*) c FROM fidelity_ioa_logs WHERE client_id=?', el).c) {
+    const fidData = {
+      checklist: [
+        { item: 'Prepared instructional materials & reinforcers prior to SD', correct: true },
+        { item: 'Delivered clear, concise discriminative stimulus (SD) without repeating', correct: true },
+        { item: 'Implemented configured Least-to-Most prompt hierarchy accurately', correct: true },
+        { item: 'Delivered immediate differential reinforcement within 3 seconds', correct: true },
+        { item: 'Recorded trial-by-trial and ABC data immediately after opportunity', correct: true },
+        { item: 'Implemented proactive antecedent visual countdown before transition', correct: true }
+      ],
+      fidelityNumDenom: '6/6',
+      ioaMethod: 'trial_by_trial',
+      ioaNumDenom: '11/12',
+      obs1: ['I', 'I', 'V', 'I', 'G', 'I', 'I', 'I', 'V', 'I', 'I', 'I'],
+      obs2: ['I', 'I', 'V', 'I', 'M', 'I', 'I', 'I', 'V', 'I', 'I', 'I']
+    };
+    run('INSERT INTO fidelity_ioa_logs(client_id,session_id,bcba_id,rbt_id,ts,log_type,fidelity_pct,ioa_pct,data_json,notes) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      el, 3, bcba, rbt, new Date().toISOString(), 'both', 100, 92, JSON.stringify(fidData),
+      'Treatment Integrity: 6/6 (100%) procedural steps implemented correctly. Interobserver Agreement (IOA): 11/12 (92%) trial-by-trial agreement between Sam Lee (RBT) and Dr. Dana Rivera (BCBA).');
+  }
+}
+
 seed();
 
 function upgradeExistingData() {
   const el = get('SELECT * FROM clients WHERE name=?', 'Eleanor');
+  const le = get('SELECT * FROM clients WHERE name=?', 'Leon');
   if (el && !el.communication) {
     run('UPDATE clients SET communication=?, crisis_plan=? WHERE name=?',
       'Verbal (full sentences, needs 5s processing time)',
@@ -207,6 +309,9 @@ function upgradeExistingData() {
     run('INSERT INTO stories(client_id,inputs,content,status) VALUES(?,?,?,?)',
       el.id, JSON.stringify(storyDraftInput), JSON.stringify(G.generateStory(storyDraftInput)), 'draft');
   }
+  if (el && le) {
+    seedClinicalModules(el.id, le.id, 1, 2);
+  }
 }
 upgradeExistingData();
 
@@ -223,46 +328,80 @@ const visibleClients = (u) => u.role === 'BCBA' ? all('SELECT * FROM clients ORD
 
 // ---------- progress & clinical mastery intelligence ----------
 function goalProgress(goal) {
-  const rows = all('SELECT session_id, level FROM trials WHERE goal_id=? ORDER BY session_id', goal.id);
+  const scoringRule = goal.scoring_rule || 'independent_only';
+  const reqSessions = Math.max(1, Number(goal.mastery_sessions) || 3);
+  const rows = all('SELECT session_id, level, trial_type, ts FROM trials WHERE goal_id=? ORDER BY session_id', goal.id);
   const bySession = {};
   rows.forEach((r) => { (bySession[r.session_id] ||= []).push(r.level); });
   const series = Object.entries(bySession).map(([sid, ls]) => {
-    const total = ls.length;
-    const counts = { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
-    ls.forEach((l) => { if (counts[l] !== undefined) counts[l]++; });
+    const sum = G.summarize(ls, scoringRule);
     return {
       session: +sid,
-      pct: total ? Math.round(counts.I / total * 100) : 0,
-      n: total,
-      prompts: counts
+      pct: sum.indepPct,
+      correctPct: sum.correctPct,
+      promptedPct: sum.promptedPct,
+      n: sum.opportunities,
+      rawTotal: sum.rawTotal,
+      indepCount: sum.indepCount,
+      promptedCount: sum.promptedCount,
+      correctCount: sum.correctCount,
+      indepNumDenom: sum.indepNumDenom,
+      correctNumDenom: sum.correctNumDenom,
+      promptedNumDenom: sum.promptedNumDenom,
+      prompts: sum.counts
     };
   });
-  const recent = series.slice(-3);
+
+  const overallSummary = G.summarize(rows, scoringRule);
+  const recent = series.slice(-reqSessions);
   const current = recent.length ? Math.round(recent.reduce((a, b) => a + b.pct, 0) / recent.length) : null;
+  const recentIndepSum = recent.reduce((a, b) => a + (b.indepCount || 0), 0);
+  const recentOppSum = recent.reduce((a, b) => a + (b.n || 0), 0);
+  const currentNumDenom = recent.length ? `${recentIndepSum}/${recentOppSum}` : '0/0';
+
   let trend = 'Not enough data';
   if (current !== null) trend = current > goal.baseline + 5 ? 'Improving' : current < goal.baseline - 5 ? 'Declining' : 'Flat';
 
-  // Automated Mastery & Plateau Detection (CentralReach Improvement)
+  // Automated Mastery, Plateau & Regression Detection (Durriya Anwar Checklist §12)
   const targetThreshold = goal.target || 80;
-  const isMasteredCriteriaMet = recent.length >= 3 && recent.every((s) => s.pct >= targetThreshold);
+  const isMasteredCriteriaMet = recent.length >= reqSessions && recent.every((s) => (scoringRule === 'include_prompted' ? s.correctPct : s.pct) >= targetThreshold);
   const isStalled = series.length >= 3 && current !== null && current <= (goal.baseline + 3);
+  const latestSessionPct = series.length ? series[series.length - 1].pct : null;
+  const regressionDetected = goal.status === 'mastered' && latestSessionPct !== null && latestSessionPct < (targetThreshold - 10);
 
   let recommendation = null;
-  if (goal.status === 'mastered') {
+  if (regressionDetected) {
+    recommendation = `⚠️ Regression Alert: Mastered target dropped to ${latestSessionPct}% (${series[series.length - 1].indepNumDenom}) in latest probe. Recommend BCBA review.`;
+  } else if (goal.status === 'mastered') {
     recommendation = 'Goal Mastered — Active in Maintenance & Generalization';
+  } else if (goal.status === 'on_hold') {
+    recommendation = '⏸ Program On Hold per BCBA clinical direction.';
+  } else if (goal.status === 'discontinued') {
+    recommendation = '⏹ Program Discontinued per BCBA treatment plan revision.';
+  } else if (goal.status === 'revised') {
+    recommendation = '🔄 Program Revised — updated prompt hierarchy or mastery criterion active.';
   } else if (isMasteredCriteriaMet) {
-    recommendation = `🎯 Mastery Criteria Met (${current}% avg across last 3 sessions). Recommend advancing to maintenance.`;
+    recommendation = `🎯 Mastery Criteria Met (${current}% avg [${currentNumDenom}] across last ${reqSessions} sessions). Flagged for BCBA review — do not advance without clinician sign-off.`;
   } else if (isStalled) {
-    recommendation = `⚠️ Target Stalled (${current}% vs ${goal.baseline}% baseline). Recommend reviewing prompt hierarchy or environmental adaptations.`;
+    recommendation = `⚠️ Target Stalled (${current}% [${currentNumDenom}] vs ${goal.baseline}% baseline). Recommend reviewing prompt hierarchy (${goal.prompt_strategy || 'Least-to-Most'}) or environmental adaptations.`;
   }
 
   return {
     ...goal,
+    domain: goal.domain || 'DTT / Skill Acquisition',
+    prompt_strategy: goal.prompt_strategy || 'Least-to-Most',
+    scoring_rule: scoringRule,
+    mastery_sessions: reqSessions,
     series,
     current,
+    currentNumDenom,
+    overallNumDenom: overallSummary.indepNumDenom,
+    overallCorrectNumDenom: overallSummary.correctNumDenom,
+    overallPromptedNumDenom: overallSummary.promptedNumDenom,
     trend,
     mastery_met: isMasteredCriteriaMet,
     stalled: isStalled,
+    regression: regressionDetected,
     recommendation
   };
 }
@@ -512,7 +651,70 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   const abcSummary = buildAbcSummary(rawAbc);
   const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
 
-  return { client: isParent ? { id: c.id, name: c.name } : c, goals, plans, stories, auths, assigned, abcLogs: rawAbc, abcSummary, supervisionLogs };
+  // Target Behavior Programs & Continuous/Interval Measurement Events
+  const behaviorPrograms = isParent ? [] : all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => ({
+    ...bp,
+    operational_definition: bp.operational_definition || bp.definition || ''
+  }));
+  const behaviorEvents = isParent ? [] : all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id).map((ev) => ({
+    ...ev,
+    behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
+  }));
+  const clientSessions = isParent ? [] : all('SELECT * FROM sessions WHERE client_id=?', c.id);
+  const totalSessionMins = Math.max(60, clientSessions.reduce((acc, s) => acc + ((s.units || 4) * 15), 0));
+  const behaviorSummary = isParent ? null : G.summarizeBehaviorEvents(behaviorEvents, totalSessionMins);
+
+  // Task Analysis & Chaining Programs
+  const taskAnalyses = isParent ? [] : all('SELECT * FROM task_analyses WHERE client_id=?', c.id).map((ta) => {
+    const steps = parse(ta.steps_json) || [];
+    const rawLogs = parse(ta.logs_json) || [];
+    const history = rawLogs.map((l) => ({
+      ...l,
+      indepCount: l.indepCount ?? l.indepSteps ?? 0,
+      indepPct: l.indepPct ?? l.pct ?? 0,
+      pct: l.pct ?? l.indepPct ?? 0,
+      results: l.results || (Array.isArray(l.stepResults) ? steps.map((s, idx) => ({ step: s, status: l.stepResults[idx] || 'I' })) : [])
+    }));
+    return {
+      ...ta,
+      steps,
+      logs: history,
+      history
+    };
+  });
+
+  // Treatment Integrity (Fidelity) & Interobserver Agreement (IOA)
+  const fidelityIoaLogs = isParent ? [] : all('SELECT * FROM fidelity_ioa_logs WHERE client_id=? ORDER BY id DESC', c.id).map((f) => {
+    const data = parse(f.data_json) || {};
+    return {
+      ...f,
+      ioa_method: f.ioa_method || data.ioaMethod || 'trial_by_trial',
+      observer1_value: data.observer1_value ?? data.obs1 ?? '',
+      observer2_value: data.observer2_value ?? data.obs2 ?? '',
+      data
+    };
+  });
+
+  // Immutable Clinical Audit Trail
+  const auditLogs = isParent ? [] : all('SELECT * FROM audit_logs WHERE client_id=? ORDER BY id DESC', c.id).slice(0, 40);
+
+  return {
+    client: isParent ? { id: c.id, name: c.name } : c,
+    goals,
+    plans,
+    stories,
+    auths,
+    assigned,
+    abcLogs: rawAbc,
+    abcSummary,
+    supervisionLogs,
+    behaviorPrograms,
+    behaviorEvents,
+    behaviorSummary,
+    taskAnalyses,
+    fidelityIoaLogs,
+    auditLogs
+  };
 });
 route('GET', '/api/clients/:id/fba-report', (u, b, p) => {
   need(u, 'BCBA', 'RBT');
@@ -546,15 +748,24 @@ route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
 route('PUT', '/api/clients/:id', (u, b, p) => {
   need(u, 'BCBA');
   const f = ['name', 'dob', 'diagnosis', 'guardian', 'school', 'emergency', 'insurance', 'reinforcers', 'sensory', 'triggers', 'communication', 'crisis_plan'];
-  run(`UPDATE clients SET ${f.map((x) => x + '=?').join(',')} WHERE id=?`, ...f.map((x) => b[x] ?? ''), +p.id); return {};
+  run(`UPDATE clients SET ${f.map((x) => x + '=?').join(',')} WHERE id=?`, ...f.map((x) => b[x] ?? ''), +p.id);
+  logAudit(u, { client_id: +p.id, entity_type: 'client', entity_id: +p.id, action: 'UPDATE_CLIENT_VITALS', details: `Updated Client 360 profile for ${b.name || 'Client'}` });
+  return {};
 });
 route('POST', '/api/clients/:id/goals', (u, b, p) => {
   clientOr403(u, p.id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.title) bad(400, 'Title required');
-  const r = run('INSERT INTO goals(client_id,title,baseline,target) VALUES(?,?,?,?)', +p.id, b.title, +b.baseline || 0, +b.target || 80);
-  const g = get('SELECT * FROM goals WHERE id=?', Number(r.lastInsertRowid));
-  return { id: Number(r.lastInsertRowid), goal: g ? goalProgress(g) : null };
+  const domain = b.domain || 'DTT / Skill Acquisition';
+  const promptStrategy = b.prompt_strategy || 'Least-to-Most';
+  const scoringRule = b.scoring_rule === 'include_prompted' ? 'include_prompted' : 'independent_only';
+  const masterySessions = Math.max(1, +b.mastery_sessions || 3);
+  const r = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)',
+    +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions);
+  const gid = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Target: ${+b.target || 80}% across ${masterySessions} sessions, Scoring: ${scoringRule})` });
+  const g = get('SELECT * FROM goals WHERE id=?', gid);
+  return { id: gid, goal: g ? goalProgress(g) : null };
 });
 route('GET', '/api/goals/:id', (u, b, p) => {
   const g = get('SELECT * FROM goals WHERE id=?', +p.id);
@@ -563,14 +774,15 @@ route('GET', '/api/goals/:id', (u, b, p) => {
   const prog = goalProgress(g);
   const client = get('SELECT id,name FROM clients WHERE id=?', g.client_id);
   const rawTrials = all('SELECT * FROM trials WHERE goal_id=? ORDER BY id DESC', g.id);
-  const promptTotals = { I: 0, V: 0, G: 0, M: 0, P: 0, N: 0 };
-  rawTrials.forEach((t) => { if (promptTotals[t.level] !== undefined) promptTotals[t.level]++; });
+  const sum = G.summarize(rawTrials, g.scoring_rule || 'independent_only');
   return {
     ...prog,
     client_name: client ? client.name : '',
     total_trials: rawTrials.length,
-    prompt_totals: promptTotals,
-    recent_trials: rawTrials.slice(0, 20)
+    opportunities_presented: sum.opportunities,
+    prompt_totals: sum.counts,
+    summary_stats: sum,
+    recent_trials: rawTrials.slice(0, 25)
   };
 });
 route('PUT', '/api/goals/:id', (u, b, p) => {
@@ -583,27 +795,124 @@ route('PUT', '/api/goals/:id', (u, b, p) => {
   const baseline = b.baseline !== undefined ? +b.baseline : g.baseline;
   const target = b.target !== undefined ? +b.target : g.target;
   const status = b.status || g.status || 'active';
-  run('UPDATE goals SET title=?,baseline=?,target=?,status=? WHERE id=?', title, baseline, target, status, g.id);
+  const domain = b.domain || g.domain || 'DTT / Skill Acquisition';
+  const promptStrategy = b.prompt_strategy || g.prompt_strategy || 'Least-to-Most';
+  const scoringRule = b.scoring_rule || g.scoring_rule || 'independent_only';
+  const masterySessions = b.mastery_sessions !== undefined ? Math.max(1, +b.mastery_sessions) : (g.mastery_sessions || 3);
+  run('UPDATE goals SET title=?,baseline=?,target=?,status=?,domain=?,prompt_strategy=?,scoring_rule=?,mastery_sessions=? WHERE id=?',
+    title, baseline, target, status, domain, promptStrategy, scoringRule, masterySessions, g.id);
+  logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'UPDATE_GOAL', details: `Updated goal "${title}" -> Status: ${status}, Target: ${target}%, Scoring: ${scoringRule}` });
   const updated = get('SELECT * FROM goals WHERE id=?', g.id);
   return goalProgress(updated);
 });
 route('POST', '/api/goals/:id/status', (u, b, p) => {
   need(u, 'BCBA');
   if (!b.status) bad(400, 'Status required');
+  const g = get('SELECT * FROM goals WHERE id=?', +p.id);
   run('UPDATE goals SET status=? WHERE id=?', b.status, +p.id);
+  if (g) logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'CHANGE_GOAL_STATUS', details: `Changed goal "${g.title}" status to ${b.status}` });
   return { id: +p.id, status: b.status };
 });
 route('POST', '/api/clients/:id/auths', (u, b, p) => {
   need(u, 'BCBA'); run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', +p.id, b.code, +b.authorized || 0); return {};
 });
 
-// ABC Data collection
+// Target Behavior Program Definitions & Continuous / Interval Behavior Events
+route('POST', '/api/clients/:id/behaviors', (u, b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (!b.name) bad(400, 'Behavior name required');
+  const defText = b.operational_definition || b.definition || 'Observable maladaptive behavior episode';
+  const r = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
+    +p.id, b.name, defText, b.measurement_type || 'frequency', b.function_hypothesis || 'Escape', b.intensity_criteria || 'Mild / Moderate / Severe', 'active');
+  const bid = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: +p.id, entity_type: 'behavior_program', entity_id: bid, action: 'CREATE_BEHAVIOR_PROGRAM', details: `Defined behavior "${b.name}" (${b.measurement_type || 'frequency'})` });
+  return { id: bid };
+});
+route('PUT', '/api/behaviors/:id', (u, b, p) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const defText = b.operational_definition || b.definition || bp.definition;
+  run('UPDATE behavior_programs SET name=?,definition=?,measurement_type=?,function_hypothesis=?,intensity_criteria=?,status=? WHERE id=?',
+    b.name || bp.name, defText, b.measurement_type || bp.measurement_type, b.function_hypothesis || bp.function_hypothesis, b.intensity_criteria || bp.intensity_criteria, b.status || bp.status, bp.id);
+  return {};
+});
+route('POST', '/api/clients/:id/behavior-events', (u, b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const ts = b.ts || new Date().toISOString();
+  const bid = b.behavior_id || b.behavior_program_id;
+  const bp = bid ? get('SELECT * FROM behavior_programs WHERE id=?', +bid) : null;
+  const bName = b.behavior_name || b.behavior || (bp ? bp.name : 'Target Behavior');
+  const mType = b.measurement_type || (bp ? bp.measurement_type : 'frequency');
+  const countVal = b.count !== undefined ? +b.count : (b.value !== undefined && (mType === 'frequency' || mType === 'rate') ? +b.value : 1);
+  const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
+  const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
+  const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
+  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, b.session_id ? +b.session_id : null, bid ? +bid : null, bName, u.id, ts, mType,
+    countVal, durVal, latVal, irtVal,
+    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '');
+  return { id: Number(r.lastInsertRowid) };
+});
+
+// Task Analysis & Chaining Endpoints
+route('POST', '/api/clients/:id/task-analysis', (u, b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (!b.title) bad(400, 'Task analysis title required');
+  const steps = Array.isArray(b.steps) ? b.steps : String(b.steps || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  const r = run('INSERT INTO task_analyses(client_id,title,chaining_type,steps_json,logs_json,status) VALUES(?,?,?,?,?,?)',
+    +p.id, b.title, b.chaining_type || 'Forward Chaining', JSON.stringify(steps), '[]', 'active');
+  const tid = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: +p.id, entity_type: 'task_analysis', entity_id: tid, action: 'CREATE_TASK_ANALYSIS', details: `Created Task Analysis "${b.title}" (${steps.length} steps)` });
+  return { id: tid };
+});
+route('POST', '/api/task-analysis/:id/log', (u, b, p) => {
+  const ta = get('SELECT * FROM task_analyses WHERE id=?', +p.id);
+  if (!ta) bad(404, 'Task analysis not found');
+  clientOr403(u, ta.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const steps = parse(ta.steps_json) || [];
+  const logs = parse(ta.logs_json) || [];
+  const rawResults = Array.isArray(b.results) ? b.results : null;
+  const stepResults = Array.isArray(b.stepResults)
+    ? b.stepResults
+    : (rawResults ? rawResults.map((r) => r.status || 'I') : steps.map(() => 'I'));
+  const results = rawResults || steps.map((s, idx) => ({ step: s, status: stepResults[idx] || 'I' }));
+  const totalSteps = steps.length || stepResults.length || 1;
+  const indepSteps = stepResults.filter((x) => x === 'I').length;
+  const pct = Math.round((indepSteps / totalSteps) * 100);
+  const entry = {
+    date: b.date || new Date().toISOString().slice(0, 10),
+    ts: new Date().toISOString(),
+    staff: u.name,
+    indepSteps,
+    indepCount: indepSteps,
+    totalSteps,
+    pct,
+    indepPct: pct,
+    numDenom: `${indepSteps}/${totalSteps}`,
+    durationSec: +b.durationSec || 60,
+    stepResults,
+    results
+  };
+  logs.push(entry);
+  run('UPDATE task_analyses SET logs_json=? WHERE id=?', JSON.stringify(logs), ta.id);
+  logAudit(u, { client_id: ta.client_id, entity_type: 'task_analysis', entity_id: ta.id, action: 'LOG_TASK_ANALYSIS', details: `Logged Task Analysis "${ta.title}": ${entry.numDenom} (${pct}%) independent` });
+  return { ok: true, entry, ...entry };
+});
+
+// ABC Data collection (with extended contextual fields)
 route('POST', '/api/clients/:id/abc', (u, b, p) => {
   clientOr403(u, p.id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.behavior) bad(400, 'Behavior required');
   const ts = b.ts || new Date().toISOString();
-  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    +p.id, b.session_id ? +b.session_id : null, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '');
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, b.session_id ? +b.session_id : null, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
+    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', +b.duration_sec || 0);
   return { id: Number(r.lastInsertRowid) };
 });
 route('GET', '/api/clients/:id/abc', (u, b, p) => {
@@ -611,7 +920,61 @@ route('GET', '/api/clients/:id/abc', (u, b, p) => {
   return all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', +p.id);
 });
 
-// Supervision tracking
+// CSV Data Export & Raw Observation Derivation (Build Spec §8 & Durriya Anwar PDF §14)
+route('GET', '/api/clients/:id/export-csv', (u, b, p, ctx) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const exportType = (ctx && ctx.query && ctx.query.type) || 'trials';
+  const csvEsc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+  if (exportType === 'behaviors') {
+    const abc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+    const bev = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id);
+    const header = ['RecordType', 'Timestamp', 'Behavior', 'MeasurementType', 'Count', 'DurationSec', 'LatencySec', 'IRTSec', 'IntervalRatio', 'Intensity', 'Antecedent', 'Consequence', 'Function', 'Setting', 'Activity', 'PeoplePresent', 'Notes'];
+    const rows = [
+      ...bev.map((e) => ['Continuous/Interval', e.ts, e.behavior_name, e.measurement_type, e.count, e.duration_sec, e.latency_sec, e.irt_sec, e.interval_total ? `${e.interval_occurred}/${e.interval_total}` : 'N/A', e.intensity, '', '', '', e.setting, e.activity, e.people_present, e.notes]),
+      ...abc.map((a) => ['ABC Episode', a.ts, a.behavior, 'abc', 1, a.duration_sec || 0, 0, 0, 'N/A', a.intensity || 'Moderate', a.antecedent, a.consequence, a.perceived_function, a.setting || 'School', a.activity || 'Tabletop', a.people_present || 'RBT', a.notes])
+    ];
+    const csv = [header.map(csvEsc).join(','), ...rows.map((r) => r.map(csvEsc).join(','))].join('\n');
+    return { filename: `${c.name}_Behavior_Observations_${getLocalDate()}.csv`, type: 'behaviors', rowCount: rows.length, csv };
+  }
+
+  // Default: Trial-by-Trial & Goal Summary Derivation Export
+  const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
+  const goalMap = Object.fromEntries(goals.map((g) => [g.id, g]));
+  const rawTrials = all('SELECT * FROM trials ORDER BY id DESC').filter((t) => !!goalMap[t.goal_id]);
+  const header = ['TrialID', 'Timestamp', 'SessionID', 'GoalID', 'GoalTitle', 'Domain', 'ScoringRule', 'TrialType', 'ResponseCode', 'ResponseLabel', 'GoalOverallIndependentRatio', 'GoalOverallCorrectRatio', 'Notes'];
+  const rows = rawTrials.map((t) => {
+    const g = goalMap[t.goal_id] || {};
+    return [
+      t.id,
+      t.ts,
+      t.session_id,
+      t.goal_id,
+      g.title || '',
+      g.domain || 'DTT',
+      g.scoring_rule || 'independent_only',
+      t.trial_type || 'acquisition',
+      t.level,
+      G.LEVELS[t.level] || t.level,
+      g.overallNumDenom || '0/0',
+      g.overallCorrectNumDenom || '0/0',
+      t.notes || ''
+    ];
+  });
+  const csv = [header.map(csvEsc).join(','), ...rows.map((r) => r.map(csvEsc).join(','))].join('\n');
+  return { filename: `${c.name}_Trial_Observations_${getLocalDate()}.csv`, type: 'trials', rowCount: rows.length, csv };
+});
+
+route('GET', '/api/clients/:id/audit-logs', (u, b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  return all('SELECT * FROM audit_logs WHERE client_id=? ORDER BY id DESC', +p.id);
+});
+
+// Supervision, Treatment Integrity (Fidelity) & Interobserver Agreement (IOA)
 route('GET', '/api/supervision', (u) => {
   if (u.role === 'PARENT') bad(403, 'Not allowed');
   const monthPrefix = getLocalDate().slice(0, 7);
@@ -622,7 +985,22 @@ route('GET', '/api/supervision', (u) => {
   const currentMonthLogs = logs.filter((l) => (l.ts || '').startsWith(monthPrefix));
   const supMinutes = currentMonthLogs.reduce((sum, l) => sum + (l.minutes || 0), 0);
   const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
-  return { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5, logs, month: monthPrefix };
+  const clientsById = Object.fromEntries(all('SELECT id,name FROM clients').map((c) => [c.id, c.name]));
+  const usersById = Object.fromEntries(all('SELECT id,name FROM users').map((usr) => [usr.id, usr.name]));
+  const fidelityIoaLogs = all('SELECT * FROM fidelity_ioa_logs ORDER BY id DESC').map((f) => {
+    const data = parse(f.data_json) || {};
+    return {
+      ...f,
+      client: clientsById[f.client_id] || 'Client',
+      bcba: usersById[f.bcba_id] || 'BCBA',
+      rbt: usersById[f.rbt_id] || 'RBT',
+      ioa_method: f.ioa_method || data.ioaMethod || 'trial_by_trial',
+      observer1_value: data.observer1_value ?? (Array.isArray(data.obs1) ? data.obs1.join(',') : (data.obs1 ?? '')),
+      observer2_value: data.observer2_value ?? (Array.isArray(data.obs2) ? data.obs2.join(',') : (data.obs2 ?? '')),
+      data
+    };
+  });
+  return { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5, logs, fidelityIoaLogs, month: monthPrefix };
 });
 route('POST', '/api/supervision', (u, b) => {
   need(u, 'BCBA');
@@ -631,6 +1009,34 @@ route('POST', '/api/supervision', (u, b) => {
   run('INSERT INTO supervision_logs(client_id,bcba_id,rbt_id,session_id,ts,minutes,type,notes) VALUES(?,?,?,?,?,?,?,?)',
     +b.client_id, u.id, +b.rbt_id, b.session_id ? +b.session_id : null, ts, +b.minutes, b.type || 'Direct Observation', b.notes || '');
   return {};
+});
+route('POST', '/api/supervision/fidelity-ioa', (u, b) => {
+  need(u, 'BCBA');
+  if (!b.client_id) bad(400, 'Client required');
+  const checklist = Array.isArray(b.checklist) ? b.checklist : [];
+  const fidRes = checklist.length ? G.calculateFidelity(checklist) : { pct: b.fidelity_pct !== undefined ? +b.fidelity_pct : 100, numDenom: '6/6' };
+  const obs1 = Array.isArray(b.obs1) ? b.obs1 : String(b.obs1 || 'I,I,V,I,G').split(',').map((x) => x.trim()).filter(Boolean);
+  const obs2 = Array.isArray(b.obs2) ? b.obs2 : String(b.obs2 || 'I,I,V,I,G').split(',').map((x) => x.trim()).filter(Boolean);
+  const c1 = b.count1 !== undefined ? +b.count1 : (b.observer1_value !== undefined ? +b.observer1_value : undefined);
+  const c2 = b.count2 !== undefined ? +b.count2 : (b.observer2_value !== undefined ? +b.observer2_value : undefined);
+  const hasNumericCounts = c1 !== undefined && c2 !== undefined && !Array.isArray(b.obs1) && !b.obs1;
+  const effectiveMethod = hasNumericCounts && (!b.ioa_method || b.ioa_method === 'trial_by_trial') ? 'total_count' : (b.ioa_method || 'trial_by_trial');
+  const ioaRes = G.calculateIoa({ method: effectiveMethod, obs1, obs2, count1: c1, count2: c2 });
+  const dataObj = {
+    checklist,
+    fidelityNumDenom: fidRes.numDenom,
+    ioaMethod: b.ioa_method || ioaRes.method,
+    ioaNumDenom: ioaRes.numDenom,
+    observer1_value: c1,
+    observer2_value: c2,
+    obs1,
+    obs2
+  };
+  const r = run('INSERT INTO fidelity_ioa_logs(client_id,session_id,bcba_id,rbt_id,ts,log_type,fidelity_pct,ioa_pct,data_json,notes) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    +b.client_id, b.session_id ? +b.session_id : null, u.id, +b.rbt_id || 2, new Date().toISOString(),
+    b.log_type || 'both', fidRes.pct, ioaRes.pct, JSON.stringify(dataObj), b.notes || `Fidelity: ${fidRes.pct}% (${fidRes.numDenom}) · IOA: ${ioaRes.pct}% (${ioaRes.numDenom})`);
+  logAudit(u, { client_id: +b.client_id, entity_type: 'fidelity_ioa', entity_id: Number(r.lastInsertRowid), action: 'LOG_FIDELITY_IOA', details: `Recorded Fidelity ${fidRes.pct}% (${fidRes.numDenom}) & IOA ${ioaRes.pct}% (${ioaRes.numDenom})` });
+  return { id: Number(r.lastInsertRowid), fidelity_pct: fidRes.pct, fidelityNumDenom: fidRes.numDenom, ioa_pct: ioaRes.pct, ioaNumDenom: ioaRes.numDenom };
 });
 
 // plans
@@ -686,32 +1092,113 @@ function sessionView(u, sid) {
   const client = get('SELECT * FROM clients WHERE id=?', s.client_id);
   const allGoals = all('SELECT * FROM goals WHERE client_id=?', s.client_id).map((g) => ({
     ...goalProgress(g),
-    summary: G.summarize(all('SELECT level FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id))
+    summary: G.summarize(all('SELECT level, trial_type, notes FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id), g.scoring_rule || 'independent_only')
   }));
-  const goals = allGoals.filter((g) => g.status === 'active');
+  const goals = allGoals.filter((g) => g.status === 'active' || g.status === 'revised');
   const plans = all('SELECT * FROM plans WHERE client_id=? AND status=\'approved\'', s.client_id).map((x) => ({ ...x, data: parse(x.data) }));
   const stories = all('SELECT * FROM stories WHERE client_id=? AND status IN (\'approved\',\'shared\')', s.client_id).map((x) => ({ ...x, content: parse(x.content) }));
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
   const abcLogs = all('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC', s.id);
-  return { session: s, client, goals, allGoals, plans, stories, appt, abcLogs };
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', s.client_id).map((bp) => ({
+    ...bp,
+    operational_definition: bp.operational_definition || bp.definition || ''
+  }));
+  const behaviorEvents = all('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC', s.id).map((ev) => ({
+    ...ev,
+    behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
+  }));
+  const elapsedMinutes = s.end ? Math.max(1, Math.round((new Date(s.end) - new Date(s.start)) / 60000)) : Math.max(15, Math.round((Date.now() - new Date(s.start)) / 60000));
+  const behaviorSummary = G.summarizeBehaviorEvents(behaviorEvents, elapsedMinutes);
+  const taskAnalyses = all('SELECT * FROM task_analyses WHERE client_id=?', s.client_id).map((ta) => {
+    const steps = parse(ta.steps_json) || [];
+    const rawLogs = parse(ta.logs_json) || [];
+    const history = rawLogs.map((l) => ({
+      ...l,
+      indepCount: l.indepCount ?? l.indepSteps ?? 0,
+      indepPct: l.indepPct ?? l.pct ?? 0,
+      pct: l.pct ?? l.indepPct ?? 0,
+      results: l.results || (Array.isArray(l.stepResults) ? steps.map((st, idx) => ({ step: st, status: l.stepResults[idx] || 'I' })) : [])
+    }));
+    return {
+      ...ta,
+      steps,
+      logs: history,
+      history
+    };
+  });
+  const auditLogs = all('SELECT * FROM audit_logs WHERE session_id=? ORDER BY id DESC', s.id);
+
+  // Calculate Data Completeness % across active skill goals
+  const goalsWithData = goals.filter((g) => g.summary && (g.summary.rawTotal > 0)).length;
+  const dataCompleteness = {
+    recordedPrograms: goalsWithData,
+    totalPrograms: goals.length,
+    pct: goals.length ? Math.round((goalsWithData / goals.length) * 100) : 100,
+    numDenom: `${goalsWithData}/${goals.length}`
+  };
+
+  return { session: s, client, goals, allGoals, plans, stories, appt, abcLogs, behaviorPrograms, behaviorEvents, behaviorSummary, taskAnalyses, auditLogs, dataCompleteness };
 }
 route('GET', '/api/sessions/:id', (u, b, p) => { if (u.role === 'PARENT') bad(403, 'Not allowed'); return sessionView(u, p.id); });
+route('PUT', '/api/sessions/:id/meta', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  run('UPDATE sessions SET attendance_status=?, barriers=? WHERE id=?', b.attendance_status || s.attendance_status || 'Completed', b.barriers ?? s.barriers ?? '', s.id);
+  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session', entity_id: s.id, action: 'UPDATE_SESSION_META', details: `Attendance: ${b.attendance_status || 'Completed'} · Barriers: ${b.barriers || 'None'}` });
+  return {};
+});
 route('POST', '/api/sessions/:id/trials', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (s.end) bad(400, 'Session ended'); if (!G.LEVELS[b.level]) bad(400, 'Bad level');
-  run('INSERT INTO trials(session_id,goal_id,level,ts) VALUES(?,?,?,?)', s.id, +b.goal_id, b.level, new Date().toISOString()); return {};
+  run('INSERT INTO trials(session_id,goal_id,level,ts,trial_type,notes,user_id) VALUES(?,?,?,?,?,?,?)',
+    s.id, +b.goal_id, b.level, new Date().toISOString(), b.trial_type || 'acquisition', b.notes || '', u.id);
+  return {};
 });
 route('DELETE', '/api/sessions/:id/trials/last', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (s.end) bad(400, 'Session ended');
-  const t = get('SELECT id FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id); if (t) run('DELETE FROM trials WHERE id=?', t.id); return {};
+  const t = get('SELECT * FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  if (t) {
+    run('DELETE FROM trials WHERE id=?', t.id);
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'trial', entity_id: t.id, action: 'UNDO_TRIAL', details: `Undid trial #${t.id} (Goal #${t.goal_id}, Response: ${t.level})` });
+  }
+  return {};
+});
+route('POST', '/api/sessions/:id/behavior-events', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const ts = b.ts || new Date().toISOString();
+  const bid = b.behavior_id || b.behavior_program_id;
+  const bp = bid ? get('SELECT * FROM behavior_programs WHERE id=?', +bid) : null;
+  const bName = b.behavior_name || b.behavior || (bp ? bp.name : 'Target Behavior');
+  const mType = b.measurement_type || (bp ? bp.measurement_type : 'frequency');
+  const countVal = b.count !== undefined ? +b.count : (b.value !== undefined && (mType === 'frequency' || mType === 'rate') ? +b.value : 1);
+  const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
+  const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
+  const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
+  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    s.client_id, s.id, bid ? +bid : null, bName, u.id, ts, mType,
+    countVal, durVal, latVal, irtVal,
+    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '');
+  return { id: Number(r.lastInsertRowid) };
+});
+route('DELETE', '/api/sessions/:id/behavior-events/last', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const ev = get('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  if (ev) {
+    run('DELETE FROM behavior_events WHERE id=?', ev.id);
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'behavior_event', entity_id: ev.id, action: 'UNDO_BEHAVIOR_EVENT', details: `Undid behavior observation #${ev.id} (${ev.behavior_name}, ${ev.measurement_type})` });
+  }
+  return { ok: true, undone: ev || null };
 });
 route('POST', '/api/sessions/:id/abc', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.behavior) bad(400, 'Behavior required');
   const ts = b.ts || new Date().toISOString();
-  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes) VALUES(?,?,?,?,?,?,?,?,?)',
-    s.client_id, s.id, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '');
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    s.client_id, s.id, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
+    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', +b.duration_sec || 0);
   return { id: Number(r.lastInsertRowid) };
 });
 route('POST', '/api/sessions/:id/end', (u, b, p) => {
@@ -719,12 +1206,14 @@ route('POST', '/api/sessions/:id/end', (u, b, p) => {
   if (s.end) return { units: s.units };
   const end = new Date(); const minutes = Math.max(1, Math.round((end - new Date(s.start)) / 60000));
   const units = G.calcUnits(+b.minutes_override || minutes);
-  run('UPDATE sessions SET end=?, units=? WHERE id=?', end.toISOString(), units, s.id); return { units };
+  run('UPDATE sessions SET end=?, units=? WHERE id=?', end.toISOString(), units, s.id);
+  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session', entity_id: s.id, action: 'END_SESSION', details: `Ended session #${s.id} (${units} billable units)` });
+  return { units };
 });
 route('POST', '/api/sessions/:id/note/generate', (u, b, p) => {
   const v = sessionView(u, p.id); const s = v.session;
   const minutes = s.end ? Math.max(1, Math.round((new Date(s.end) - new Date(s.start)) / 60000)) : Math.round((Date.now() - new Date(s.start)) / 60000);
-  const note = G.generateNote({ client: v.client, session: { setting: v.appt && v.appt.setting }, minutes: b.minutes || minutes, units: s.units || G.calcUnits(minutes), goalSummaries: v.goals.map((g) => ({ title: g.title, ...g.summary })), plan: v.plans[0] && v.plans[0].data, story: v.stories[0] && v.stories[0].content, abcLogs: v.abcLogs });
+  const note = G.generateNote({ client: v.client, session: { setting: v.appt && v.appt.setting, attendance_status: s.attendance_status, barriers: s.barriers }, minutes: b.minutes || minutes, units: s.units || G.calcUnits(minutes), goalSummaries: v.goals.map((g) => ({ title: g.title, ...g.summary })), plan: v.plans[0] && v.plans[0].data, story: v.stories[0] && v.stories[0].content, abcLogs: v.abcLogs, behaviorSummary: v.behaviorSummary });
   return { note };
 });
 route('PUT', '/api/sessions/:id/note', (u, b, p) => {
@@ -740,6 +1229,7 @@ route('POST', '/api/sessions/:id/note/submit', (u, b, p) => {
   if (s.note_status === 'signed') bad(400, 'Note already signed by BCBA');
   const now = new Date().toISOString();
   run('UPDATE sessions SET note=?, note_status=\'pending_approval\', submitted_by=?, rbt_signed_at=? WHERE id=?', note, u.name, now, s.id);
+  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_note', entity_id: s.id, action: 'SUBMIT_NOTE', details: `RBT ${u.name} submitted session note for BCBA review` });
   return { status: 'pending_approval', submitted_by: u.name, rbt_signed_at: now };
 });
 route('POST', '/api/sessions/:id/note/sign', (u, b, p) => {
@@ -753,6 +1243,7 @@ route('POST', '/api/sessions/:id/note/sign', (u, b, p) => {
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
   const code = (appt && appt.role === 'BCBA') ? '97155' : '97153';
   run('UPDATE authorizations SET used = used + ? WHERE client_id=? AND code=?', (s.units || 0), s.client_id, code);
+  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_note', entity_id: s.id, action: 'COSIGN_NOTE', details: `BCBA ${u.name} co-signed and locked session note (${s.units || 0} units CPT ${code})` });
   return { status: 'signed', signed_by: u.name, bcba_signed_at: now };
 });
 route('GET', '/api/notes', (u) => {
@@ -788,7 +1279,7 @@ async function handler(req, res) {
         }
         b = body ? JSON.parse(body) : {};
       }
-      const ctx = { tok: cookies.tok };
+      const ctx = { tok: cookies.tok, query: Object.fromEntries(url.searchParams.entries()) };
       const uid = readToken(cookies.tok); const user = uid ? get('SELECT id,name,role FROM users WHERE id=?', uid) : null;
       for (const r of routes) {
         if (r.m !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;

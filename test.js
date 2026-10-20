@@ -218,8 +218,85 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(fbaRes.s === 200 && fbaRes.j.sections && fbaRes.j.sections.length === 5, 'BCBA/RBT can generate 5-section FBA & Behavior Reduction Progress Report');
   ok(fbaRes.j.text.includes('FUNCTIONAL BEHAVIOR ASSESSMENT') && fbaRes.j.primaryFunction === 'Escape', 'FBA report includes functional hypothesis and baseline vs intervention trajectory');
 
+  // 17. Build Spec & Durriya Anwar Checklist Verification (10 Prompt Levels, NA Exclusion, 9 Behavior Methods, Task Analysis, Fidelity/IOA, CSV & Audit Trail)
+  const { summarize, summarizeBehaviorEvents, calculateIoa, calculateFidelity } = require('./lib/generators');
+  const sampleTrials = [
+    { level: 'I' }, { level: 'I' }, { level: 'Vi' }, { level: 'PP' }, { level: 'INC' }, { level: 'NA' }
+  ];
+  const sumIndep = summarize(sampleTrials, 'independent_only');
+  ok(sumIndep.rawTotal === 6 && sumIndep.opportunities === 5 && sumIndep.naCount === 1, 'NA trials excluded from opportunity denominator (5 opps from 6 raw)');
+  ok(sumIndep.pct.I === 40 && sumIndep.indepNumDenom === '2/5' && sumIndep.promptedNumDenom === '2/5', 'summarize computes explicit numerator/denominator and separates independent vs prompted');
+  const sumIncl = summarize(sampleTrials, 'include_prompted');
+  ok(sumIncl.correctPct === 80 && sumIncl.correctNumDenom === '4/5', 'scoring_rule include_prompted combines independent + prompted when explicitly configured');
+
+  // Test 5 goal clinical statuses (on_hold, revised, discontinued)
+  const holdRes = await b('PUT', `/api/goals/${gCreated.id}`, { status: 'on_hold', domain: 'Motor Imitation', prompt_strategy: 'Most-to-Least (MTL)' });
+  ok(holdRes.s === 200 && holdRes.j.status === 'on_hold' && holdRes.j.domain === 'Motor Imitation', 'Goal supports 5 clinical statuses (on_hold) and domain/prompt_strategy');
+
+  // Test Target Behavior Definition & 9-Method Behavior Events
+  const bpRes = await b('POST', '/api/clients/1/behaviors', {
+    name: 'Elopement from Table',
+    operational_definition: 'Leaving designated seating area > 3 feet without permission.',
+    non_examples: 'Walking to bathroom after requesting break.',
+    measurement_type: 'duration',
+    function_hypothesis: 'Escape',
+    baseline_rate: 2.0,
+    target_rate: 0.2
+  });
+  ok(bpRes.s === 200 && bpRes.j.id, 'Clinician can define individualized target behavior program');
+
+  const be1 = await r('POST', `/api/sessions/${sess2.id}/behavior-events`, {
+    behavior_program_id: bpRes.j.id,
+    behavior: 'Elopement from Table',
+    measurement_type: 'duration',
+    value: 1,
+    duration_sec: 40
+  });
+  const be2 = await r('POST', `/api/sessions/${sess2.id}/behavior-events`, {
+    behavior_program_id: bpRes.j.id,
+    behavior: 'Elopement from Table',
+    measurement_type: 'partial_interval',
+    value: 1,
+    interval_occurred: 1,
+    interval_total: 1
+  });
+  ok(be1.s === 200 && be2.s === 200, 'RBT can log continuous duration and discontinuous partial-interval behavior events in session');
+
+  const undoBe = await r('DELETE', `/api/sessions/${sess2.id}/behavior-events/last`);
+  ok(undoBe.s === 200 && undoBe.j.ok === true, 'RBT can undo last behavior event in session with audit logging');
+
+  // Test Task Analysis & Chaining
+  const taCreate = await b('POST', '/api/clients/1/task-analysis', {
+    title: '3-Step Coat Putting On',
+    chaining_type: 'Backward Chaining',
+    steps: ['Put left arm in sleeve', 'Put right arm in sleeve', 'Zip coat up']
+  });
+  ok(taCreate.s === 200 && taCreate.j.id, 'Clinician can create Task Analysis chaining program');
+  const taLog = await r('POST', `/api/task-analysis/${taCreate.j.id}/log`, {
+    results: [{ step: 'Step 1', status: 'I' }, { step: 'Step 2', status: 'I' }, { step: 'Step 3', status: 'PP' }]
+  });
+  ok(taLog.s === 200 && taLog.j.entry.indepPct === 67 && taLog.j.entry.numDenom === '2/3', 'Task Analysis logs step-by-step prompt codes and computes explicit numerator/denominator');
+
+  // Test Fidelity & IOA Calculator
+  const fidRes = await b('POST', '/api/supervision/fidelity-ioa', {
+    client_id: 1,
+    rbt_id: 2,
+    ioa_method: 'trial_by_trial',
+    observer1_value: 9,
+    observer2_value: 10,
+    checklist: [{ step: 'SD clear', completed: true }, { step: 'Prompt hierarchy followed', completed: true }],
+    notes: 'High IOA & procedural fidelity'
+  });
+  ok(fidRes.s === 200 && fidRes.j.fidelity_pct === 100 && fidRes.j.ioa_pct === 90, 'Supervision calculates 100% Treatment Integrity Fidelity and 90% Trial-by-Trial IOA');
+
+  // Test CSV Export & Audit Logs
+  const csvParentBlock = await fetch(base + '/api/clients/1/export-csv?type=trials');
+  ok(csvParentBlock.status === 401, 'Unauthenticated request blocked from CSV export');
+  const auditRes = await b('GET', '/api/clients/1/audit-logs');
+  ok(auditRes.s === 200 && Array.isArray(auditRes.j) && auditRes.j.some(a => a.action === 'UNDO_BEHAVIOR_EVENT'), 'Immutable Audit Trail records undo and clinical data actions');
+
   server.close();
-  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, CentralReach Enhancements & Founder Demo Ready)');
+  console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);
 })();
 
