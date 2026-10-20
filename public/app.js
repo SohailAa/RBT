@@ -141,6 +141,144 @@ let activeTrialType = 'acquisition';
 let behTimers = {};
 let behTimerInterval = null;
 let taDraftSteps = {};
+let bpNameMap = {};
+let localBehEvents = [];
+let localUndoneIds = new Set();
+let tallySeq = 0;
+
+function mergeAndSummarizeBehaviorEvents(serverEvents = [], clientId = null, sessionId = null, sessionMinutes = 60) {
+  const safeMinutes = Math.max(1, Number(sessionMinutes) || 60);
+  const safeHours = safeMinutes / 60;
+  const combined = [];
+  const seenKeys = new Set();
+
+  (serverEvents || []).forEach((ev) => {
+    if (ev.ts && localUndoneIds.has(ev.ts)) return;
+    const key = `${ev.behavior_id || ev.behavior_name || ev.behavior}_${ev.measurement_type}_${ev.ts || ev.id}`;
+    seenKeys.add(key);
+    combined.push(ev);
+  });
+
+  localBehEvents.forEach((ev) => {
+    if (ev.ts && localUndoneIds.has(ev.ts)) return;
+    if (sessionId !== null && Number(ev.session_id) !== Number(sessionId)) return;
+    if (sessionId === null && clientId !== null && Number(ev.client_id) !== Number(clientId)) return;
+    const key = `${ev.behavior_id || ev.behavior_name || ev.behavior}_${ev.measurement_type}_${ev.ts || ev.localUid}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      combined.push(ev);
+    }
+  });
+
+  let frequency = 0;
+  let totalDurationSec = 0;
+  let durationEpisodes = 0;
+  let totalLatencySec = 0;
+  let latencyEpisodes = 0;
+  let totalIrtSec = 0;
+  let irtEpisodes = 0;
+  let intOccurred = 0;
+  let intTotal = 0;
+  const byBeh = {};
+
+  const sorted = [...combined].sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || '')));
+  let prevTsMs = null;
+
+  sorted.forEach((ev) => {
+    const mType = ev.measurement_type || 'frequency';
+    const bId = ev.behavior_id || ev.behavior_program_id || null;
+    const bName = ev.behavior_name || ev.behavior || (bId && bpNameMap[bId]) || 'Target Behavior';
+    const mapKey = bName;
+    if (!byBeh[mapKey]) {
+      byBeh[mapKey] = { behaviorId: bId, name: bName, frequency: 0, totalDurationSec: 0, durationEpisodes: 0, totalLatencySec: 0, latencyEpisodes: 0, intervalOccurred: 0, intervalTotal: 0 };
+    } else if (bId && !byBeh[mapKey].behaviorId) {
+      byBeh[mapKey].behaviorId = bId;
+    }
+
+    if (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts') {
+      const iTot = Math.max(0, Number(ev.interval_total) || 1);
+      const iOcc = Math.min(iTot, Math.max(0, Number(ev.interval_occurred) || 0));
+      intTotal += iTot;
+      intOccurred += iOcc;
+      byBeh[mapKey].intervalTotal += iTot;
+      byBeh[mapKey].intervalOccurred += iOcc;
+      if (iOcc > 0) {
+        frequency += iOcc;
+        byBeh[mapKey].frequency += iOcc;
+      }
+    } else {
+      const cnt = Math.max(1, Number(ev.count ?? ev.value) || 1);
+      frequency += cnt;
+      byBeh[mapKey].frequency += cnt;
+    }
+
+    const dur = Number(ev.duration_sec) || 0;
+    if (dur > 0) {
+      totalDurationSec += dur;
+      durationEpisodes++;
+      byBeh[mapKey].totalDurationSec += dur;
+      byBeh[mapKey].durationEpisodes++;
+    }
+
+    const lat = Number(ev.latency_sec) || 0;
+    if (lat > 0) {
+      totalLatencySec += lat;
+      latencyEpisodes++;
+      byBeh[mapKey].totalLatencySec += lat;
+      byBeh[mapKey].latencyEpisodes++;
+    }
+
+    const explicitIrt = Number(ev.irt_sec) || 0;
+    if (explicitIrt > 0) {
+      totalIrtSec += explicitIrt;
+      irtEpisodes++;
+    } else if (ev.ts && mType !== 'partial_interval' && mType !== 'whole_interval' && mType !== 'mts') {
+      const curMs = new Date(ev.ts).getTime();
+      if (prevTsMs && curMs > prevTsMs && (curMs - prevTsMs) <= 4 * 3600e3) {
+        totalIrtSec += Math.round((curMs - prevTsMs) / 1000);
+        irtEpisodes++;
+      }
+      if (!Number.isNaN(curMs)) prevTsMs = curMs;
+    }
+  });
+
+  const byBehavior = {};
+  Object.values(byBeh).forEach((b) => {
+    const item = {
+      ...b,
+      ratePerHour: +(b.frequency / safeHours).toFixed(2),
+      avgDurationSec: b.durationEpisodes ? Math.round(b.totalDurationSec / b.durationEpisodes) : 0,
+      avgLatencySec: b.latencyEpisodes ? Math.round(b.totalLatencySec / b.latencyEpisodes) : 0,
+      intervalPct: b.intervalTotal ? Math.round((b.intervalOccurred / b.intervalTotal) * 100) : null,
+      intervalNumDenom: `${b.intervalOccurred}/${b.intervalTotal}`
+    };
+    byBehavior[b.name] = item;
+    if (b.behaviorId) byBehavior[`id_${b.behaviorId}`] = item;
+  });
+
+  return {
+    totalEvents: combined.length,
+    frequency,
+    frequencyCount: frequency,
+    sessionMinutes: safeMinutes,
+    ratePerHour: +(frequency / safeHours).toFixed(2),
+    ratePerMinute: +(frequency / safeMinutes).toFixed(3),
+    totalDurationSec,
+    avgDurationSec: durationEpisodes ? Math.round(totalDurationSec / durationEpisodes) : 0,
+    durationEpisodes,
+    durationCount: durationEpisodes,
+    totalLatencySec,
+    avgLatencySec: latencyEpisodes ? Math.round(totalLatencySec / latencyEpisodes) : 0,
+    latencyEpisodes,
+    latencyCount: latencyEpisodes,
+    avgIrtSec: irtEpisodes ? Math.round(totalIrtSec / irtEpisodes) : 0,
+    irtEpisodes,
+    irtCount: irtEpisodes,
+    intervalPct: intTotal ? Math.round((intOccurred / intTotal) * 100) : 0,
+    intervalNumDenom: `${intOccurred}/${intTotal}`,
+    byBehavior
+  };
+}
 const GOAL_DOMAINS = [
   'Communication / Manding',
   'Tacting / Labeling',
@@ -1207,7 +1345,8 @@ async function clientView(id) {
     const conMatrix = abcSummary.consequenceMatrix || [];
     const behMatrix = abcSummary.behaviorMatrix || [];
     const topAnt = antMatrix[0] || null;
-    const bSum = behaviorSummary || {};
+    behaviorPrograms.forEach((bp) => { bpNameMap[bp.id] = bp.name; });
+    const bSum = mergeAndSummarizeBehaviorEvents(behaviorEvents, c.id, null, (behaviorSummary && behaviorSummary.sessionMinutes) || 180);
 
     const filteredAbc = abcLogs.filter((a) => {
       if (fbaFilterBehavior !== 'ALL' && a.behavior !== fbaFilterBehavior) return false;
@@ -1291,7 +1430,7 @@ async function clientView(id) {
       <!-- Individualized Target Behavior Cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px">
         ${behaviorPrograms.map((bp) => {
-          const bpStats = (bSum.byBehavior && bSum.byBehavior[bp.name]) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          const bpStats = (bSum.byBehavior && (bSum.byBehavior[`id_${bp.id}`] || bSum.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
           return `
             <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:14px">
               <div class="flex-between" style="gap:8px;flex-wrap:wrap">
@@ -1307,7 +1446,7 @@ async function clientView(id) {
               ${bp.non_examples ? `<div style="font-size:0.76rem;color:var(--slate-500);margin-bottom:6px"><b>Non-Examples:</b> ${esc(bp.non_examples)}</div>` : ''}
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px dashed var(--slate-200);font-family:var(--font-mono);font-size:0.75rem">
                 <span>Freq: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}</span>
-                <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')})">+1 Tally</button>
+                <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id})">+1 Tally</button>
               </div>
             </div>
           `;
@@ -1921,8 +2060,10 @@ async function sessionView(id) {
   const v = await api('GET', '/api/sessions/' + id);
   const {
     session: s, client, goals, allGoals = goals, plans, stories,
-    abcLogs = [], behaviorPrograms = [], behaviorEvents = [], behaviorSummary = {}, taskAnalyses = []
+    abcLogs = [], behaviorPrograms = [], behaviorEvents = [], behaviorSummary: rawBehaviorSummary = {}, taskAnalyses = []
   } = v;
+  behaviorPrograms.forEach((bp) => { bpNameMap[bp.id] = bp.name; });
+  const behaviorSummary = mergeAndSummarizeBehaviorEvents(behaviorEvents, client.id, s.id, (rawBehaviorSummary && rawBehaviorSummary.sessionMinutes) || 60);
   const masteredGoals = (allGoals || []).filter((g) => g.status !== 'active');
   const ended = !!s.end;
   const startMs = new Date(s.start).getTime();
@@ -2254,7 +2395,7 @@ async function sessionView(id) {
     ${!ended && behaviorPrograms.length ? `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:10px;margin-top:12px">
         ${behaviorPrograms.map((bp) => {
-          const bpStats = (behaviorSummary.byBehavior && behaviorSummary.byBehavior[bp.name]) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          const bpStats = (behaviorSummary.byBehavior && (behaviorSummary.byBehavior[`id_${bp.id}`] || behaviorSummary.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, intervalPct: null, intervalNumDenom: '0/0' };
           const runningTimer = behTimers[bp.id];
           return `
             <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:10px 12px">
@@ -2263,22 +2404,22 @@ async function sessionView(id) {
                 <span class="badge p" style="font-size:0.68rem">${esc(bp.measurement_type)}</span>
               </div>
               <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--slate-600);margin-bottom:8px">
-                Count: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}
+                Count: <b style="color:${bpStats.frequency > 0 ? 'var(--bad)' : 'var(--slate-900)'};font-size:0.84rem">${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap">
-                <button class="bad" style="padding:6px 12px;font-size:0.78rem;flex:1" onclick="act.quickTallyBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')})">
-                  +1 Tally
+                <button class="bad" style="padding:6px 12px;font-size:0.78rem;flex:1" onclick="act.quickTallyBehavior(${client.id}, ${s.id}, ${bp.id})">
+                  +1 Tally ${bpStats.frequency > 0 ? `(${bpStats.frequency})` : ''}
                 </button>
                 <button id="beh_timer_${bp.id}" class="${runningTimer ? 'ok' : 'sec'}" style="padding:6px 10px;font-size:0.76rem"
-                  onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 'duration')">
+                  onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'duration')">
                   ${runningTimer ? '⏹ Stop Duration' : '⏱ Start Duration'}
                 </button>
                 <button class="sec" style="padding:6px 9px;font-size:0.74rem" title="Record Partial/Whole Interval Occurrence (+)"
-                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 1)">
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, 1)">
                   Int +
                 </button>
                 <button class="sec" style="padding:6px 9px;font-size:0.74rem" title="Record Interval Non-Occurrence (-)"
-                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, ${JSON.stringify(bp.name).replace(/"/g, '&quot;')}, 0)">
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, 0)">
                   Int −
                 </button>
               </div>
@@ -3433,9 +3574,14 @@ const act = {
   }),
   openBehaviorEventModal: (cid, sid = null) => { activeModal = { type: 'behavior_event', clientId: cid, sessionId: sid }; render(); },
   submitBehaviorEventModal: safe(async (cid, sid) => {
+    const ts = new Date(Date.now() + (++tallySeq)).toISOString();
+    const bName = val('be_behavior');
     const payload = {
-      behavior: val('be_behavior'),
+      ts,
+      behavior: bName,
+      behavior_name: bName,
       measurement_type: val('be_type'),
+      count: +val('be_val') || 1,
       value: +val('be_val') || 1,
       duration_sec: +val('be_dur') || 0,
       latency_sec: +val('be_lat') || 0,
@@ -3445,6 +3591,7 @@ const act = {
       setting: val('be_setting') || 'Clinic',
       notes: val('be_notes')
     };
+    localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
     if (sid) {
       await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
     } else {
@@ -3453,33 +3600,47 @@ const act = {
     activeModal = null;
     render();
   }),
-  quickTallyBehavior: safe(async (cid, sid, bpId, behName) => {
+  quickTallyBehavior: safe(async (cid, sid, bpId) => {
+    const ts = new Date(Date.now() + (++tallySeq)).toISOString();
+    const behName = bpNameMap[bpId] || 'Target Behavior';
     const payload = {
+      ts,
+      behavior_id: bpId,
       behavior_program_id: bpId,
       behavior: behName,
+      behavior_name: behName,
       measurement_type: 'frequency',
+      count: 1,
       value: 1,
       setting: 'Clinic',
       notes: '1-Tap Frequency Tally'
     };
+    localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
     if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
     else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
     render();
   }),
-  toggleBehaviorTimer: safe(async (cid, sid, bpId, behName, mode = 'duration') => {
+  toggleBehaviorTimer: safe(async (cid, sid, bpId, mode = 'duration') => {
+    const behName = bpNameMap[bpId] || 'Target Behavior';
     if (behTimers[bpId]) {
       const elapsedSec = Math.max(1, Math.round((Date.now() - behTimers[bpId].startMs) / 1000));
       delete behTimers[bpId];
+      const ts = new Date(Date.now() + (++tallySeq)).toISOString();
       const payload = {
+        ts,
+        behavior_id: bpId,
         behavior_program_id: bpId,
         behavior: behName,
+        behavior_name: behName,
         measurement_type: mode,
+        count: 1,
         value: 1,
         duration_sec: mode === 'duration' ? elapsedSec : 0,
         latency_sec: mode === 'latency' ? elapsedSec : 0,
         setting: 'Clinic',
         notes: `Live ${mode} stopwatch (${elapsedSec}s)`
       };
+      localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
       if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
       else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
     } else {
@@ -3487,23 +3648,40 @@ const act = {
     }
     render();
   }),
-  quickIntervalBehavior: safe(async (cid, sid, bpId, behName, occurred) => {
+  quickIntervalBehavior: safe(async (cid, sid, bpId, occurred) => {
+    const ts = new Date(Date.now() + (++tallySeq)).toISOString();
+    const behName = bpNameMap[bpId] || 'Target Behavior';
     const payload = {
+      ts,
+      behavior_id: bpId,
       behavior_program_id: bpId,
       behavior: behName,
+      behavior_name: behName,
       measurement_type: 'partial_interval',
+      count: occurred ? 1 : 0,
       value: occurred ? 1 : 0,
       interval_occurred: occurred ? 1 : 0,
       interval_total: 1,
       setting: 'Clinic',
       notes: occurred ? 'Interval + (Occurred)' : 'Interval − (Did not occur)'
     };
+    localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
     if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
     else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
     render();
   }),
   undoBehaviorEvent: safe(async (sid) => {
-    await api('DELETE', `/api/sessions/${sid}/behavior-events/last`);
+    for (let i = localBehEvents.length - 1; i >= 0; i--) {
+      if (Number(localBehEvents[i].session_id) === Number(sid)) {
+        if (localBehEvents[i].ts) localUndoneIds.add(localBehEvents[i].ts);
+        localBehEvents.splice(i, 1);
+        break;
+      }
+    }
+    const res = await api('DELETE', `/api/sessions/${sid}/behavior-events/last`);
+    if (res && res.undone && res.undone.ts) {
+      localUndoneIds.add(res.undone.ts);
+    }
     render();
   }),
   openCreateTaModal: (cid) => { activeModal = { type: 'create_ta', clientId: cid }; render(); },

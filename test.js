@@ -261,6 +261,15 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     interval_total: 1
   });
   ok(be1.s === 200 && be2.s === 200, 'RBT can log continuous duration and discontinuous partial-interval behavior events in session');
+  const sessAfterTally = await r('GET', `/api/sessions/${sess2.id}`);
+  ok(
+    sessAfterTally.j.behaviorSummary &&
+    sessAfterTally.j.behaviorSummary.byBehavior &&
+    sessAfterTally.j.behaviorSummary.byBehavior['Elopement from Table'] &&
+    sessAfterTally.j.behaviorSummary.byBehavior['Elopement from Table'].frequency === 2 &&
+    sessAfterTally.j.behaviorSummary.byBehavior[`id_${bpRes.j.id}`].frequency === 2,
+    'Behavior tally and interval buttons increment per-behavior Count and Rate in session summary'
+  );
 
   const undoBe = await r('DELETE', `/api/sessions/${sess2.id}/behavior-events/last`);
   ok(undoBe.s === 200 && undoBe.j.ok === true, 'RBT can undo last behavior event in session with audit logging');
