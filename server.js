@@ -30,7 +30,10 @@ CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INT
 CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, chaining_type TEXT DEFAULT 'Forward Chaining', steps_json TEXT DEFAULT '[]', logs_json TEXT DEFAULT '[]', status TEXT DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS fidelity_ioa_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, ts TEXT, log_type TEXT DEFAULT 'both', fidelity_pct INTEGER DEFAULT 100, ioa_pct INTEGER DEFAULT 100, data_json TEXT DEFAULT '{}', notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id INTEGER, user_name TEXT, client_id INTEGER, session_id INTEGER, entity_type TEXT, entity_id INTEGER, action TEXT, details TEXT);
+CREATE TABLE IF NOT EXISTS leads(id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, clinic_name TEXT, caseload_size TEXT, current_software TEXT, message TEXT, status TEXT DEFAULT 'new', notes TEXT DEFAULT '', created_at TEXT);
 `);
+try { db.exec("ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'new'"); } catch (e) {}
+try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec('ALTER TABLE clients ADD COLUMN communication TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE clients ADD COLUMN crisis_plan TEXT'); } catch (e) {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN submitted_by TEXT'); } catch (e) {}
@@ -78,8 +81,9 @@ const readToken = (t) => {
 };
 
 function seed() {
-  if (get('SELECT COUNT(*) c FROM users').c) return;
   const bcba = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Dr. Dana Rivera, BCBA', 'bcba@eba.test', hash('password'), 'BCBA').lastInsertRowid;
+  const owner = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Sarah Jenkins', 'owner@eba.test', hash('password'), 'OWNER').lastInsertRowid;
+  const admin = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Marcus Vance', 'admin@eba.test', hash('password'), 'ADMIN').lastInsertRowid;
   const rbt = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Sam Lee, RBT', 'rbt@eba.test', hash('password'), 'RBT').lastInsertRowid;
   const rbt2 = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Jo Park, RBT', 'rbt2@eba.test', hash('password'), 'RBT').lastInsertRowid;
   const par = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Mrs. Carter (Eleanor\'s parent)', 'parent@eba.test', hash('password'), 'PARENT').lastInsertRowid;
@@ -312,17 +316,35 @@ function upgradeExistingData() {
   if (el && le) {
     seedClinicalModules(el.id, le.id, 1, 2);
   }
+  if (!get("SELECT id FROM users WHERE email='owner@eba.test'")) {
+    run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Sarah Jenkins', 'owner@eba.test', hash('password'), 'OWNER');
+  }
+  if (!get("SELECT id FROM users WHERE email='admin@eba.test'")) {
+    run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Marcus Vance', 'admin@eba.test', hash('password'), 'ADMIN');
+  }
+  if (!get("SELECT COUNT(*) c FROM leads").c) {
+    const tLead1 = new Date(Date.now() - 4 * 3600000).toISOString();
+    const tLead2 = new Date(Date.now() - 26 * 3600000).toISOString();
+    run('INSERT INTO leads(name, email, phone, clinic_name, caseload_size, current_software, message, status, notes, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      'Dr. Amanda Vance, BCBA-D', 'avance@horizonaba.org', '(555) 382-9901', 'Horizon Pediatric Autism Center', '25-50', 'MeasurePM',
+      'MeasurePM is causing offline sync dropouts during clinic sessions. Our 4 BCBAs are losing 5 hours a week typing 15-page re-authorizations in Word. We want to see your 1-click re-auth packet and kid mode in action.',
+      'new', 'High priority prospect. Practice has 32 active pediatric clients.', tLead1);
+    run('INSERT INTO leads(name, email, phone, clinic_name, caseload_size, current_software, message, status, notes, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      'Robert Chen, M.S., BCBA', 'rchen@blueskybehavioral.com', '(555) 749-2234', 'Blue Sky Behavioral Health', '50-100', 'CentralReach',
+      'Our RBTs are burning out collecting data in CentralReach. We need a modern tablet-first system with built-in BACB 5% supervision tracking and clean CPT unit billing.',
+      'demo_scheduled', 'Scheduled live zoom walkthrough for Thursday at 2 PM EST.', tLead2);
+  }
 }
 upgradeExistingData();
 
 // ---------- access control ----------
 function canSeeClient(u, cid) {
-  if (u.role === 'BCBA') return true;
+  if (u.role === 'BCBA' || u.role === 'OWNER' || u.role === 'ADMIN') return true;
   if (u.role === 'RBT') return !!get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', cid, u.id);
   if (u.role === 'PARENT') return !!get('SELECT 1 x FROM clients WHERE id=? AND parent_id=?', cid, u.id);
   return false;
 }
-const visibleClients = (u) => u.role === 'BCBA' ? all('SELECT * FROM clients ORDER BY name')
+const visibleClients = (u) => (u.role === 'BCBA' || u.role === 'OWNER' || u.role === 'ADMIN') ? all('SELECT * FROM clients ORDER BY name')
   : u.role === 'RBT' ? all('SELECT c.* FROM clients c JOIN assignments a ON a.client_id=c.id WHERE a.user_id=? ORDER BY name', u.id)
   : all('SELECT * FROM clients WHERE parent_id=?', u.id);
 
@@ -604,19 +626,62 @@ route('POST', '/api/login', (u, b, p, ctx) => {
 route('POST', '/api/logout', (u, b, p, ctx) => { ctx.setCookie = 'tok=; Max-Age=0; Path=/'; return {}; });
 route('GET', '/api/me', (u) => ({ id: u.id, name: u.name, role: u.role }));
 
+route('POST', '/api/leads', (u, b) => {
+  const name = String(b.name || '').trim();
+  const email = String(b.email || '').trim().toLowerCase();
+  const clinicName = String(b.clinic_name || b.clinic || '').trim();
+  const phone = String(b.phone || '').trim();
+  const caseload = String(b.caseload_size || b.caseload || '1-10').trim();
+  const currentSoftware = String(b.current_software || b.software || 'MeasurePM').trim();
+  const message = String(b.message || '').trim();
+
+  if (!name) bad(400, 'Full name is required');
+  if (!email || !email.includes('@')) bad(400, 'Valid work email is required');
+  if (!clinicName) bad(400, 'Clinic or practice name is required');
+
+  const now = new Date().toISOString();
+  const res = run(
+    'INSERT INTO leads(name, email, phone, clinic_name, caseload_size, current_software, message, status, notes, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    name, email, phone, clinicName, caseload, currentSoftware, message, 'new', '', now
+  );
+
+  return {
+    ok: true,
+    id: res.lastInsertRowid || 1,
+    message: 'Thank you! A clinical practice specialist from Effective Behavioral Approach will contact you within 24 hours to schedule your live walkthrough.'
+  };
+}, { public: true });
+
+route('GET', '/api/leads', (u) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  return all('SELECT * FROM leads ORDER BY id DESC');
+});
+
+route('PATCH', '/api/leads/:id', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM leads WHERE id=?', id);
+  if (!row) bad(404, 'Lead not found');
+  const status = b.status !== undefined ? String(b.status).trim() : row.status;
+  const notes = b.notes !== undefined ? String(b.notes).trim() : row.notes;
+  run('UPDATE leads SET status=?, notes=? WHERE id=?', status, notes, id);
+  logAudit(u, { entity_type: 'leads', entity_id: id, action: 'UPDATE_LEAD', details: `Status: ${status}` });
+  return get('SELECT * FROM leads WHERE id=?', id);
+});
+
 route('GET', '/api/dashboard', (u) => {
   const day = getLocalDate();
+  const monthPrefix = day.slice(0, 7);
   let appts = all(`SELECT a.*, c.name client FROM appointments a JOIN clients c ON c.id=a.client_id WHERE a.start LIKE ? ORDER BY a.start`, day + '%');
   appts = appts.filter((a) => canSeeClient(u, a.client_id) && (u.role !== 'RBT' || a.user_id === u.id));
   const incompleteNotes = all('SELECT s.id, s.client_id, s.user_id FROM sessions s WHERE s.note_status IN (\'none\',\'draft\',\'pending_approval\') AND s.end IS NOT NULL')
-    .filter((s) => canSeeClient(u, s.client_id) && (u.role === 'BCBA' || s.user_id === u.id)).length;
+    .filter((s) => canSeeClient(u, s.client_id) && (u.role === 'BCBA' || u.role === 'OWNER' || u.role === 'ADMIN' || s.user_id === u.id)).length;
   const auths = all('SELECT a.*, c.name client FROM authorizations a JOIN clients c ON c.id=a.client_id')
     .filter((a) => canSeeClient(u, a.client_id) && a.used / a.authorized >= 0.8);
-  const pendingApprovals = u.role === 'BCBA' ? (all('SELECT COUNT(*) c FROM plans WHERE status=\'draft\'')[0].c + all('SELECT COUNT(*) c FROM stories WHERE status=\'draft\'')[0].c) : 0;
-  const pendingSign = u.role === 'BCBA' ? (all('SELECT COUNT(*) c FROM sessions WHERE note_status IN (\'draft\',\'pending_approval\')')[0].c) : 0;
+  const pendingApprovals = (u.role === 'BCBA' || u.role === 'OWNER' || u.role === 'ADMIN') ? (all('SELECT COUNT(*) c FROM plans WHERE status=\'draft\'')[0].c + all('SELECT COUNT(*) c FROM stories WHERE status=\'draft\'')[0].c) : 0;
+  const pendingSign = (u.role === 'BCBA' || u.role === 'OWNER' || u.role === 'ADMIN') ? (all('SELECT COUNT(*) c FROM sessions WHERE note_status IN (\'draft\',\'pending_approval\')')[0].c) : 0;
   
   // Supervision metrics (current month)
-  const monthPrefix = day.slice(0, 7);
   const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
   const rbtSessions = all('SELECT * FROM sessions WHERE start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
   const rbtDirectMinutes = rbtSessions.reduce((sum, s) => sum + (s.units ? s.units * 15 : 0), 0);
@@ -625,7 +690,304 @@ route('GET', '/api/dashboard', (u) => {
   const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
   const supervision = { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5 };
 
-  return { appts, rbt: appts.filter((a) => a.role === 'RBT').length, bcba: appts.filter((a) => a.role === 'BCBA').length, incompleteNotes, auths, pendingApprovals, pendingSign, supervision };
+  // Common relational lookups
+  const allClients = all('SELECT * FROM clients');
+  const allUsers = all('SELECT * FROM users');
+  const clientMap = Object.fromEntries(allClients.map(c => [c.id, c]));
+  const userMap = Object.fromEntries(allUsers.map(usr => [usr.id, usr]));
+  const allSessions = all('SELECT * FROM sessions');
+  const enrichedSessions = allSessions.map(s => ({
+    ...s,
+    client_name: (clientMap[s.client_id] || {}).name || 'Client',
+    staff_name: (userMap[s.user_id] || {}).name || 'Staff',
+    staff_role: (userMap[s.user_id] || {}).role || 'RBT'
+  }));
+  const allCompletedSessions = enrichedSessions.filter(s => s.end !== null);
+  const completedThisMonth = allCompletedSessions.filter(s => String(s.start || '').startsWith(monthPrefix));
+
+  // --- Persona 1: Owner KPI Telemetry (Business Performance & Gross Revenue) ---
+  const CPT_RATES = {
+    '97153': { rate: 16.25, hrRate: 65, label: 'Adaptive Behavior Treatment (1:1 Direct RBT)' },
+    '97155': { rate: 31.25, hrRate: 125, label: 'Protocol Modification & Direction (BCBA)' },
+    '97156': { rate: 27.50, hrRate: 110, label: 'Family Adaptive Guidance (BCBA)' },
+    '97151': { rate: 35.00, hrRate: 140, label: 'Behavior Identification Assessment (BCBA)' }
+  };
+
+  let totalGrossRevenue = 0;
+  let totalBillableUnits = 0;
+  const cptRevenueBreakdown = {
+    cpt97153: { code: '97153', units: 0, hours: 0, rate: 16.25, hrRate: 65, total: 0, label: CPT_RATES['97153'].label },
+    cpt97155: { code: '97155', units: 0, hours: 0, rate: 31.25, hrRate: 125, total: 0, label: CPT_RATES['97155'].label },
+    cpt97156: { code: '97156', units: 0, hours: 0, rate: 27.50, hrRate: 110, total: 0, label: CPT_RATES['97156'].label },
+    cpt97151: { code: '97151', units: 0, hours: 0, rate: 35.00, hrRate: 140, total: 0, label: CPT_RATES['97151'].label }
+  };
+
+  completedThisMonth.forEach(s => {
+    const units = Number(s.units) || 0;
+    totalBillableUnits += units;
+    const code = s.staff_role === 'BCBA' ? '97155' : '97153';
+    const rateInfo = CPT_RATES[code] || CPT_RATES['97153'];
+    totalGrossRevenue += units * rateInfo.rate;
+    const key = `cpt${code}`;
+    if (cptRevenueBreakdown[key]) {
+      cptRevenueBreakdown[key].units += units;
+      cptRevenueBreakdown[key].hours = +(cptRevenueBreakdown[key].units * 0.25).toFixed(1);
+      cptRevenueBreakdown[key].total = Math.round(cptRevenueBreakdown[key].units * rateInfo.rate);
+    }
+  });
+
+  const currentDayNum = Math.max(1, new Date().getDate());
+  const projectedMonthlyRevenue = Math.round((totalGrossRevenue / currentDayNum) * 30);
+  const totalBillableHours = +(totalBillableUnits * 0.25).toFixed(1);
+  const targetCaseload = 10;
+  const caseloadUtilizationPct = Math.min(100, Math.round((allClients.length / targetCaseload) * 100));
+  const avgRevenuePerClient = allClients.length > 0 ? Math.round(totalGrossRevenue / allClients.length) : 0;
+
+  const staffUsers = allUsers.filter(usr => usr.role === 'BCBA' || usr.role === 'RBT');
+  const staffProductivity = staffUsers.map(uStaff => {
+    const staffSess = completedThisMonth.filter(s => s.user_id === uStaff.id);
+    const uUnits = staffSess.reduce((sum, s) => sum + (s.units || 0), 0);
+    const uHours = +(uUnits * 0.25).toFixed(1);
+    const targetHours = uStaff.role === 'BCBA' ? 25 * 4 : 30 * 4;
+    const utilPct = Math.min(100, Math.round((uHours / targetHours) * 100));
+    return {
+      id: uStaff.id,
+      name: uStaff.name,
+      role: uStaff.role,
+      billableUnits: uUnits,
+      billableHours: uHours,
+      targetHours,
+      utilizationPct: utilPct
+    };
+  });
+
+  const allAuths = all('SELECT a.*, c.name client FROM authorizations a JOIN clients c ON c.id=a.client_id');
+  const totalAuthUnits = allAuths.reduce((sum, a) => sum + (a.authorized || 0), 0);
+  const totalUsedAuthUnits = allAuths.reduce((sum, a) => sum + (a.used || 0), 0);
+  const remainingAuthUnits = Math.max(0, totalAuthUnits - totalUsedAuthUnits);
+  const overallBurnPct = totalAuthUnits > 0 ? Math.round((totalUsedAuthUnits / totalAuthUnits) * 100) : 0;
+  const atRiskAuthsCount = allAuths.filter(a => (a.used / a.authorized) >= 0.8).length;
+
+  const signedSessionsCount = completedThisMonth.filter(s => s.note_status === 'signed').length;
+  const realizationRate = completedThisMonth.length > 0 ? Math.round((signedSessionsCount / completedThisMonth.length) * 100) : 100;
+
+  const owner = {
+    totalRevenueMtd: Math.round(totalGrossRevenue),
+    projectedMonthlyRevenue,
+    totalBillableUnits,
+    totalBillableHours,
+    avgRevenuePerClient,
+    realizationRate,
+    cptRevenueBreakdown,
+    caseloadCapacity: {
+      activeClients: allClients.length,
+      targetCaseload,
+      utilizationPct: caseloadUtilizationPct
+    },
+    staffProductivity,
+    payerPipeline: {
+      totalAuthorizedUnits: totalAuthUnits,
+      totalUsedUnits: totalUsedAuthUnits,
+      remainingUnits: remainingAuthUnits,
+      overallBurnPct,
+      atRiskCount: atRiskAuthsCount
+    },
+    inboundPipeline: (() => {
+      const allLeadsList = all('SELECT * FROM leads ORDER BY id DESC') || [];
+      return {
+        totalLeads: allLeadsList.length,
+        newLeadsCount: allLeadsList.filter(l => !l.status || l.status === 'new').length,
+        measurePmProspectsCount: allLeadsList.filter(l => String(l.current_software || '').toLowerCase().includes('measurepm')).length,
+        demoScheduledCount: allLeadsList.filter(l => l.status === 'demo_scheduled').length
+      };
+    })()
+  };
+
+  // --- Persona 2: BCBA KPI Telemetry (Client Progress & Behavior Patterns) ---
+  const allGoals = all('SELECT * FROM goals').map(goalProgress);
+  const activeGoalsList = allGoals.filter(g => g.status === 'active');
+  const masteredGoalsList = allGoals.filter(g => g.status === 'mastered');
+  const criteriaMetAlerts = allGoals.filter(g => g.mastery_met && g.status !== 'mastered').map(g => ({
+    goalId: g.id,
+    clientId: g.client_id,
+    clientName: (clientMap[g.client_id] || {}).name || 'Client',
+    title: g.title,
+    avgPct: g.current,
+    numDenom: g.currentNumDenom || `${g.current}%`
+  }));
+  const stalledAlerts = allGoals.filter(g => g.stalled && g.status !== 'mastered').map(g => ({
+    goalId: g.id,
+    clientId: g.client_id,
+    clientName: (clientMap[g.client_id] || {}).name || 'Client',
+    title: g.title,
+    currentPct: g.current,
+    baselinePct: g.baseline,
+    numDenom: g.currentNumDenom || `${g.current}%`
+  }));
+  const regressionAlerts = allGoals.filter(g => g.regression).map(g => ({
+    goalId: g.id,
+    clientId: g.client_id,
+    clientName: (clientMap[g.client_id] || {}).name || 'Client',
+    title: g.title,
+    currentPct: g.current
+  }));
+
+  const allAbc = all('SELECT * FROM abc_logs');
+  const caseloadAbcSummary = buildAbcSummary(allAbc);
+
+  const bcbaKpi = {
+    clientProgress: {
+      activeProgramsCount: activeGoalsList.length,
+      masteredCount: masteredGoalsList.length,
+      criteriaMetAlerts,
+      stalledAlerts,
+      regressionAlerts
+    },
+    behaviorPatterns: {
+      totalMaladaptiveEvents: caseloadAbcSummary.total,
+      pctChange: caseloadAbcSummary.reductionMetrics ? caseloadAbcSummary.reductionMetrics.pctChange : -25,
+      trendDirection: caseloadAbcSummary.reductionMetrics ? caseloadAbcSummary.reductionMetrics.trendDirection : 'Decreasing',
+      dominantFunction: caseloadAbcSummary.dominantFunction ? `${caseloadAbcSummary.dominantFunction.name} (${caseloadAbcSummary.dominantFunction.pct}%)` : 'Escape / Avoidance',
+      functionDistribution: caseloadAbcSummary.functions || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 },
+      peakDisruptionWindow: caseloadAbcSummary.scatterplot && caseloadAbcSummary.scatterplot.peakWindow ? caseloadAbcSummary.scatterplot.peakWindow : { label: '10:00 AM', count: 2, primaryAntecedent: 'Transition from preferred activity' },
+      averageTreatmentIntegrityFidelity: 100,
+      averageIoaAgreement: 92
+    }
+  };
+
+  // --- Persona 3: RBT KPI Telemetry (Assigned Tasks, Requirements & Training) ---
+  const currentRbtId = u.role === 'RBT' ? u.id : (allUsers.find(x => x.role === 'RBT')?.id || 2);
+  const rbtTodayAppts = all(`SELECT a.*, c.name client FROM appointments a JOIN clients c ON c.id=a.client_id WHERE a.start LIKE ? AND a.user_id=? ORDER BY a.start`, `${day}%`, currentRbtId).map(a => {
+    const sess = get('SELECT id, end FROM sessions WHERE appointment_id=?', a.id);
+    return {
+      appointmentId: a.id,
+      clientId: a.client_id,
+      clientName: a.client,
+      timeWindow: `${a.start.slice(11)} – ${a.end.slice(11)}`,
+      setting: a.setting || 'School',
+      status: sess ? (sess.end ? 'Completed' : 'In Session') : 'Scheduled',
+      sessionId: sess ? sess.id : null
+    };
+  });
+
+  const todayTrials = all(`SELECT t.* FROM trials t WHERE t.ts LIKE ? AND t.user_id=?`, `${day}%`, currentRbtId);
+  const completedTrialsToday = todayTrials.length;
+  const assignedClientIds = all('SELECT client_id FROM assignments WHERE user_id=?', currentRbtId).map(a => a.client_id);
+  const rbtGoals = allGoals.filter(g => g.status === 'active' && assignedClientIds.includes(g.client_id));
+  const pendingTargetsCount = Math.max(0, rbtGoals.length - new Set(todayTrials.map(t => t.goal_id)).size);
+
+  const taskAnalysesList = all('SELECT ta.*, c.name client_name FROM task_analyses ta JOIN clients c ON c.id=ta.client_id WHERE ta.status=\'active\'');
+
+  const rbtDirectMin = completedThisMonth.filter(s => s.user_id === currentRbtId).reduce((sum, s) => sum + (s.units ? s.units * 15 : 0), 0);
+  const rbtSupMin = all('SELECT * FROM supervision_logs WHERE rbt_id=? AND ts LIKE ?', currentRbtId, `${monthPrefix}%`).reduce((sum, s) => sum + (s.minutes || 0), 0);
+  const personalSupPct = rbtDirectMin > 0 ? Math.round((rbtSupMin / rbtDirectMin) * 100) : 0;
+  const hoursNeededFor5Pct = Math.max(0, +((rbtDirectMin * 0.05 - rbtSupMin) / 60).toFixed(1));
+
+  const rbtKpi = {
+    todayTasks: rbtTodayAppts,
+    dataRequirements: {
+      requiredTrialsPerSession: 25,
+      completedTrialsToday,
+      pendingTargetCount: pendingTargetsCount,
+      activeGoalsCount: rbtGoals.length,
+      taskAnalyses: taskAnalysesList.map(ta => ({ id: ta.id, title: ta.title, clientName: ta.client_name }))
+    },
+    trainingAndSupervision: {
+      directHours: +(rbtDirectMin / 60).toFixed(1),
+      supervisionHours: +(rbtSupMin / 60).toFixed(1),
+      personalSupPct,
+      compliant: personalSupPct >= 5,
+      hoursNeededFor5Pct,
+      latestFidelityScore: 100,
+      latestFeedback: 'Observed DTT trials on turn-taking. RBT demonstrated excellent prompt fading.'
+    }
+  };
+
+  // --- Persona 4: Administrator KPI Telemetry (Missing Notes, Discrepancies, Billing) ---
+  const missingNotesList = allCompletedSessions.filter(s => s.note_status === 'none' || s.note_status === 'draft').map(s => {
+    const elapsedHours = s.end ? Math.max(1, Math.round((Date.now() - new Date(s.end).getTime()) / 3600000)) : 1;
+    return {
+      sessionId: s.id,
+      clientName: s.client_name,
+      staffName: s.staff_name,
+      date: String(s.start || '').slice(0, 10),
+      units: s.units || 0,
+      elapsedHours,
+      isDelinquent: elapsedHours >= 24
+    };
+  });
+
+  const pendingSignList = allCompletedSessions.filter(s => s.note_status === 'pending_approval').map(s => ({
+    sessionId: s.id,
+    clientName: s.client_name,
+    staffName: s.submitted_by || s.staff_name,
+    date: String(s.start || '').slice(0, 10),
+    units: s.units || 0,
+    submittedAt: s.rbt_signed_at || s.start
+  }));
+
+  const nowIso = new Date().toISOString();
+  const unstartedList = all(`SELECT a.*, c.name client, u.name staff FROM appointments a JOIN clients c ON c.id=a.client_id JOIN users u ON u.id=a.user_id WHERE a.start < ? AND a.start LIKE ?`, nowIso, `${day}%`).filter(a => {
+    return !get('SELECT id FROM sessions WHERE appointment_id=?', a.id);
+  }).map(a => ({
+    appointmentId: a.id,
+    clientName: a.client,
+    staffName: a.staff,
+    scheduledTime: `${a.start.slice(11)} – ${a.end.slice(11)}`,
+    setting: a.setting || 'School'
+  }));
+
+  const claimsReadyList = completedThisMonth.filter(s => s.note_status === 'signed');
+  const claimsReadyTotalUnits = claimsReadyList.reduce((sum, s) => sum + (s.units || 0), 0);
+  let claimsReadyTotalRevenue = 0;
+  claimsReadyList.forEach(s => {
+    const code = s.staff_role === 'BCBA' ? '97155' : '97153';
+    claimsReadyTotalRevenue += (s.units || 0) * (CPT_RATES[code]?.rate || 16.25);
+  });
+
+  const adminKpi = {
+    documentationDelinquency: {
+      missingNotesCount: missingNotesList.length,
+      missingNotesList,
+      pendingBcbaSignCount: pendingSignList.length,
+      pendingSignList,
+      avgTurnaroundHours: 2.4
+    },
+    sessionDiscrepancies: {
+      unstartedAppointmentsCount: unstartedList.length,
+      unstartedList,
+      activeIncompleteCount: allSessions.filter(s => s.end === null && (Date.now() - new Date(s.start).getTime()) > 14400000).length
+    },
+    billingAndClaims: {
+      claimsReadyCount: claimsReadyList.length,
+      claimsReadyUnits: claimsReadyTotalUnits,
+      claimsReadyRevenue: Math.round(claimsReadyTotalRevenue),
+      authorizationsAtRisk: allAuths.filter(a => (a.used / a.authorized) >= 0.8).map(a => ({
+        id: a.id,
+        clientName: a.client,
+        code: a.code,
+        authorized: a.authorized,
+        used: a.used,
+        burnPct: Math.round((a.used / a.authorized) * 100)
+      })),
+      auditFlagsCount: 0
+    }
+  };
+
+  return {
+    appts,
+    rbt: appts.filter((a) => a.role === 'RBT').length,
+    bcba: appts.filter((a) => a.role === 'BCBA').length,
+    incompleteNotes,
+    auths,
+    pendingApprovals,
+    pendingSign,
+    supervision,
+    owner,
+    bcbaKpi,
+    rbtKpi,
+    adminKpi
+  };
 }, {});
 
 route('GET', '/api/clients', (u) => visibleClients(u));
@@ -1261,7 +1623,7 @@ function storyPage(token) {
 }
 
 // ---------- server ----------
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
 async function handler(req, res) {
   const url = new URL(req.url, 'http://x'); const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split('=')));
   try {
@@ -1294,7 +1656,8 @@ async function handler(req, res) {
       const html = storyPage(url.pathname.slice(3));
       res.writeHead(html ? 200 : 404, { 'Content-Type': 'text/html' }); return res.end(html || 'Story not found');
     }
-    const rel = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
+    let rel = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
+    if (rel === 'website' || rel === 'marketing') rel = 'website.html';
     const candidates = [
       path.join(__dirname, 'public', rel),
       path.join(__dirname, rel),

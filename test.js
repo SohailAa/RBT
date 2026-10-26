@@ -304,6 +304,97 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const auditRes = await b('GET', '/api/clients/1/audit-logs');
   ok(auditRes.s === 200 && Array.isArray(auditRes.j) && auditRes.j.some(a => a.action === 'UNDO_BEHAVIOR_EVENT'), 'Immutable Audit Trail records undo and clinical data actions');
 
+  // Test Multi-Persona Role-Tailored KPI Dashboards (Owner, BCBA, RBT, Admin)
+  const o = await login('owner@eba.test');
+  const a = await login('admin@eba.test');
+
+  // 1. Owner KPI Telemetry
+  const oDash = (await o('GET', '/api/dashboard')).j;
+  ok(typeof oDash.owner === 'object' && typeof oDash.owner.totalRevenueMtd === 'number', 'Owner KPI computes gross billed revenue MTD');
+  ok(oDash.owner.cptRevenueBreakdown && oDash.owner.cptRevenueBreakdown.cpt97153.hrRate === 65 && oDash.owner.cptRevenueBreakdown.cpt97155.hrRate === 125, 'Owner KPI includes CPT fee schedule breakdown (97153 & 97155)');
+  ok(Array.isArray(oDash.owner.staffProductivity) && oDash.owner.staffProductivity.some(s => s.role === 'RBT'), 'Owner KPI computes clinician staff billable productivity & utilization');
+  ok(oDash.owner.caseloadCapacity && oDash.owner.caseloadCapacity.activeClients >= 2, 'Owner KPI tracks active caseload capacity & target utilization');
+
+  // 2. BCBA KPI Telemetry
+  const bDash = (await b('GET', '/api/dashboard')).j;
+  ok(bDash.bcbaKpi && bDash.bcbaKpi.clientProgress && typeof bDash.bcbaKpi.clientProgress.activeProgramsCount === 'number', 'BCBA KPI tracks active skill programs count and mastery velocity');
+  ok(Array.isArray(bDash.bcbaKpi.clientProgress.criteriaMetAlerts) && Array.isArray(bDash.bcbaKpi.clientProgress.stalledAlerts), 'BCBA KPI generates criteria-met and stalled clinical action alerts');
+  ok(bDash.bcbaKpi.behaviorPatterns && typeof bDash.bcbaKpi.behaviorPatterns.functionDistribution === 'object' && 'Escape' in bDash.bcbaKpi.behaviorPatterns.functionDistribution, 'BCBA KPI computes caseload 4-function distribution matrix');
+  ok(bDash.bcbaKpi.behaviorPatterns.peakDisruptionWindow && bDash.bcbaKpi.behaviorPatterns.peakDisruptionWindow.label, 'BCBA KPI computes peak behavioral disruption window and primary antecedent');
+
+  // 3. RBT KPI Telemetry
+  const rDash = (await r('GET', '/api/dashboard')).j;
+  ok(rDash.rbtKpi && Array.isArray(rDash.rbtKpi.todayTasks), 'RBT KPI renders assigned shift appointment roster');
+  ok(rDash.rbtKpi.dataRequirements && rDash.rbtKpi.dataRequirements.requiredTrialsPerSession === 25, 'RBT KPI tracks daily trial quota and active target requirements');
+  ok(rDash.rbtKpi.trainingAndSupervision && typeof rDash.rbtKpi.trainingAndSupervision.personalSupPct === 'number', 'RBT KPI tracks personal monthly BACB 5% supervision progress');
+
+  // 4. Administrator KPI Telemetry
+  const aDash = (await a('GET', '/api/dashboard')).j;
+  ok(aDash.adminKpi && aDash.adminKpi.documentationDelinquency && typeof aDash.adminKpi.documentationDelinquency.missingNotesCount === 'number', 'Admin KPI tracks missing & delinquent notes with elapsed hours');
+  ok(aDash.adminKpi.billingAndClaims && typeof aDash.adminKpi.billingAndClaims.claimsReadyRevenue === 'number' && typeof aDash.adminKpi.billingAndClaims.claimsReadyUnits === 'number', 'Admin KPI tracks claims ready for 837P clearinghouse release');
+  ok(Array.isArray(aDash.adminKpi.billingAndClaims.authorizationsAtRisk), 'Admin KPI tracks payer authorizations at risk (>= 80% burned)');
+  ok(aDash.adminKpi.sessionDiscrepancies && Array.isArray(aDash.adminKpi.sessionDiscrepancies.unstartedList), 'Admin KPI tracks EVV session scheduling discrepancies');
+
+  // 5. B2B Marketing Website & Lead Engine (vs. MeasurePM)
+  const webRes = await fetch(base + '/website.html');
+  ok(webRes.status === 200 && (webRes.headers.get('content-type') || '').includes('text/html'), 'B2B marketing website (website.html) serves with 200 OK');
+  const webHtml = await webRes.text();
+  ok(webHtml.includes('MeasurePM') && webHtml.includes('CentralReach') && webHtml.includes('Kid Mode'), 'Marketing website includes MeasurePM and CentralReach competitive comparison matrix');
+
+  const webAliasRes = await fetch(base + '/website');
+  ok(webAliasRes.status === 200 && (await webAliasRes.text()).includes('Effective Behavioral'), '/website route alias serves marketing website cleanly');
+
+  // Test Lead Capture API (Public unauthenticated submission)
+  const leadSubmit = await fetch(base + '/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Dr. Rebecca Vance, BCBA',
+      email: 'rebecca@summitaba.test',
+      phone: '555-019-2834',
+      clinic_name: 'Summit Behavioral Horizons',
+      caseload_size: '16-40',
+      current_software: 'MeasurePM',
+      message: 'Looking to switch from MeasurePM due to tablet sync issues and progress report time.'
+    })
+  });
+  const leadJson = await leadSubmit.json();
+  ok(leadSubmit.status === 200 && leadJson.ok && leadJson.id, 'Unauthenticated clinic owner can submit demo request lead via POST /api/leads');
+
+  // Test Lead Validation
+  const leadInvalid = await fetch(base + '/api/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: '', email: 'not-an-email', clinic_name: '' })
+  });
+  ok(leadInvalid.status === 400, 'POST /api/leads enforces required field validation (name, email, clinic)');
+
+  // Test Owner/Admin Lead Retrieval
+  const ownerLeads = (await o('GET', '/api/leads')).j;
+  ok(Array.isArray(ownerLeads) && ownerLeads.some(l => l.email === 'rebecca@summitaba.test'), 'Practice owner can retrieve inbound practice leads from CRM queue');
+
+  // Test PATCH /api/leads/:id status update & internal note
+  const submittedLeadId = leadJson.id;
+  const updateRes = (await o('PATCH', `/api/leads/${submittedLeadId}`, {
+    status: 'demo_scheduled',
+    notes: 'Scheduled live 1-on-1 walkthrough with Dr. Rivera for Thursday.'
+  })).j;
+  ok(updateRes.status === 'demo_scheduled' && updateRes.notes.includes('walkthrough with Dr. Rivera'), 'Practice owner can update lead status and internal CRM notes');
+
+  // Test RBAC barrier: RBT and Parent blocked from accessing CRM leads
+  const rbtLeadsRes = await r('GET', '/api/leads');
+  ok(rbtLeadsRes.s === 403, 'RBT is blocked from CRM practice leads queue');
+  const parentLeadsRes = await p('GET', '/api/leads');
+  ok(parentLeadsRes.s === 403, 'Parent is blocked from CRM practice leads queue');
+
+  // Test Inbound Pipeline telemetry on Owner Dashboard
+  const oDashUpdated = (await o('GET', '/api/dashboard')).j;
+  ok(oDashUpdated.owner.inboundPipeline &&
+     oDashUpdated.owner.inboundPipeline.totalLeads >= 3 &&
+     oDashUpdated.owner.inboundPipeline.measurePmProspectsCount >= 2 &&
+     oDashUpdated.owner.inboundPipeline.demoScheduledCount >= 2,
+     'Owner KPI dashboard integrates inbound CRM pipeline telemetry and MeasurePM switch tracking');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

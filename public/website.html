@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Effective Behavioral Approach (EBA) — All-in-One Pediatric ABA Operating System</title>
+<meta name="description" content="The complete all-in-one pediatric ABA software that truly covers it all. Compare EBA vs MeasurePM and CentralReach. 1-tap DTT/NET data collection, built-in Kid Mode token boards, 1-click insurance re-authorizations, and role-tailored KPI command decks.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..600&family=Fraunces:ital,opsz,wght@0,9..144,500..800;1,9..144,400..600&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23052e3e'/%3E%3Cstop offset='50%25' stop-color='%230d6e6e'/%3E%3Cstop offset='100%25' stop-color='%23059669'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Crect x='5' y='5' width='54' height='54' rx='10' fill='none' stroke='%2334d399' stroke-width='1.5' stroke-opacity='0.6'/%3E%3Cpath d='M12 35h10l5-15 8 26 5-16 4 5h8' fill='none' stroke='%23ecfeff' stroke-width='4.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='14' r='4.5' fill='%2338bdf8' stroke='%23ecfeff' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+
+<style>
+/* Modern B2B Marketing Stylesheet */
+.site-wrapper {
+  background: var(--bg-canvas);
+  color: var(--slate-900);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(4, 29, 36, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(45, 212, 191, 0.25);
+  padding: 14px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.site-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.site-nav-links a {
+  color: #daf1ef;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.site-nav-links a:hover {
+  color: #38bdf8;
+}
+
+.hero-banner {
+  padding: 80px 24px 60px;
+  text-align: center;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 93, 94, 0.25);
+  border: 1.5px solid #2dd4bf;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #04242c;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.hero-title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.4rem, 5vw, 3.8rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: #031d24;
+  margin: 0 auto 20px;
+  max-width: 980px;
+}
+
+.hero-title span.highlight-emerald {
+  background: linear-gradient(135deg, #0b5d5e 0%, #059669 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-sub {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  color: var(--slate-600);
+  max-width: 820px;
+  margin: 0 auto 36px;
+  line-height: 1.6;
+}
+
+.hero-cta-group {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+}
+
+.hero-trust-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--slate-600);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 18px;
+  border-top: 1px solid rgba(11, 93, 94, 0.18);
+}
+
+.hero-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 70px 24px;
+}
+
+.section-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.section-heading {
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-weight: 700;
+  text-align: center;
+  color: var(--slate-900);
+  margin: 0 auto 16px;
+  max-width: 860px;
+  line-height: 1.22;
+}
+
+.section-lead {
+  font-size: 1.05rem;
+  color: var(--slate-600);
+  text-align: center;
+  max-width: 740px;
+  margin: 0 auto 48px;
+  line-height: 1.6;
+}
+
+/* 6 Unmet Needs Grid */
+.unmet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 22px;
+}
+
+.unmet-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--slate-300);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.unmet-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.unmet-icon {
+  font-size: 2.2rem;
+  margin-bottom: 14px;
+  display: inline-block;
+}
+
+.unmet-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  color: var(--slate-900);
+  margin: 0 0 10px;
+}
+
+.unmet-card p {
+  font-size: 0.9rem;
+  color: var(--slate-600);
+  line-height: 1.55;
+  margin: 0 0 16px;
+  flex: 1;
+}
+
+.unmet-contrast {
+  background: var(--slate-100);
+  border-left: 3px solid var(--bad);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--slate-700);
+  margin-bottom: 8px;
+}
+
+.unmet-solution {
+  background: var(--ok-light);
+  border-left: 3px solid var(--ok);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--slate-900);
+  font-weight: 600;
+}
+
+/* Comparison Matrix */
+.matrix-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--slate-300);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.matrix-table th,
+.matrix-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--slate-200);
+  font-size: 0.9rem;
+}
+
+.matrix-table th {
+  background: #04242c;
+  color: #daf1ef;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.matrix-table th.col-highlight {
+  background: #064e3b;
+  color: #ecfeff;
+  border-left: 2px solid #34d399;
+  border-right: 2px solid #34d399;
+}
+
+.matrix-table td.col-highlight {
+  background: rgba(16, 185, 129, 0.08);
+  font-weight: 600;
+  color: var(--slate-900);
+  border-left: 2px solid #34d399;
+  border-right: 2px solid #34d399;
+}
+
+.check-yes {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.check-no {
+  color: var(--bad);
+  font-weight: 700;
+}
+
+/* Interactive ROI Calculator Card */
+.roi-card {
+  background: linear-gradient(135deg, #041d24 0%, #06343e 50%, #0b4e4f 100%);
+  color: #fff;
+  border-radius: var(--radius-xl);
+  padding: 42px 36px;
+  box-shadow: var(--shadow-lg);
+  border: 2px solid #2dd4bf;
+}
+
+.roi-card h3 {
+  color: #ecfeff;
+  font-family: var(--font-serif);
+  font-size: 1.8rem;
+  margin: 0 0 8px;
+}
+
+.roi-card p {
+  color: #a5f3fc;
+  font-size: 0.95rem;
+  margin: 0 0 28px;
+}
+
+.slider-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ecfeff;
+}
+
+.roi-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.roi-stat-box {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+}
+
+.roi-stat-val {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #34d399;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.roi-stat-sub {
+  font-size: 0.8rem;
+  color: #cffafe;
+  line-height: 1.4;
+}
+
+/* Test Drive Sandbox Grid */
+.sandbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.sandbox-btn {
+  background: #fff;
+  border: 1.5px solid var(--slate-300);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--slate-900);
+}
+
+.sandbox-btn:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  background: var(--slate-50);
+}
+
+.sandbox-icon {
+  font-size: 1.8rem;
+}
+
+.sandbox-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.sandbox-desc {
+  font-size: 0.76rem;
+  color: var(--slate-500);
+}
+
+/* Modal Form */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(4, 29, 36, 0.82);
+  backdrop-filter: blur(6px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-box {
+  background: #ffffff;
+  border-radius: var(--radius-xl);
+  max-width: 540px;
+  width: 100%;
+  padding: 34px 30px;
+  box-shadow: var(--shadow-lg);
+  border: 2px solid var(--primary-border);
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: var(--slate-500);
+}
+
+/* Testimonial Quote Cards */
+.testimonial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.testimonial-card {
+  background: var(--bg-card);
+  border: 1px solid var(--slate-300);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.testimonial-quote {
+  font-style: italic;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--slate-800);
+  margin-bottom: 18px;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.testimonial-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+/* Footer */
+.site-footer {
+  background: #041d24;
+  color: #99f6e4;
+  padding: 50px 24px 30px;
+  border-top: 1px solid rgba(45, 212, 191, 0.25);
+  font-size: 0.85rem;
+}
+
+.footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+
+@media (max-width: 820px) {
+  .site-nav-links {
+    display: none;
+  }
+}
+</style>
+</head>
+<body class="site-wrapper">
+
+  <!-- Top Navigation Bar -->
+  <nav class="site-nav">
+    <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="window.location.href='/'">
+      <div class="brand-icon sm">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#042e39"/>
+          <rect x="5" y="5" width="54" height="54" rx="10" fill="none" stroke="#34d399" stroke-width="1.5" stroke-opacity="0.6"/>
+          <path d="M12 35h10l5-15 8 26 5-16 4 5h8" fill="none" stroke="#ecfeff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="32" cy="14" r="4.5" fill="#38bdf8" stroke="#ecfeff" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-family:var(--font-serif);font-weight:700;font-size:1.08rem;color:#f0fdfa;letter-spacing:-0.01em">Effective Behavioral</div>
+        <div style="font-family:var(--font-mono);font-size:0.65rem;color:#6ee7b7;letter-spacing:0.06em;text-transform:uppercase">Unified Pediatric ABA Operating System</div>
+      </div>
+    </div>
+
+    <div class="site-nav-links">
+      <a href="#unmet-needs">Why EBA</a>
+      <a href="#comparison">vs. MeasurePM</a>
+      <a href="#roi-calculator">ROI Estimator</a>
+      <a href="#modules">Platform Modules</a>
+      <a href="#sandbox">Live Test Drive</a>
+      <a href="#testimonials">Reviews</a>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="sec" style="padding:8px 14px;font-size:0.82rem;background:transparent;color:#99f6e4;border-color:#2dd4bf" onclick="window.location.href='/'">Sign In</button>
+      <button class="ok" style="padding:8px 16px;font-size:0.82rem" onclick="openLeadModal()">Book Practice Demo →</button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero-banner">
+    <div class="hero-pill">
+      <span>✨</span> The All-In-One ABA Practice Solution That Truly Covers It All
+    </div>
+
+    <h1 class="hero-title">
+      Built for the Clinics Where <span class="highlight-emerald">MeasurePM & Legacy Tools</span> Fall Short.
+    </h1>
+
+    <p class="hero-sub">
+      MeasurePM gives you simple counters. CentralReach gives you 1,000 confusing menus. 
+      <b>Effective Behavioral Approach (EBA)</b> unifies your entire clinical practice—1-tap DTT + NET play sessions, built-in child <b>Kid Mode</b> token boards, automated 6-month insurance packets, and executive P&L into one seamless, zero-lag record.
+    </p>
+
+    <div class="hero-cta-group">
+      <button class="ok" style="padding:15px 30px;font-size:1.02rem" onclick="openLeadModal()">🚀 Book a Practice Walkthrough & Custom Quote</button>
+      <button class="sec" style="padding:15px 24px;font-size:1.02rem;background:#fff" onclick="document.getElementById('sandbox').scrollIntoView({behavior:'smooth'})">▶ 1-Tap Sandbox Test Drive</button>
+      <button class="sec" style="padding:15px 20px;font-size:1.02rem;background:transparent;border-color:var(--slate-400)" onclick="document.getElementById('comparison').scrollIntoView({behavior:'smooth'})">Compare vs MeasurePM ↓</button>
+    </div>
+
+    <div class="hero-trust-bar">
+      <div class="hero-trust-item"><span>🔒</span> HIPAA & 21 CFR Part 11 Certified</div>
+      <div class="hero-trust-item"><span>📋</span> BACB Ethics & 5% Supervision Radar</div>
+      <div class="hero-trust-item"><span>⏱️</span> CMS 8-Minute Billing Rule Built-in</div>
+      <div class="hero-trust-item"><span>⚡</span> Sub-50ms Zero-Lag Architecture</div>
+      <div class="hero-trust-item"><span>🛡️</span> Zero-PHI Synthetic Sandbox</div>
+    </div>
+  </header>
+
+  <!-- Section 1: The 6 Unmet Needs (Why MeasurePM Falls Short) -->
+  <section id="unmet-needs" class="section-container">
+    <div class="section-kicker">01 / The Gaps in Existing ABA Software</div>
+    <h2 class="section-heading">6 Critical Areas Where MeasurePM & Legacy Apps "Do Not Cover It All"</h2>
+    <p class="section-lead">
+      Therapists in the field told us what they dread most about other software: juggling physical velcro boards while tapping a tablet, typing 15-page insurance progress reports by hand, and struggling with app syncing freezes. Here is how EBA solves each one.
+    </p>
+
+    <div class="unmet-grid">
+      <div class="unmet-card">
+        <span class="unmet-icon">🧸</span>
+        <h3>1. No In-Session Kid Engagement</h3>
+        <p>In MeasurePM, therapists must carry separate physical velcro token boards, dinosaur eggs, and plastic star charts while juggling a tablet during therapy.</p>
+        <div class="unmet-contrast">❌ MeasurePM: Rigid numbers screen; therapist juggles physical velcro toys.</div>
+        <div class="unmet-solution">✓ EBA Kid Mode: Interactive Space Rocket, Dino Island, LEGO & Train token boards with automated Web Audio cheer praise right on screen!</div>
+      </div>
+
+      <div class="unmet-card">
+        <span class="unmet-icon">🎲</span>
+        <h3>2. Missing Play-Based NET Multi-Target Grid</h3>
+        <p>Capturing natural environment teaching (NET) during play in traditional apps requires frustrating screen transitions and back-and-forth menu clicks.</p>
+        <div class="unmet-contrast">❌ MeasurePM: Linear trial-by-trial lists unfit for fast-moving naturalistic play.</div>
+        <div class="unmet-solution">✓ EBA NET Grid: High-density card grid displaying all active targets simultaneously with 1-tap rapid prompt chips.</div>
+      </div>
+
+      <div class="unmet-card">
+        <span class="unmet-icon">📄</span>
+        <h3>3. The 4–8 Hour Insurance Re-Auth Nightmare</h3>
+        <p>Every 6 months, supervising BCBAs spend endless unpaid nights copying graph screenshots into Microsoft Word to justify medical necessity for insurance payers.</p>
+        <div class="unmet-contrast">❌ MeasurePM: Raw CSV graphs; clinician still writes 15-page clinical packets manually.</div>
+        <div class="unmet-solution">✓ EBA 1-Click Packet: Auto-synthesizes all 5 BACB & insurance sections (CPT 97151/97155) with exact baseline vs post-BIP trajectory and CPT justifications!</div>
+      </div>
+
+      <div class="unmet-card">
+        <span class="unmet-icon">📈</span>
+        <h3>4. No Hourly FBA Scatterplot & Peak Trigger Radar</h3>
+        <p>BCBAs need to identify ecological patterns and setting event clusters across the child's daily schedule (8:00 AM to 5:00 PM).</p>
+        <div class="unmet-contrast">❌ MeasurePM: Simple daily tally bars without hourly temporal clustering.</div>
+        <div class="unmet-solution">✓ EBA Hourly Scatterplot: Full 8 AM–5 PM heatmap that automatically detects peak disruption windows (e.g. 10 AM transition demand) with proactive BIP alerts!</div>
+      </div>
+
+      <div class="unmet-card">
+        <span class="unmet-icon">🤖</span>
+        <h3>5. AI Without Guardrails vs. Hard BCBA Locks</h3>
+        <p>Generic AI wrappers hallucinate clinical advice, violating BACB ethics and creating severe malpractice and insurance audit liabilities.</p>
+        <div class="unmet-contrast">❌ MeasurePM: Zero native generative AI tools.</div>
+        <div class="unmet-solution">✓ EBA Clinical Guardrails: Deterministic AI creates child-tailored Social Stories (with audio read-aloud) and FCT plans—permanently locked as drafts until approved by a BCBA!</div>
+      </div>
+
+      <div class="unmet-card">
+        <span class="unmet-icon">🏢</span>
+        <h3>6. No Dedicated 4-Persona Command Decks</h3>
+        <p>A practice owner wants to see gross revenue and CPT code yield; a BCBA wants target mastery alerts; an RBT wants today's tasks; an admin wants delinquent notes.</p>
+        <div class="unmet-contrast">❌ MeasurePM: One-size-fits-all administrative view without role-specific command decks.</div>
+        <div class="unmet-solution">✓ EBA 4-Persona Switcher: Dedicated command decks for Practice Owners (P&L), BCBAs (clinical velocity), RBTs (shift tasks & 5% tracker), and Admins (missing notes & claims).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 2: Head-to-Head Comparison Matrix -->
+  <section id="comparison" class="section-container" style="background:var(--slate-100);border-radius:var(--radius-xl);border:1.5px solid var(--slate-300)">
+    <div class="section-kicker">02 / Feature-by-Feature Evaluation</div>
+    <h2 class="section-heading">Effective Behavioral Approach (EBA) vs. MeasurePM vs. CentralReach</h2>
+    <p class="section-lead">
+      See why clinics switching from MeasurePM and CentralReach experience faster clinical note completion, zero syncing lag, and dramatically higher therapist retention.
+    </p>
+
+    <div class="matrix-card">
+      <div class="table-responsive">
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th style="width:34%">Clinical & Operational Capability</th>
+              <th class="col-highlight" style="width:26%">Effective Behavioral Approach (EBA)</th>
+              <th style="width:20%">MeasurePM</th>
+              <th style="width:20%">CentralReach</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Unified Behavioral Health Record (UBHR)</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Single consolidated database for vitals, sensory, crisis, DTT, ABC, and billing</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Complete UBHR</span></td>
+              <td><span class="check-no">Partial (Disjointed)</span></td>
+              <td><span class="check-yes">✓ Available (Complex setup)</span></td>
+            </tr>
+            <tr>
+              <td><b>Built-In Child "Kid Mode" Token Boards</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Space, Dino, LEGO & Train themes with audio praise and star progress</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Native (4 Themes + Audio)</span></td>
+              <td><span class="check-no">✗ None (Physical boards needed)</span></td>
+              <td><span class="check-no">✗ None</span></td>
+            </tr>
+            <tr>
+              <td><b>Play-Based NET Multi-Target Session Grid</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Simultaneous multi-goal logging with 1-tap rapid prompt chips during play</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Built-in (1-Tap Switch)</span></td>
+              <td><span class="check-no">✗ Rigid linear trial screen</span></td>
+              <td><span class="check-no">✗ Requires complex menu clicks</span></td>
+            </tr>
+            <tr>
+              <td><b>1-Click 6-Month Insurance Re-Auth Generator</b><br><span style="font-size:0.78rem;color:var(--slate-500)">5-section CPT 97151/97155 progress report auto-compiled for payers</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ 1-Click Instant Synthesis</span></td>
+              <td><span class="check-no">✗ Manual typing in Word (4-8 hrs)</span></td>
+              <td><span class="check-no">✗ Requires custom template builds</span></td>
+            </tr>
+            <tr>
+              <td><b>8 AM–5 PM Temporal FBA Scatterplot & Peak Window Detection</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Hourly cluster heatmap identifying antecedent spikes (e.g. 10 AM transitions)</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Automated Heatmap & Alerts</span></td>
+              <td><span class="check-no">✗ Basic daily bar charts only</span></td>
+              <td><span class="check-no">✗ Requires paid BI analytics add-on</span></td>
+            </tr>
+            <tr>
+              <td><b>Deterministic AI with Hard BCBA Approval Lock</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Social stories & BIP plans locked as draft; zero hallucination risk</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Hard 21 CFR Co-Sign Lock</span></td>
+              <td><span class="check-no">✗ No generative AI tools</span></td>
+              <td><span class="check-no">✗ Unguarded generative text prompts</span></td>
+            </tr>
+            <tr>
+              <td><b>Zero-Leakage Guarded Parent Portal</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Auto-scrubs internal ABC logs, CPT units, and unapproved drafts</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Strict Zero-PHI/Leakage RBAC</span></td>
+              <td><span class="check-no">✗ Unscrubbed clinical notes or none</span></td>
+              <td><span class="check-yes">✓ Complex permission permissions</span></td>
+            </tr>
+            <tr>
+              <td><b>Role-Tailored Command Decks</b><br><span style="font-size:0.78rem;color:var(--slate-500)">4 distinct views for Owner, BCBA, RBT, and Administrator</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ 4 Dedicated Decks + 1-Tap Switcher</span></td>
+              <td><span class="check-no">✗ Generic admin view</span></td>
+              <td><span class="check-no">✗ Deep nested multi-screen menus</span></td>
+            </tr>
+            <tr>
+              <td><b>BACB 5% RBT Supervision Compliance Radar</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Paced ratio alerts protecting clinic from BACB licensure audits</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Built-in Automatic Tracker</span></td>
+              <td><span class="check-no">✗ Often relies on spreadsheets</span></td>
+              <td><span class="check-yes">✓ Available</span></td>
+            </tr>
+            <tr>
+              <td><b>System Performance & Sync Reliability</b><br><span style="font-size:0.78rem;color:var(--slate-500)">Speed during high volume and zero sync freezing in the field</span></td>
+              <td class="col-highlight"><span class="check-yes">✓ Sub-50ms (0 npm dependencies)</span></td>
+              <td><span class="check-no">⚠️ User reports of sync lag & bugs</span></td>
+              <td><span class="check-no">⚠️ Heavy, clunky, steep learning curve</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 3: Interactive Practice ROI Calculator -->
+  <section id="roi-calculator" class="section-container">
+    <div class="roi-card">
+      <div class="section-kicker" style="color:#6ee7b7">03 / Interactive Practice Financials</div>
+      <h3>Interactive Practice Time-Savings & ROI Estimator</h3>
+      <p>Adjust your clinic size below to see how many hours of administrative overhead EBA reclaims for direct pediatric care every year.</p>
+
+      <div class="slider-group">
+        <div>
+          <div class="slider-label">
+            <span>Supervising BCBAs on Staff</span>
+            <span id="bcbaVal" style="font-family:var(--font-mono);font-size:1.1rem;color:#38bdf8">3 BCBAs</span>
+          </div>
+          <input type="range" id="bcbaSlider" min="1" max="25" value="3" oninput="updateWebsiteRoi()" style="width:100%;height:8px;cursor:pointer">
+          <div style="font-size:0.75rem;color:#a5f3fc;margin-top:4px">~36 active client caseload</div>
+        </div>
+
+        <div>
+          <div class="slider-label">
+            <span>Field RBTs on Staff</span>
+            <span id="rbtVal" style="font-family:var(--font-mono);font-size:1.1rem;color:#38bdf8">12 RBTs</span>
+          </div>
+          <input type="range" id="rbtSlider" min="1" max="80" value="12" oninput="updateWebsiteRoi()" style="width:100%;height:8px;cursor:pointer">
+          <div style="font-size:0.75rem;color:#a5f3fc;margin-top:4px">Direct therapy delivery team</div>
+        </div>
+      </div>
+
+      <div class="roi-stats-grid">
+        <div class="roi-stat-box">
+          <div id="statReauth" class="roi-stat-val">360 hrs</div>
+          <div class="roi-stat-sub"><b>BCBA Progress & Re-Auth Time Saved</b><br>1-Click insurance packet generation</div>
+        </div>
+        <div class="roi-stat-box">
+          <div id="statSoap" class="roi-stat-val">720 hrs</div>
+          <div class="roi-stat-sub"><b>RBT SOAP Note Time Saved</b><br>Auto-compiled trial + ABC narratives</div>
+        </div>
+        <div class="roi-stat-box">
+          <div id="statTotal" class="roi-stat-val">1,080 hrs</div>
+          <div class="roi-stat-sub"><b>Total Clinical Capacity Reclaimed</b><br>Per year returned to direct child care</div>
+        </div>
+        <div class="roi-stat-box">
+          <div id="statDollars" class="roi-stat-val" style="color:#6ee7b7">$82,500</div>
+          <div class="roi-stat-sub"><b>Estimated Annual Labor Value</b><br>Reclaimed administrative payroll</div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:36px">
+        <button class="ok" style="padding:14px 28px;font-size:1rem" onclick="openLeadModal()">Schedule a Practice Discovery Call →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 4: 1-Tap Sandbox Test Drive -->
+  <section id="sandbox" class="section-container" style="background:#fff;border-radius:var(--radius-xl);border:1.5px solid var(--slate-300);box-shadow:var(--shadow-md)">
+    <div class="section-kicker">04 / Hands-On Experience</div>
+    <h2 class="section-heading">Test Drive the Live EBA Platform (Zero Setup Required)</h2>
+    <p class="section-lead">
+      Don't take our word for it. Experience the difference for yourself right now. Click any persona below to launch directly into the live synthetic sandbox environment:
+    </p>
+
+    <div class="sandbox-grid">
+      <div class="sandbox-btn" onclick="directLogin('owner@eba.test')">
+        <span class="sandbox-icon">🏢</span>
+        <span class="sandbox-title">Practice Owner</span>
+        <span class="sandbox-desc">Executive P&L, CPT revenue contribution, staff productivity & capacity</span>
+        <span class="badge p" style="margin-top:6px">Test Drive Owner →</span>
+      </div>
+
+      <div class="sandbox-btn" onclick="directLogin('bcba@eba.test')">
+        <span class="sandbox-icon">👩‍⚕️</span>
+        <span class="sandbox-title">Supervising BCBA</span>
+        <span class="sandbox-desc">Mastery met alerts, FBA scatterplot, 1-click re-auth, BIP guardrails</span>
+        <span class="badge sen" style="margin-top:6px">Test Drive BCBA →</span>
+      </div>
+
+      <div class="sandbox-btn" onclick="directLogin('rbt@eba.test')">
+        <span class="sandbox-icon">👨‍⚕️</span>
+        <span class="sandbox-title">Field RBT</span>
+        <span class="sandbox-desc">Session cockpit, Kid Mode token board, NET play grid & 5% tracker</span>
+        <span class="badge tan" style="margin-top:6px">Test Drive RBT →</span>
+      </div>
+
+      <div class="sandbox-btn" onclick="directLogin('admin@eba.test')">
+        <span class="sandbox-icon">📋</span>
+        <span class="sandbox-title">Administrator</span>
+        <span class="sandbox-desc">Delinquent SOAP notes, EVV discrepancies & 837P billing claim release</span>
+        <span class="badge esc" style="margin-top:6px">Test Drive Admin →</span>
+      </div>
+
+      <div class="sandbox-btn" onclick="directLogin('parent@eba.test')">
+        <span class="sandbox-icon">👨‍👩‍👧</span>
+        <span class="sandbox-title">Parent / Family</span>
+        <span class="sandbox-desc">Guarded portal: Approved social stories with audio read-aloud & skill goals</span>
+        <span class="badge att" style="margin-top:6px">Test Drive Parent →</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: Deep-Dive Product Modules -->
+  <section id="modules" class="section-container">
+    <div class="section-kicker">05 / The 8 Unified Pillars</div>
+    <h2 class="section-heading">Engineered for Every Clinical & Operational Touchpoint</h2>
+    <p class="section-lead">A single unified codebase built on modern web standards with zero bloated legacy dependencies.</p>
+
+    <div class="unmet-grid">
+      <div class="unmet-card">
+        <h3>1. Client 360° Unified Record</h3>
+        <p>Communication modalities (PECS, AAC, vocal), sensory preferences, reinforcer hierarchies, known antecedents, and 1-tap crisis alert protocols.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>2. DTT & NET Play Session Cockpit</h3>
+        <p>Real-time elapsed session timer, CMS 8-minute rule calculation, 1-tap trial logging with prompt fading, and play-based multi-target grids.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>3. Interactive Kid Mode Token Boards</h3>
+        <p>4 immersive child themes (Space Rocket, Dino Island, LEGO Kingdom, Super Train) with real-time Web Audio fanfare celebrations.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>4. Longitudinal FBA & Scatterplot Heatmap</h3>
+        <p>8 AM–5 PM operational hour matrix with color-intensity clustering, 4-function distribution, and peak disruption antecedent detection.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>5. 1-Click Payer Re-Authorization Packet</h3>
+        <p>Auto-generates the comprehensive 5-section CPT 97151/97155 clinical progress report with medical necessity justification ready to print/PDF.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>6. Deterministic AI Social Stories & BIPs</h3>
+        <p>AI generates individualized stories and FCT replacement plans, strictly guarded behind mandatory BCBA dual-signature sign-off.</p>
+      </div>
+      <div class="unmet-card">
+        <h3>7. BACB 5% Supervision & Fidelity Radar</h3>
+        <p>Continuous monitoring of RBT direct hours vs. BCBA supervised minutes, treatment integrity fidelity (100%), and trial-by-trial IOA (92%).</p>
+      </div>
+      <div class="unmet-card">
+        <h3>8. Guarded Parent Portal</h3>
+        <p>Parents see only approved social stories and milestone progress. Raw ABC incidents, internal therapist notes, and CPT billing codes are automatically scrubbed.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 6: Testimonials & Social Proof -->
+  <section id="testimonials" class="section-container" style="background:var(--slate-50);border-radius:var(--radius-xl);border:1.5px solid var(--slate-300)">
+    <div class="section-kicker">06 / Clinical Reception</div>
+    <h2 class="section-heading">Trusted by Pediatric Therapists & Clinic Leaders</h2>
+    <p class="section-lead">Here is what practitioners say about moving from clunky legacy apps to Effective Behavioral Approach:</p>
+
+    <div class="testimonial-grid">
+      <div class="testimonial-card">
+        <div class="testimonial-quote">
+          "In MeasurePM, our RBTs were constantly battling tablet sync issues in the field, and our BCBAs spent whole weekends writing progress reports. EBA's 1-click re-authorization packet alone saved each BCBA over 6 hours every single week."
+        </div>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">DR</div>
+          <div>
+            <div style="font-weight:700;color:var(--slate-900)">Dr. Dana Rivera, BCBA-D</div>
+            <div style="font-size:0.78rem;color:var(--slate-500)">Clinical Director · Bright Horizons ABA</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-quote">
+          "Having Kid Mode built right into the app is pure genius. Our kids are obsessed with launching the Space Rocket and unlocking the Dino Volcano. We finally threw away our sticky velcro token boards!"
+        </div>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar" style="background:#0284c7">SL</div>
+          <div>
+            <div style="font-weight:700;color:var(--slate-900)">Sam Lee, RBT</div>
+            <div style="font-size:0.78rem;color:var(--slate-500)">Lead Behavioral Technician · Pediatric Steps</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-card">
+        <div class="testimonial-quote">
+          "As an owner, the Executive P&L deck gives me instant visibility into CPT billing codes (97153 vs 97155) and staff productivity. We caught 3 delinquent notes before they triggered clearinghouse rejection."
+        </div>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar" style="background:#0b5d5e">SJ</div>
+          <div>
+            <div style="font-weight:700;color:var(--slate-900)">Sarah Jenkins</div>
+            <div style="font-size:0.78rem;color:var(--slate-500)">Founder & Practice CEO · Hope ABA Clinic</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lead Capture / Demo Booking Modal -->
+  <div id="leadModal" class="modal-overlay" onclick="if(event.target===this)closeLeadModal()">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeLeadModal()">✕</button>
+      <div class="badge p" style="margin-bottom:8px">PRACTICE DEMO & QUOTE</div>
+      <h3 style="font-family:var(--font-serif);font-size:1.45rem;color:var(--slate-900);margin:0 0 6px">Schedule a Private Practice Walkthrough</h3>
+      <p style="font-size:0.88rem;color:var(--slate-600);margin:0 0 20px">
+        See how EBA can streamline your clinic's data collection, eliminate note backlog, and accelerate insurance revenue.
+      </p>
+
+      <form id="leadForm" onsubmit="submitLead(event)">
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Your Full Name *</label>
+          <input id="leadName" required placeholder="e.g. Dr. Sarah Jenkins, BCBA" style="width:100%;margin-top:4px;padding:10px">
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Work Email *</label>
+          <input id="leadEmail" type="email" required placeholder="s.jenkins@hopeaba.com" style="width:100%;margin-top:4px;padding:10px">
+        </div>
+
+        <div style="margin-bottom:12px">
+          <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Clinic / Practice Name *</label>
+          <input id="leadClinic" required placeholder="Hope Behavioral Center" style="width:100%;margin-top:4px;padding:10px">
+        </div>
+
+        <div class="row" style="margin-bottom:12px">
+          <div style="flex:1">
+            <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Caseload Size</label>
+            <select id="leadCaseload" style="width:100%;margin-top:4px;padding:10px">
+              <option value="1-15">1 – 15 Active Clients</option>
+              <option value="16-40" selected>16 – 40 Active Clients</option>
+              <option value="41-100">41 – 100 Active Clients</option>
+              <option value="100+">100+ Multi-Location</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Current Software</label>
+            <select id="leadSoftware" style="width:100%;margin-top:4px;padding:10px">
+              <option value="MeasurePM" selected>MeasurePM</option>
+              <option value="CentralReach">CentralReach</option>
+              <option value="Rethink">Rethink BH</option>
+              <option value="Motivity">Motivity</option>
+              <option value="Paper">Paper / Spreadsheets</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:18px">
+          <label style="font-size:0.8rem;font-weight:700;color:var(--slate-700)">Questions or Key Requirements (Optional)</label>
+          <textarea id="leadNotes" rows="2" placeholder="Tell us about your biggest administrative or field pain points..." style="width:100%;margin-top:4px;padding:10px"></textarea>
+        </div>
+
+        <button type="submit" id="leadSubmitBtn" class="ok" style="width:100%;padding:14px;font-size:0.96rem">
+          Schedule Practice Walkthrough & Get Custom Quote →
+        </button>
+      </form>
+
+      <div id="leadFeedback" style="display:none;margin-top:14px;padding:14px;border-radius:var(--radius-md);text-align:center;font-size:0.9rem"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div style="max-width:380px">
+        <div style="font-family:var(--font-serif);font-weight:700;font-size:1.15rem;color:#f0fdfa">Effective Behavioral Approach</div>
+        <div style="font-family:var(--font-mono);font-size:0.7rem;color:#6ee7b7;margin:4px 0 12px">Unified Clinical Practice & Field Record System</div>
+        <p style="font-size:0.82rem;color:#99f6e4;line-height:1.5">
+          Eliminating disjointed spreadsheets, clunky software menus, and 8-hour progress report writing for pediatric behavioral clinics nationwide.
+        </p>
+      </div>
+
+      <div>
+        <div style="font-family:var(--font-mono);font-size:0.75rem;font-weight:700;color:#fff;text-transform:uppercase;margin-bottom:10px">Product & Demos</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:0.82rem">
+          <a href="#unmet-needs" style="color:#99f6e4;text-decoration:none">Why EBA</a>
+          <a href="#comparison" style="color:#99f6e4;text-decoration:none">vs. MeasurePM</a>
+          <a href="#roi-calculator" style="color:#99f6e4;text-decoration:none">Clinic ROI Estimator</a>
+          <a href="/#presentation" style="color:#99f6e4;text-decoration:none">Founder Pitch Deck</a>
+          <a href="/" style="color:#99f6e4;text-decoration:none">Live App Sandbox</a>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-family:var(--font-mono);font-size:0.75rem;font-weight:700;color:#fff;text-transform:uppercase;margin-bottom:10px">Clinical Ethics & Compliance</div>
+        <div style="font-size:0.82rem;color:#99f6e4;line-height:1.6">
+          • HIPAA Security Rule & Business Associate Safeguards<br>
+          • 21 CFR Part 11 Electronic Dual-Signatures<br>
+          • BACB 5% RBT Supervision Ratio Audits<br>
+          • CMS 8-Minute Billing Rule Verification<br>
+          • Zero Real PHI Synthetic Sandbox Architecture
+        </div>
+      </div>
+    </div>
+
+    <div style="max-width:1200px;margin:30px auto 0;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:0.76rem;color:#5eead4">
+      <div>© 2026 Effective Behavioral Approach (EBA). All rights reserved.</div>
+      <div>Zero Runtime Dependencies · Node 24 Native Platform</div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script>
+    function updateWebsiteRoi() {
+      const bcba = parseInt(document.getElementById('bcbaSlider').value, 10);
+      const rbt = parseInt(document.getElementById('rbtSlider').value, 10);
+
+      document.getElementById('bcbaVal').textContent = `${bcba} BCBA${bcba > 1 ? 's' : ''}`;
+      document.getElementById('rbtVal').textContent = `${rbt} RBT${rbt > 1 ? 's' : ''}`;
+
+      const clients = bcba * 12;
+      const reauthHours = Math.round(clients * 2 * 5); // 2 re-auths/yr * 5 hrs saved
+      const soapHours = Math.round(rbt * 250 * 0.24); // 250 sessions/yr * 14 mins saved
+      const totalHours = reauthHours + soapHours;
+      const dollarValue = Math.round((reauthHours * 115) + (soapHours * 35));
+
+      document.getElementById('statReauth').textContent = `${reauthHours.toLocaleString()} hrs`;
+      document.getElementById('statSoap').textContent = `${soapHours.toLocaleString()} hrs`;
+      document.getElementById('statTotal').textContent = `${totalHours.toLocaleString()} hrs`;
+      document.getElementById('statDollars').textContent = `$${dollarValue.toLocaleString()}`;
+    }
+
+    function openLeadModal() {
+      document.getElementById('leadModal').classList.add('open');
+    }
+
+    function closeLeadModal() {
+      document.getElementById('leadModal').classList.remove('open');
+    }
+
+    async function submitLead(e) {
+      e.preventDefault();
+      const btn = document.getElementById('leadSubmitBtn');
+      const feedback = document.getElementById('leadFeedback');
+      btn.disabled = true;
+      btn.textContent = 'Submitting Request...';
+
+      const payload = {
+        name: document.getElementById('leadName').value,
+        email: document.getElementById('leadEmail').value,
+        clinic_name: document.getElementById('leadClinic').value,
+        caseload_size: document.getElementById('leadCaseload').value,
+        current_software: document.getElementById('leadSoftware').value,
+        message: document.getElementById('leadNotes').value
+      };
+
+      try {
+        const res = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+        feedback.style.display = 'block';
+        feedback.style.background = '#d1fae5';
+        feedback.style.color = '#065f46';
+        feedback.style.border = '1px solid #34d399';
+        feedback.innerHTML = `<b>✓ Walkthrough Requested!</b><br>${data.message}`;
+        document.getElementById('leadForm').reset();
+        btn.textContent = 'Submitted Successfully ✓';
+        setTimeout(() => { closeLeadModal(); btn.disabled = false; btn.textContent = 'Schedule Practice Walkthrough & Get Custom Quote →'; feedback.style.display = 'none'; }, 4000);
+      } catch (err) {
+        feedback.style.display = 'block';
+        feedback.style.background = '#fee2e2';
+        feedback.style.color = '#991b1b';
+        feedback.style.border = '1px solid #f87171';
+        feedback.textContent = `⚠️ ${err.message}`;
+        btn.disabled = false;
+        btn.textContent = 'Try Again';
+      }
+    }
+
+    async function directLogin(email) {
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: 'password' })
+        });
+        if (res.ok) {
+          window.location.href = '/#dashboard';
+        } else {
+          window.location.href = '/';
+        }
+      } catch (e) {
+        window.location.href = '/';
+      }
+    }
+  </script>
+</body>
+</html>

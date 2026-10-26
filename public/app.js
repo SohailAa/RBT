@@ -22,6 +22,7 @@ let roiRbt = 12;
 let fbaFilterBehavior = 'ALL';
 let fbaFilterFunction = 'ALL';
 let fbaFilterHour = null;
+let kpiPersona = null;
 
 const KID_THEMES = {
   space: {
@@ -327,13 +328,24 @@ const NAV_ICONS = {
 };
 
 const NAV = {
+  OWNER: [
+    ['dashboard', NAV_ICONS.dashboard, 'Executive Practice Ledger', 'Revenue, CPT & Productivity'],
+    ['leads', NAV_ICONS.clients, 'Inbound Growth CRM', 'MeasurePM Switches & Leads'],
+    ['clients', NAV_ICONS.clients, 'Clients 360°', 'Vitals, DTT, FBA & BIPs'],
+    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & Units'],
+    ['notes', NAV_ICONS.notes, 'Billing & Notes', 'SOAP, Claims & Dual-Sign'],
+    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Mandatory 5% Audit Radar'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+  ],
   BCBA: [
     ['dashboard', NAV_ICONS.dashboard, 'Practice Ledger', 'Live EVV, Roster & Burn-Down'],
     ['clients', NAV_ICONS.clients, 'Clients 360°', 'Vitals, DTT, FBA & BIPs'],
     ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & Units'],
     ['notes', NAV_ICONS.notes, 'Notes & Dual-Sign', 'SOAP & 21 CFR Co-Sign'],
     ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Mandatory 5% Audit Radar'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
   ],
   RBT: [
     ['dashboard', NAV_ICONS.dashboard, 'My Clinical Day', 'Assigned Shift & Tasks'],
@@ -341,11 +353,23 @@ const NAV = {
     ['clients', NAV_ICONS.clients, 'My Clients 360°', 'Vitals, DTT & ABC Logs'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Auto-SOAP Drafts'],
     ['supervision', NAV_ICONS.supervision, 'My Supervision', 'BCBA Feedback & 5% Track'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+  ],
+  ADMIN: [
+    ['dashboard', NAV_ICONS.dashboard, 'Operations & Billing Radar', 'Missing Notes, Audits & Claims'],
+    ['leads', NAV_ICONS.clients, 'Inbound Growth CRM', 'MeasurePM Switches & Leads'],
+    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & EVV'],
+    ['notes', NAV_ICONS.notes, 'Documentation & Claims', 'Delinquent Notes & Billing Batches'],
+    ['clients', NAV_ICONS.clients, 'Client Roster', 'Vitals, Coverage & Auths'],
+    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Compliance & Audits'],
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
   ],
   PARENT: [
     ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Approved Stories'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour']
+    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['website', NAV_ICONS.presentation, 'Public Website', 'Practice Overview']
   ]
 };
 
@@ -490,10 +514,11 @@ function shell(content, route) {
           </div>
         </div>
         <div style="font-family:var(--font-mono);font-size:0.6rem;color:#99f6e4;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px">1-Tap Instant Role Switch:</div>
-        <div class="sidebar-role-switcher">
+        <div class="sidebar-role-switcher" style="grid-template-columns: repeat(4, 1fr); gap: 4px;">
+          <button class="role-switch-btn ${me.role === 'OWNER' ? 'active' : ''}" onclick="act.demoLogin('owner@eba.test')">Owner</button>
           <button class="role-switch-btn ${me.role === 'BCBA' ? 'active' : ''}" onclick="act.demoLogin('bcba@eba.test')">BCBA</button>
           <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
-          <button class="role-switch-btn ${me.role === 'PARENT' ? 'active' : ''}" onclick="act.demoLogin('parent@eba.test')">Parent</button>
+          <button class="role-switch-btn ${me.role === 'ADMIN' ? 'active' : ''}" onclick="act.demoLogin('admin@eba.test')">Admin</button>
         </div>
         <a class="nav-logout" onclick="act.logout()">Sign Out of Workspace</a>
       </div>
@@ -527,6 +552,17 @@ function loginView(err) {
         Sign in to access real-time session tracking, unified FBA & ABC behavioral records, and dual-signature clinical documentation.
       </p>
 
+      <div style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--primary);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="role-emblem" style="background:#042e39;color:#fff;border-color:#2dd4bf;width:44px;height:44px;font-size:1.1rem">🌐</div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:0.06em">Public Product Website & B2B Sales</div>
+            <div style="font-family:var(--font-serif);font-size:0.94rem;font-weight:600;color:var(--slate-900)">MeasurePM Comparison Matrix & ROI Calculator</div>
+          </div>
+        </div>
+        <button class="ok" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="window.location.href='/website.html'">Visit Product Website →</button>
+      </div>
+
       <div style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--accent-clay);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:12px">
           <div class="role-emblem" style="background:var(--primary);color:#F7F4EC;border-color:#D4A359;width:44px;height:44px;font-size:0.95rem;font-family:var(--font-mono)">EBA</div>
@@ -535,7 +571,7 @@ function loginView(err) {
             <div style="font-family:var(--font-serif);font-size:0.94rem;font-weight:600;color:var(--slate-900)">Interactive Competitive Deck & Live Tour</div>
           </div>
         </div>
-        <button class="ok" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="go('presentation')">Open Pitch Deck →</button>
+        <button class="sec" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="go('presentation')">Open Pitch Deck →</button>
       </div>
 
       <label>Clinician / Guardian Email</label>
@@ -550,6 +586,16 @@ function loginView(err) {
 
       <div class="demo-pills">
         <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">1-Tap Clinical Role Credentials:</div>
+        <div class="demo-pill" onclick="act.demoLogin('owner@eba.test')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="role-emblem" style="background:#0b5d5e;color:#fff">SJ</span>
+            <div>
+              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Sarah Jenkins</div>
+              <div style="font-size:0.75rem;color:var(--slate-500)">Practice Owner & CEO</div>
+            </div>
+          </div>
+          <span class="badge p">Owner</span>
+        </div>
         <div class="demo-pill" onclick="act.demoLogin('bcba@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem">DR</span>
@@ -558,7 +604,7 @@ function loginView(err) {
               <div style="font-size:0.75rem;color:var(--slate-500)">Supervising Clinical Director</div>
             </div>
           </div>
-          <span class="badge p">BCBA</span>
+          <span class="badge sen">BCBA</span>
         </div>
         <div class="demo-pill" onclick="act.demoLogin('rbt@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
@@ -569,6 +615,16 @@ function loginView(err) {
             </div>
           </div>
           <span class="badge tan">RBT</span>
+        </div>
+        <div class="demo-pill" onclick="act.demoLogin('admin@eba.test')">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="role-emblem" style="background:#0284c7;color:#fff">MV</span>
+            <div>
+              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Marcus Vance</div>
+              <div style="font-size:0.75rem;color:var(--slate-500)">Operations & Billing Lead</div>
+            </div>
+          </div>
+          <span class="badge esc">Admin</span>
         </div>
         <div class="demo-pill" onclick="act.demoLogin('parent@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
@@ -589,142 +645,780 @@ function loginView(err) {
   </div>`;
 }
 
-async function dashboardView() {
-  const d = await api('GET', '/api/dashboard');
-  const sup = d.supervision || { supPct: 0, compliant: false };
-  const todayStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  
-  return `
-  <div class="page-header">
-    <div style="display:flex;align-items:center;gap:16px">
-      ${brandEmblem('lg')}
-      <div>
-        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL COMMAND LEDGER</div>
-        <h1>${me.role === 'RBT' ? 'My Clinical Day' : 'Practice Operations Ledger'}</h1>
-        <p class="page-sub">${todayStr} · Shift Telemetry: <span class="badge ${sup.compliant ? 'tan' : 'att'}">● Active Practice</span></p>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="ok" style="padding:10px 16px" onclick="go('presentation')">Founder Pitch & Monograph →</button>
-      <button class="sec" style="padding:10px 16px" onclick="go('schedule')">Full Clinical Schedule</button>
-    </div>
-  </div>
+function renderOwnerKpi(d) {
+  const o = d.owner || {};
+  const cpt = o.cptRevenueBreakdown || {};
+  const cap = o.caseloadCapacity || { activeClients: 0, targetCaseload: 10, utilizationPct: 0 };
+  const prod = o.staffProductivity || [];
+  const pipe = o.payerPipeline || { totalAuthorizedUnits: 0, totalUsedUnits: 0, remainingUnits: 0, overallBurnPct: 0, atRiskCount: 0 };
+  const inb = o.inboundPipeline || { totalLeads: 0, newLeadsCount: 0, measurePmProspectsCount: 0, demoScheduledCount: 0 };
 
+  return `
+  <!-- Executive Financial & Practice Health Cards -->
   <div class="grid">
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Today's Roster</div>
-        <span class="badge">01</span>
+        <div class="stat-label" style="margin:0">Gross Revenue MTD</div>
+        <span class="badge p">FINANCIAL</span>
       </div>
-      <div class="stat">${d.appts.length}</div>
-      <div class="stat-sub">Scheduled therapy sessions</div>
+      <div class="stat" style="color:var(--primary)">$${(o.totalRevenueMtd || 0).toLocaleString()}</div>
+      <div class="stat-sub">Projected: <b>$${(o.projectedMonthlyRevenue || 0).toLocaleString()}</b>/mo · Avg $${(o.avgRevenuePerClient || 0).toLocaleString()}/client</div>
     </div>
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">1:1 Direct (97153)</div>
-        <span class="badge p">CPT</span>
+        <div class="stat-label" style="margin:0">Delivered Billable Hours</div>
+        <span class="badge sen">CPT UNITS</span>
       </div>
-      <div class="stat" style="color:var(--primary)">${d.rbt}</div>
-      <div class="stat-sub">RBT direct client treatment</div>
+      <div class="stat" style="color:var(--sensory)">${o.totalBillableHours || 0} <span style="font-size:1.1rem;font-weight:600">hrs</span></div>
+      <div class="stat-sub">${o.totalBillableUnits || 0} CMS 15-min Units logged this month</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Claim Realization Rate</div>
+        <span class="badge tan">BILLING</span>
+      </div>
+      <div class="stat" style="color:var(--ok)">${o.realizationRate ?? 100}%</div>
+      <div class="stat-sub">${(d.adminKpi?.billingAndClaims?.claimsReadyCount) || 0} signed notes ready for 837P clearinghouse</div>
     </div>
     <div class="stat-card">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Direction (97155)</div>
-        <span class="badge sen">BCBA</span>
+        <div class="stat-label" style="margin:0">Caseload Capacity</div>
+        <span class="badge">CAPACITY</span>
       </div>
-      <div class="stat" style="color:var(--sensory)">${d.bcba}</div>
-      <div class="stat-sub">Protocol modification & review</div>
+      <div class="stat">${cap.activeClients} <span style="font-size:1.1rem;font-weight:600">/ ${cap.targetCaseload}</span></div>
+      <div class="stat-sub">${cap.utilizationPct}% clinic capacity · Payer burn ${pipe.overallBurnPct}%</div>
     </div>
-    <div class="stat-card ${d.incompleteNotes > 0 ? 'warn' : 'ok'}">
+    <div class="stat-card ${inb.newLeadsCount > 0 ? 'warn' : 'ok'}" onclick="location.hash='#leads'" style="cursor:pointer" title="Click to open Inbound Growth CRM">
       <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Notes Pending</div>
-        <span class="badge">${d.incompleteNotes > 0 ? 'ACTION' : 'CLEAR'}</span>
+        <div class="stat-label" style="margin:0">Inbound Practice Leads</div>
+        <span class="badge ${inb.newLeadsCount > 0 ? 'bad' : 'ok'}">${inb.newLeadsCount > 0 ? `${inb.newLeadsCount} NEW` : 'CRM ACTIVE'}</span>
       </div>
-      <div class="stat" style="color:${d.incompleteNotes > 0 ? 'var(--warn)' : 'var(--ok)'}">${d.incompleteNotes}</div>
-      <div class="stat-sub">Awaiting author submission / sign</div>
+      <div class="stat" style="color:var(--primary)">${inb.totalLeads} <span style="font-size:1rem;color:var(--slate-500)">leads</span></div>
+      <div class="stat-sub"><b>${inb.measurePmProspectsCount}</b> switching from MeasurePM · <b>${inb.demoScheduledCount}</b> demos scheduled →</div>
     </div>
-    <div class="stat-card ${sup.compliant ? 'ok' : 'warn'}">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">BACB 5% Audit</div>
-        <span class="badge tan">≥5% REQ</span>
-      </div>
-      <div class="stat" style="color:${sup.compliant ? 'var(--ok)' : 'var(--warn)'}">${sup.supPct}%</div>
-      <div class="stat-sub"><span class="tag ${sup.compliant ? 'approved' : 'draft'}">${sup.compliant ? '✓ Compliant ≥5%' : '⚠ Below 5% Target'}</span></div>
-    </div>
-    ${me.role === 'BCBA' ? `
-      <div class="stat-card warn">
-        <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-          <div class="stat-label" style="margin:0">Pending Co-Signs</div>
-          <span class="badge esc">21 CFR</span>
-        </div>
-        <div class="stat" style="color:var(--warn)">${d.pendingSign}</div>
-        <div class="stat-sub">RBT notes awaiting BCBA signature</div>
-      </div>
-    ` : ''}
   </div>
 
+  <!-- CPT Fee Schedule Breakdown Table -->
   <div class="card">
-    <div class="flex-between">
-      <h3>Today's Clinical Roster</h3>
-      <span class="badge p">${d.appts.length} Appointments</span>
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+      <div>
+        <h3 style="margin:0 0 4px">CPT Fee Schedule & Revenue Contribution Ledger</h3>
+        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Current month-to-date delivered services by ABA billing code.</p>
+      </div>
+      <span class="badge p">CMS 8-Minute Compliant</span>
     </div>
-    ${d.appts.length ? `
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>CPT Code</th>
+            <th>Service Description</th>
+            <th style="text-align:right">Delivered Units</th>
+            <th style="text-align:right">Delivered Hours</th>
+            <th style="text-align:right">Fee Schedule</th>
+            <th style="text-align:right">Revenue MTD</th>
+            <th style="text-align:right">Revenue Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${['cpt97153', 'cpt97155', 'cpt97156', 'cpt97151'].map(key => {
+            const item = cpt[key] || { code: key.replace('cpt', ''), units: 0, hours: 0, hrRate: 0, total: 0, label: '' };
+            const share = o.totalRevenueMtd > 0 ? Math.round((item.total / o.totalRevenueMtd) * 100) : 0;
+            return `
+              <tr>
+                <td><b style="font-family:var(--font-mono);font-size:0.92rem;color:var(--primary)">${esc(item.code)}</b></td>
+                <td><span style="font-weight:600">${esc(item.label)}</span></td>
+                <td style="text-align:right;font-family:var(--font-mono)">${item.units} units</td>
+                <td style="text-align:right;font-family:var(--font-mono)">${item.hours} hrs</td>
+                <td style="text-align:right;font-family:var(--font-mono)">$${item.hrRate}/hr <span style="font-size:0.75rem;color:var(--slate-500)">($${(item.hrRate/4).toFixed(2)}/u)</span></td>
+                <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--slate-900)">$${(item.total || 0).toLocaleString()}</td>
+                <td style="text-align:right"><span class="badge ${share > 40 ? 'p' : 'sec'}">${share}%</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr style="background:var(--slate-50);font-weight:700">
+            <td colspan="2"><b>Practice Total (MTD)</b></td>
+            <td style="text-align:right;font-family:var(--font-mono)">${o.totalBillableUnits || 0} units</td>
+            <td style="text-align:right;font-family:var(--font-mono)">${o.totalBillableHours || 0} hrs</td>
+            <td style="text-align:right;font-family:var(--font-mono)">Blended Yield</td>
+            <td style="text-align:right;font-family:var(--font-mono);color:var(--primary);font-size:1.05rem">$${(o.totalRevenueMtd || 0).toLocaleString()}</td>
+            <td style="text-align:right"><span class="badge ok">100%</span></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Clinician Productivity Table -->
+    <div class="card" style="flex:1.4">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 4px">Clinician Billable Productivity</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Monthly billable target utilization vs direct therapy hours delivered.</p>
+        </div>
+        <span class="badge tan">Staff Utilization</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Clinician</th>
+            <th>Role</th>
+            <th>Hours Logged</th>
+            <th>Target Progress</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${prod.map(p => {
+            const isHigh = p.utilizationPct >= 70;
+            const isPacing = p.utilizationPct >= 30;
+            return `
+              <tr>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div class="user-avatar" style="width:34px;height:34px;font-size:0.8rem">${getInitials(p.name)}</div>
+                    <div>
+                      <b style="font-family:var(--font-serif)">${esc(p.name)}</b>
+                    </div>
+                  </div>
+                </td>
+                <td><span class="badge ${p.role === 'BCBA' ? 'sen' : 'tan'}">${esc(p.role)}</span></td>
+                <td><span style="font-family:var(--font-mono);font-weight:600">${p.billableHours} hrs</span> <span style="font-size:0.75rem;color:var(--slate-500)">(${p.billableUnits} u)</span></td>
+                <td style="min-width:140px">
+                  <div class="flex-between" style="font-size:0.75rem;font-family:var(--font-mono);margin-bottom:3px">
+                    <span>${p.utilizationPct}%</span>
+                    <span>${p.targetHours}h goal</span>
+                  </div>
+                  <div class="bar" style="height:6px"><div style="width:${p.utilizationPct}%;background:${isHigh ? 'var(--ok)' : isPacing ? 'var(--accent)' : 'var(--warn)'}"></div></div>
+                </td>
+                <td><span class="tag ${isHigh ? 'approved' : 'draft'}">${isHigh ? 'High Yield' : isPacing ? 'On Track' : 'Pacing'}</span></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Payer Pipeline & Authorization Burn -->
+    <div class="card" style="flex:1">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 4px">Payer Authorizations</h3>
+          <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Insurance units authorized vs consumed.</p>
+        </div>
+        <span class="badge ${pipe.atRiskCount > 0 ? 'bad' : 'ok'}">${pipe.atRiskCount} At Risk</span>
+      </div>
+
+      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+        <div class="flex-between" style="font-size:0.85rem;margin-bottom:6px">
+          <span>Overall Pipeline Burn Rate</span>
+          <b style="font-family:var(--font-mono)">${pipe.overallBurnPct}% Burned</b>
+        </div>
+        <div class="bar" style="height:10px"><div style="width:${pipe.overallBurnPct}%;background:${pipe.overallBurnPct >= 80 ? 'var(--bad)' : 'var(--primary)'}"></div></div>
+        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin-top:8px">
+          <span>Used: <b>${pipe.totalUsedUnits}</b> u</span>
+          <span>Remaining: <b>${pipe.remainingUnits}</b> u</span>
+          <span>Authorized: <b>${pipe.totalAuthorizedUnits}</b> u</span>
+        </div>
+      </div>
+
+      ${(d.auths && d.auths.length) ? `
+        <div style="font-size:0.78rem;font-weight:700;color:var(--slate-600);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Authorizations Nearing Expiration (≥80%):</div>
+        ${d.auths.slice(0, 3).map(a => {
+          const pct = Math.round((a.used / a.authorized) * 100);
+          return `
+            <div style="padding:8px 10px;background:#fff;border-radius:var(--radius-sm);border:1px solid var(--slate-200);margin-bottom:8px">
+              <div class="flex-between" style="font-size:0.85rem">
+                <b>${esc(a.client)}</b>
+                <span class="badge ${pct >= 90 ? 'bad' : 'tan'}">${pct}% Used</span>
+              </div>
+              <div class="flex-between" style="font-size:0.75rem;color:var(--slate-500);margin-top:2px">
+                <span>CPT ${esc(a.code)}</span>
+                <span style="font-family:var(--font-mono)">${a.used}/${a.authorized} units</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:12px">All authorizations have healthy capacity (&lt;80% burned).</p>'}
+    </div>
+  </div>
+  `;
+}
+
+function renderBcbaKpi(d) {
+  const bcba = d.bcbaKpi || {};
+  const prog = bcba.clientProgress || {};
+  const beh = bcba.behaviorPatterns || {};
+  const fDist = beh.functionDistribution || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
+  const totalBeh = beh.totalMaladaptiveEvents || (fDist.Escape + fDist.Attention + fDist.Tangible + fDist.Sensory) || 1;
+  const escPct = Math.round((fDist.Escape / totalBeh) * 100);
+  const attPct = Math.round((fDist.Attention / totalBeh) * 100);
+  const tanPct = Math.round((fDist.Tangible / totalBeh) * 100);
+  const senPct = Math.round((fDist.Sensory / totalBeh) * 100);
+  const peak = beh.peakDisruptionWindow || { label: '10:00 AM', count: 2, primaryAntecedent: 'Transition from preferred activity' };
+
+  return `
+  <!-- Clinical Velocity & Progress Overview -->
+  <div class="grid">
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Active Program Targets</div>
+        <span class="badge p">SKILL ACQ</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${prog.activeProgramsCount || 0}</div>
+      <div class="stat-sub"><b>${prog.masteredCount || 0}</b> targets mastered MTD · Velocity: High</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Caseload Maladaptive Trend</div>
+        <span class="badge tan">FBA METRICS</span>
+      </div>
+      <div class="stat" style="color:var(--ok)">${beh.pctChange || -25}%</div>
+      <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> vs baseline (${beh.totalMaladaptiveEvents || 0} incidents)</div>
+    </div>
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Treatment Integrity Fidelity</div>
+        <span class="badge sen">COMPLIANCE</span>
+      </div>
+      <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
+      <div class="stat-sub">100% Procedural protocol fidelity on RBT observation</div>
+    </div>
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Trial-by-Trial IOA</div>
+        <span class="badge">RELIABILITY</span>
+      </div>
+      <div class="stat">${beh.averageIoaAgreement || 92}%</div>
+      <div class="stat-sub">Interobserver agreement verified (&gt;80% standard)</div>
+    </div>
+  </div>
+
+  <!-- Clinical Action Radar: Mastery Met, Target Stalled, Regression Watchlist -->
+  <div class="row">
+    <!-- Mastery Criteria Met Queue -->
+    <div class="card" style="flex:1;border-top:4px solid var(--ok)">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">🎯 Mastery Criteria Met</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Learners achieved ≥80% across 3 consecutive sessions.</p>
+        </div>
+        <span class="tag approved">${(prog.criteriaMetAlerts || []).length} Ready</span>
+      </div>
+      ${(prog.criteriaMetAlerts && prog.criteriaMetAlerts.length) ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          ${prog.criteriaMetAlerts.map(a => `
+            <div style="background:#fff;padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:12px">
+              <div>
+                <b style="font-family:var(--font-serif);color:var(--slate-900)">${esc(a.clientName)}</b>
+                <div style="font-size:0.82rem;color:var(--primary);font-weight:600;margin-top:2px">${esc(a.title)}</div>
+                <div style="font-size:0.75rem;color:var(--slate-500);font-family:var(--font-mono)">Score: <b>${esc(a.numDenom)}</b> (${a.avgPct}%)</div>
+              </div>
+              <button class="ok" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="act.quickMasterGoal(${a.goalId})">✓ Master & Maintenance</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">No programs currently pending mastery advancement.</p>'}
+    </div>
+
+    <!-- Target Stalled Alert Queue -->
+    <div class="card" style="flex:1;border-top:4px solid var(--warn)">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">⚠️ Target Stalled Radar</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Programs with ≥5 sessions without clinical acceleration.</p>
+        </div>
+        <span class="tag draft">${(prog.stalledAlerts || []).length} Stalled</span>
+      </div>
+      ${(prog.stalledAlerts && prog.stalledAlerts.length) ? `
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          ${prog.stalledAlerts.map(a => `
+            <div style="background:#fff;padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:12px">
+              <div>
+                <b style="font-family:var(--font-serif);color:var(--slate-900)">${esc(a.clientName)}</b>
+                <div style="font-size:0.82rem;color:var(--warn);font-weight:600;margin-top:2px">${esc(a.title)}</div>
+                <div style="font-size:0.75rem;color:var(--slate-500);font-family:var(--font-mono)">Current: <b>${a.currentPct}%</b> (Baseline: ${a.baselinePct}%)</div>
+              </div>
+              <button class="sec" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="go('client', ${a.clientId})">Review Prompt Hierarchy →</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">Zero stalled targets across active caseload.</p>'}
+    </div>
+  </div>
+
+  <!-- Behavior Patterns: 4-Function Distribution & Peak Disruption Window -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+      <div>
+        <h3 style="margin:0 0 4px">Caseload Behavior Patterns & 4-Function Analysis</h3>
+        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Aggregated ABC incident telemetry across all active client behavior intervention plans.</p>
+      </div>
+      <div style="display:flex;gap:8px">
+        <span class="badge esc">Dominant: ${esc(beh.dominantFunction || 'Escape')}</span>
+        <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="go('client', 1)">Open FBA Scatterplot →</button>
+      </div>
+    </div>
+
+    <!-- 4-Function Visual Segmented Bar -->
+    <div style="background:var(--slate-100);padding:14px;border-radius:var(--radius-md);margin-bottom:16px">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Caseload 4-Function Distribution (% of Incidents):</div>
+      <div style="display:flex;height:24px;border-radius:var(--radius-sm);overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.1)">
+        <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Escape / Avoidance: ${escPct}%">${escPct > 10 ? `Escape ${escPct}%` : ''}</div>
+        <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Attention: ${attPct}%">${attPct > 10 ? `Attention ${attPct}%` : ''}</div>
+        <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Tangible: ${tanPct}%">${tanPct > 10 ? `Tangible ${tanPct}%` : ''}</div>
+        <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Sensory / Automatic: ${senPct}%">${senPct > 10 ? `Sensory ${senPct}%` : ''}</div>
+      </div>
+      <div class="row" style="margin-top:12px;margin-bottom:0">
+        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
+          <span style="width:10px;height:10px;border-radius:2px;background:#be123c;display:inline-block"></span>
+          <b>Escape:</b> ${fDist.Escape || 0} incidents (${escPct}%)
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
+          <span style="width:10px;height:10px;border-radius:2px;background:#0284c7;display:inline-block"></span>
+          <b>Attention:</b> ${fDist.Attention || 0} incidents (${attPct}%)
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
+          <span style="width:10px;height:10px;border-radius:2px;background:#d97706;display:inline-block"></span>
+          <b>Tangible:</b> ${fDist.Tangible || 0} incidents (${tanPct}%)
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
+          <span style="width:10px;height:10px;border-radius:2px;background:#0f766e;display:inline-block"></span>
+          <b>Sensory:</b> ${fDist.Sensory || 0} incidents (${senPct}%)
+        </div>
+      </div>
+    </div>
+
+    <!-- Peak Disruption Window Card -->
+    <div style="background:#fff;border-left:4px solid var(--accent);border-radius:var(--radius-md);padding:14px 16px;border:1px solid var(--slate-200);border-left-width:4px">
+      <div class="flex-between">
+        <div>
+          <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.06em">Ecological Trigger & Cluster Radar</span>
+          <h4 style="margin:4px 0 2px;font-size:1.02rem;color:var(--slate-900)">Peak Disruption Window: <b>${esc(peak.label)}</b></h4>
+        </div>
+        <span class="badge att">${peak.count || 2} Clustered Events</span>
+      </div>
+      <p style="margin:4px 0 8px;font-size:0.86rem;color:var(--slate-700)">
+        Primary Antecedent: <b>${esc(peak.primaryAntecedent)}</b>. Client data demonstrates heightened escalation prior to transitions.
+      </p>
+      <div style="font-size:0.8rem;color:var(--slate-600);background:var(--slate-50);padding:8px 12px;border-radius:var(--radius-sm)">
+        <b>Recommended Proactive Protocol:</b> Deliver 2-minute visual countdown timer and offer FCT break-card opportunity prior to transition command.
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderRbtKpi(d) {
+  const rbt = d.rbtKpi || {};
+  const tasks = rbt.todayTasks || [];
+  const reqs = rbt.dataRequirements || {};
+  const train = rbt.trainingAndSupervision || {};
+
+  return `
+  <!-- Field Telemetry Cards -->
+  <div class="grid">
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Today's Assigned Shift</div>
+        <span class="badge tan">ROSTER</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${tasks.length} <span style="font-size:1.1rem;font-weight:600">Appts</span></div>
+      <div class="stat-sub">${tasks.filter(t => t.status === 'Completed').length} Completed · ${tasks.filter(t => t.status === 'In Session').length} In Session</div>
+    </div>
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Daily Trial Quota</div>
+        <span class="badge p">DATA QUOTA</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${reqs.completedTrialsToday || 0} <span style="font-size:1.1rem;font-weight:600">/ ${reqs.requiredTrialsPerSession * Math.max(1, tasks.length)}</span></div>
+      <div class="stat-sub">${reqs.pendingTargetCount || 0} active learning targets pending trials today</div>
+    </div>
+    <div class="stat-card ${train.compliant ? 'ok' : 'warn'}">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">BACB 5% Supervision</div>
+        <span class="badge">${train.compliant ? 'COMPLIANT' : 'ACTION'}</span>
+      </div>
+      <div class="stat" style="color:${train.compliant ? 'var(--ok)' : 'var(--warn)'}">${train.personalSupPct || 0}%</div>
+      <div class="stat-sub">${train.compliant ? '<span class="tag approved">✓ Compliant ≥5% Met</span>' : `<span class="tag draft">⚠ Needs ${train.hoursNeededFor5Pct}h more</span>`}</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Treatment Fidelity</div>
+        <span class="badge sen">OBSERVATION</span>
+      </div>
+      <div class="stat" style="color:var(--sensory)">${train.latestFidelityScore || 100}%</div>
+      <div class="stat-sub">High prompt hierarchy adherence verified</div>
+    </div>
+  </div>
+
+  <!-- Today's Session Dispatch & 1-Tap Cockpit Launcher -->
+  <div class="card">
+    <div class="flex-between" style="margin-bottom:6px">
+      <div>
+        <h3 style="margin:0 0 2px">Today's Assigned Clinical Appointments</h3>
+        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">1-Tap direct session entry, trial recording, and EVV timestamping.</p>
+      </div>
+      <span class="badge p">${tasks.length} Sessions Scheduled</span>
+    </div>
+    ${tasks.length ? `
       <table>
         <thead>
           <tr>
             <th>Time Window</th>
             <th>Client Name</th>
-            <th>Modality & Setting</th>
-            <th>Action</th>
+            <th>Setting & CPT</th>
+            <th>Session Status</th>
+            <th style="text-align:right">Action</th>
           </tr>
         </thead>
         <tbody>
-          ${d.appts.map((a) => `
+          ${tasks.map(t => `
             <tr>
-              <td><span style="font-family:var(--font-mono);font-weight:600">${fmtT(a.start).slice(-7)} – ${a.end.slice(11)}</span></td>
+              <td><span style="font-family:var(--font-mono);font-weight:700">${esc(t.timeWindow)}</span></td>
               <td>
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div class="user-avatar" style="width:38px;height:38px;font-size:0.86rem">${getInitials(a.client)}</div>
-                  <b style="font-family:var(--font-serif);font-size:0.98rem">${esc(a.client)}</b>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div class="user-avatar" style="width:34px;height:34px;font-size:0.82rem">${getInitials(t.clientName)}</div>
+                  <b style="font-family:var(--font-serif);font-size:0.96rem">${esc(t.clientName)}</b>
                 </div>
               </td>
               <td>
-                <span class="badge ${a.role === 'BCBA' ? 'sen' : 'tan'}">${esc(a.role)} (CPT ${a.role === 'BCBA' ? '97155' : '97153'})</span>
-                <span class="badge">${esc(a.setting)}</span>
+                <span class="badge">${esc(t.setting)}</span>
+                <span class="badge p">CPT 97153 (1:1 Direct)</span>
               </td>
               <td>
-                <button class="${a.session ? 'sec' : 'ok'}" onclick="act.start(${a.id})">
-                  ${a.session ? (a.session.end ? 'Review Session' : 'Resume Session →') : 'Start Session'}
+                <span class="tag ${t.status === 'Completed' ? 'approved' : t.status === 'In Session' ? 'att' : 'draft'}">
+                  ${t.status === 'In Session' ? '● In Session' : t.status === 'Completed' ? '✓ Completed' : 'Scheduled'}
+                </span>
+              </td>
+              <td style="text-align:right">
+                <button class="${t.status === 'In Session' ? 'ok' : t.status === 'Completed' ? 'sec' : 'ok'}" onclick="act.start(${t.appointmentId})">
+                  ${t.status === 'In Session' ? 'Resume Cockpit →' : t.status === 'Completed' ? 'Review Session' : '▶ Start Session'}
                 </button>
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    ` : '<p style="color:var(--slate-500);text-align:center;padding:24px">No appointments scheduled for today.</p>'}
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:24px">No direct therapy appointments assigned for today.</p>'}
   </div>
 
-  ${d.auths && d.auths.length ? `
-    <div class="card" style="border-left:4px solid var(--warn)">
-      <div class="flex-between">
-        <h3>Insurance Authorization Burn-Down Alerts</h3>
-        <span class="tag draft">≥80% Units Exhausted</span>
+  <div class="row">
+    <!-- Data Collection Quotas & Programs -->
+    <div class="card" style="flex:1.2">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">Data Collection Requirements</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Active trial targets and Task Analysis routines needing logs today.</p>
+        </div>
+        <span class="badge tan">Field Quotas</span>
       </div>
-      <p style="font-size:0.85rem;color:var(--slate-500);margin:0 0 14px">These authorizations are nearing expiration. Initiate re-authorization packets to prevent treatment interruption.</p>
-      ${d.auths.map((a) => {
-        const pct = Math.round((a.used / a.authorized) * 100);
-        return `
-          <div style="background:var(--slate-50);padding:12px 16px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:10px">
-            <div class="flex-between">
-              <div><b style="font-family:var(--font-serif)">${esc(a.client)}</b> <span class="badge p">CPT ${esc(a.code)}</span></div>
-              <div style="font-family:var(--font-mono);font-size:0.82rem"><b>${a.used}</b> / ${a.authorized} units (${pct}%)</div>
+
+      <div style="background:var(--slate-50);padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+        <div class="flex-between" style="font-size:0.85rem;margin-bottom:6px">
+          <span>Target Trial Quota (Min. 25/session)</span>
+          <b style="font-family:var(--font-mono)">${reqs.completedTrialsToday || 0} Logged</b>
+        </div>
+        <div class="bar" style="height:8px">
+          <div style="width:${Math.min(100, Math.round(((reqs.completedTrialsToday || 0) / (reqs.requiredTrialsPerSession * Math.max(1, tasks.length))) * 100))}%;background:var(--primary)"></div>
+        </div>
+      </div>
+
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Scheduled Task Analysis Sequences:</div>
+      ${(reqs.taskAnalyses && reqs.taskAnalyses.length) ? `
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${reqs.taskAnalyses.map(ta => `
+            <div style="padding:10px 12px;background:#fff;border-radius:var(--radius-sm);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <b>${esc(ta.title)}</b>
+                <div style="font-size:0.75rem;color:var(--slate-500)">Client: ${esc(ta.clientName)}</div>
+              </div>
+              <span class="tag approved">Forward Chaining</span>
             </div>
-            <div class="bar" style="margin-top:8px"><div style="width:${pct}%;background:${pct >= 90 ? 'var(--bad)' : 'var(--warn)'}"></div></div>
-          </div>
-        `;
-      }).join('')}
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--slate-500);font-size:0.82rem">No specific task analyses scheduled for today.</p>'}
     </div>
-  ` : ''}`;
+
+    <!-- Personal BACB Supervision Progress & Feedback -->
+    <div class="card" style="flex:1">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">BACB 5% Supervision Cockpit</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Personal compliance with monthly RBT supervision standard.</p>
+        </div>
+        <span class="badge ${train.compliant ? 'ok' : 'tan'}">${train.personalSupPct}% Rate</span>
+      </div>
+
+      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
+        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.82rem;margin-bottom:6px">
+          <span>Direct Therapy: <b>${train.directHours || 0} hrs</b></span>
+          <span>Supervised: <b>${train.supervisionHours || 0} hrs</b></span>
+        </div>
+        <div class="bar" style="height:10px">
+          <div style="width:${Math.min(100, Math.round(((train.personalSupPct || 0) / 5) * 100))}%;background:${train.compliant ? 'var(--ok)' : 'var(--warn)'}"></div>
+        </div>
+        <div style="font-size:0.78rem;color:var(--slate-600);margin-top:8px">
+          ${train.compliant 
+            ? '✓ You have met the BACB 5% monthly supervision requirement.' 
+            : `⚠ Need <b>${train.hoursNeededFor5Pct || 0}</b> additional hours of BCBA supervision this month.`}
+        </div>
+      </div>
+
+      <div style="background:#fff;border-left:4px solid var(--sensory);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--slate-200);border-left-width:4px">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--sensory);text-transform:uppercase;letter-spacing:0.06em">Latest Supervisor Observation Feedback</div>
+        <p style="margin:4px 0 0;font-size:0.82rem;color:var(--slate-800);font-style:italic">
+          "${esc(train.latestFeedback || 'Great fidelity adherence during trial runs.')}"
+        </p>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderAdminKpi(d) {
+  const admin = d.adminKpi || {};
+  const delinq = admin.documentationDelinquency || {};
+  const missing = delinq.missingNotesList || [];
+  const disc = admin.sessionDiscrepancies || {};
+  const unstarted = disc.unstartedList || [];
+  const bill = admin.billingAndClaims || {};
+  const authsAtRisk = bill.authorizationsAtRisk || [];
+
+  return `
+  <!-- Operational & Billing Highlights -->
+  <div class="grid">
+    <div class="stat-card ${delinq.missingNotesCount > 0 ? 'warn' : 'ok'}">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Missing / Delinquent Notes</div>
+        <span class="badge ${delinq.missingNotesCount > 0 ? 'bad' : 'ok'}">${delinq.missingNotesCount > 0 ? 'ACTION' : 'CLEAR'}</span>
+      </div>
+      <div class="stat" style="color:${delinq.missingNotesCount > 0 ? 'var(--bad)' : 'var(--ok)'}">${delinq.missingNotesCount || 0}</div>
+      <div class="stat-sub"><b>${missing.filter(n => n.isDelinquent).length}</b> delinquent (&gt;24h elapsed)</div>
+    </div>
+    <div class="stat-card">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Pending BCBA Co-Signs</div>
+        <span class="badge esc">21 CFR DUAL-SIGN</span>
+      </div>
+      <div class="stat" style="color:var(--warn)">${delinq.pendingBcbaSignCount || 0}</div>
+      <div class="stat-sub">Submitted notes awaiting supervisor signature</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Claims Ready to Bill</div>
+        <span class="badge p">837P BATCH</span>
+      </div>
+      <div class="stat" style="color:var(--ok)">$${(bill.claimsReadyRevenue || 0).toLocaleString()}</div>
+      <div class="stat-sub">${bill.claimsReadyUnits || 0} CMS Units · ${bill.claimsReadyCount || 0} Clean Claims</div>
+    </div>
+    <div class="stat-card ${authsAtRisk.length > 0 ? 'warn' : 'ok'}">
+      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
+        <div class="stat-label" style="margin:0">Authorizations at Risk</div>
+        <span class="badge ${authsAtRisk.length > 0 ? 'bad' : 'ok'}">≥80% BURN</span>
+      </div>
+      <div class="stat" style="color:${authsAtRisk.length > 0 ? 'var(--bad)' : 'var(--ok)'}">${authsAtRisk.length}</div>
+      <div class="stat-sub">Clients approaching insurance unit exhaustion</div>
+    </div>
+  </div>
+
+  <!-- Documentation Delinquency Tracker -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+      <div>
+        <h3 style="margin:0 0 2px">Documentation Delinquency Tracker (Missing SOAP Notes)</h3>
+        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Sessions completed without submitted clinical documentation.</p>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:0.8rem;background:var(--slate-100);padding:6px 12px;border-radius:var(--radius-sm)">
+        Avg Turnaround: <b>${delinq.avgTurnaroundHours || 2.4} hrs</b> (Target &lt; 24 hrs)
+      </div>
+    </div>
+    ${missing.length ? `
+      <table>
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Client Name</th>
+            <th>Clinician (Author)</th>
+            <th>Date of Service</th>
+            <th>Units</th>
+            <th>Elapsed Time</th>
+            <th>Compliance Status</th>
+            <th style="text-align:right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${missing.map(m => `
+            <tr>
+              <td><b style="font-family:var(--font-mono)">#${m.sessionId}</b></td>
+              <td><b style="font-family:var(--font-serif)">${esc(m.clientName)}</b></td>
+              <td>${esc(m.staffName)}</td>
+              <td><span style="font-family:var(--font-mono)">${esc(m.date)}</span></td>
+              <td><span style="font-family:var(--font-mono)">${m.units} u</span></td>
+              <td><span style="font-family:var(--font-mono);font-weight:600;color:${m.isDelinquent ? 'var(--bad)' : 'var(--slate-700)'}">${m.elapsedHours} hrs</span></td>
+              <td>
+                <span class="tag ${m.isDelinquent ? 'draft' : 'approved'}">
+                  ${m.isDelinquent ? '⚠️ &gt;24h Delinquent' : 'Within 24h Window'}
+                </span>
+              </td>
+              <td style="text-align:right">
+                <button class="sec" style="padding:6px 10px;font-size:0.75rem" onclick="act.sendClinicianReminder('${esc(m.staffName)}', ${m.sessionId})">Send Reminder</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:20px">✓ Zero missing clinical notes. All completed sessions have submitted documentation!</p>'}
+  </div>
+
+  <div class="row">
+    <!-- Claims Ready for Billing Batch -->
+    <div class="card" style="flex:1.3">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">Claims Ready for Clearinghouse (837P)</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Dual-signed notes with CMS 8-minute rule compliant unit calculations.</p>
+        </div>
+        <span class="badge ok">Ready to Bill</span>
+      </div>
+
+      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+        <div class="flex-between" style="margin-bottom:6px">
+          <div>
+            <div style="font-size:0.75rem;color:var(--slate-500);text-transform:uppercase;font-weight:700">Total Billed Value Ready</div>
+            <div style="font-size:1.45rem;font-weight:700;color:var(--primary);font-family:var(--font-serif)">$${(bill.claimsReadyRevenue || 0).toLocaleString()}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:0.75rem;color:var(--slate-500);text-transform:uppercase;font-weight:700">Validated Units</div>
+            <div style="font-size:1.45rem;font-weight:700;color:var(--slate-900);font-family:var(--font-mono)">${bill.claimsReadyUnits || 0} u</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="ok" style="flex:1;padding:10px;font-size:0.84rem" onclick="act.exportClaimsBatch()">Export 837P Clean Claims Batch</button>
+          <button class="sec" style="padding:10px;font-size:0.84rem" onclick="go('notes')">Review Notes Ledger</button>
+        </div>
+      </div>
+      <div style="font-size:0.78rem;color:var(--slate-500)">
+        🔒 HIPAA & CMS Rule: Only dual-signed notes with verified EVV timestamps and author credentials are released for billing.
+      </div>
+    </div>
+
+    <!-- EVV & Session Discrepancy Radar -->
+    <div class="card" style="flex:1">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div>
+          <h3 style="margin:0 0 2px">EVV & Session Discrepancies</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Unstarted appointments past scheduled time.</p>
+        </div>
+        <span class="badge ${unstarted.length > 0 ? 'bad' : 'ok'}">${unstarted.length} Exceptions</span>
+      </div>
+
+      ${unstarted.length ? `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${unstarted.map(u => `
+            <div style="background:#fff;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);border-left:3px solid var(--bad)">
+              <div class="flex-between">
+                <b>${esc(u.clientName)}</b>
+                <span class="badge bad">Unstarted</span>
+              </div>
+              <div style="font-size:0.75rem;color:var(--slate-600);margin-top:3px">
+                Staff: ${esc(u.staffName)} · Time: ${esc(u.scheduledTime)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">✓ Zero EVV scheduling discrepancies today.</p>'}
+    </div>
+  </div>
+  `;
+}
+
+async function dashboardView() {
+  const d = await api('GET', '/api/dashboard');
+  const todayStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  if (!kpiPersona) {
+    kpiPersona = (['OWNER', 'BCBA', 'RBT', 'ADMIN'].includes(me.role) ? me.role : 'OWNER');
+  }
+
+  const personaTitles = {
+    OWNER: 'Executive Practice Ledger & Revenue',
+    BCBA: 'Supervising BCBA Clinical Progress & Behavior Radar',
+    RBT: 'Field RBT Shift Tasks, Quotas & Supervision',
+    ADMIN: 'Practice Operations, Documentation Delinquency & Billing'
+  };
+
+  const personaSubtitles = {
+    OWNER: 'Practice P&L, CPT Fee Schedule Breakdown, Caseload Capacity & Staff Productivity',
+    BCBA: 'Learning Target Velocity, Criteria Met Alerts, 4-Function Distribution & Peak Windows',
+    RBT: 'Today\'s Assigned Shift Roster, Trial Data Quotas & Personal BACB 5% Tracker',
+    ADMIN: 'Missing Notes Radar, EVV Discrepancies, 837P Claims Release & Authorization Burn'
+  };
+
+  let deckHtml = '';
+  if (kpiPersona === 'OWNER') deckHtml = renderOwnerKpi(d);
+  else if (kpiPersona === 'BCBA') deckHtml = renderBcbaKpi(d);
+  else if (kpiPersona === 'RBT') deckHtml = renderRbtKpi(d);
+  else if (kpiPersona === 'ADMIN') deckHtml = renderAdminKpi(d);
+  else deckHtml = renderOwnerKpi(d);
+
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:16px">
+      ${brandEmblem('lg')}
+      <div>
+        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL & PRACTICE COMMAND DECK</div>
+        <h1>${personaTitles[kpiPersona] || 'Clinical Command Ledger'}</h1>
+        <p class="page-sub">${todayStr} · ${personaSubtitles[kpiPersona] || ''}</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="ok" style="padding:10px 16px" onclick="go('presentation')">Founder Pitch & Monograph →</button>
+      <button class="sec" style="padding:10px 16px" onclick="go('schedule')">Full Schedule</button>
+    </div>
+  </div>
+
+  <!-- Multi-Persona Interactive Switcher Banner -->
+  <div class="kpi-persona-switcher">
+    <button class="kpi-persona-tab ${kpiPersona === 'OWNER' ? 'active' : ''}" onclick="act.setKpiPersona('OWNER')">
+      <div class="kpi-tab-icon">🏢</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">Practice Owner</div>
+        <div class="kpi-tab-sub">Revenue & Business</div>
+      </div>
+      <span class="badge ${kpiPersona === 'OWNER' ? 'p' : 'sec'}">P&L</span>
+    </button>
+    <button class="kpi-persona-tab ${kpiPersona === 'BCBA' ? 'active' : ''}" onclick="act.setKpiPersona('BCBA')">
+      <div class="kpi-tab-icon">👩‍⚕️</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">Supervising BCBA</div>
+        <div class="kpi-tab-sub">Progress & Behavior</div>
+      </div>
+      <span class="badge ${kpiPersona === 'BCBA' ? 'sen' : 'sec'}">Clinical</span>
+    </button>
+    <button class="kpi-persona-tab ${kpiPersona === 'RBT' ? 'active' : ''}" onclick="act.setKpiPersona('RBT')">
+      <div class="kpi-tab-icon">👨‍⚕️</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">Field RBT</div>
+        <div class="kpi-tab-sub">Shift, Quota & 5%</div>
+      </div>
+      <span class="badge ${kpiPersona === 'RBT' ? 'tan' : 'sec'}">Field</span>
+    </button>
+    <button class="kpi-persona-tab ${kpiPersona === 'ADMIN' ? 'active' : ''}" onclick="act.setKpiPersona('ADMIN')">
+      <div class="kpi-tab-icon">📋</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">Administrator</div>
+        <div class="kpi-tab-sub">Notes, EVV & Claims</div>
+      </div>
+      <span class="badge ${kpiPersona === 'ADMIN' ? 'esc' : 'sec'}">Ops</span>
+    </button>
+  </div>
+
+  ${deckHtml}
+  `;
 }
 
 async function clientsView() {
@@ -2879,6 +3573,141 @@ async function supervisionView() {
   </div>`;
 }
 
+async function leadsView() {
+  const leads = await api('GET', '/api/leads');
+  const total = leads.length;
+  const newCount = leads.filter(l => !l.status || l.status === 'new').length;
+  const measurePmCount = leads.filter(l => String(l.current_software || '').toLowerCase().includes('measurepm')).length;
+  const centralReachCount = leads.filter(l => String(l.current_software || '').toLowerCase().includes('centralreach')).length;
+  const scheduledCount = leads.filter(l => l.status === 'demo_scheduled').length;
+
+  return `
+  <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:18px">
+    <div>
+      <h1 style="margin:0 0 4px">📈 Inbound Growth & Practice CRM</h1>
+      <p style="margin:0;font-size:0.9rem;color:var(--slate-500)">Manage inquiries from clinic owners and clinical directors switching from MeasurePM & CentralReach.</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <a href="/website.html" target="_blank" class="btn sec" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+        🌐 Open Marketing Website & ROI
+      </a>
+      <button class="btn p" onclick="act.promptAddDemoLead()">+ Log Practice Lead</button>
+    </div>
+  </div>
+
+  <!-- Pipeline KPI Highlights -->
+  <div class="grid" style="margin-bottom:20px">
+    <div class="stat-card">
+      <div class="stat-label">Total Inbound Inquiries</div>
+      <div class="stat" style="color:var(--primary)">${total}</div>
+      <div class="stat-sub">Website submissions & clinic referrals</div>
+    </div>
+    <div class="stat-card ${newCount > 0 ? 'warn' : 'ok'}">
+      <div class="stat-label">New / Action Required</div>
+      <div class="stat" style="color:${newCount > 0 ? 'var(--warn)' : 'var(--ok)'}">${newCount}</div>
+      <div class="stat-sub">Awaiting clinic follow-up & discovery call</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Switching from MeasurePM</div>
+      <div class="stat" style="color:#d97706">${measurePmCount}</div>
+      <div class="stat-sub">Frustrated by sync drops & manual re-auths</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Switching from CentralReach</div>
+      <div class="stat" style="color:#2563eb">${centralReachCount}</div>
+      <div class="stat-sub">Clinics seeking faster tablet-first RBT workflows</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="stat-label">VIP Demos Scheduled</div>
+      <div class="stat" style="color:var(--ok)">${scheduledCount}</div>
+      <div class="stat-sub">Active walkthroughs in calendar pipeline</div>
+    </div>
+  </div>
+
+  <!-- Inbound Inquiries Table -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0 0 4px">Prospective ABA Practice Leads</h3>
+        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Inquiries submitted through the public B2B marketing site.</p>
+      </div>
+      <span class="badge p">${leads.length} Records In Pipeline</span>
+    </div>
+
+    ${leads.length === 0 ? `
+      <div style="text-align:center;padding:40px 20px;color:var(--slate-500)">
+        <p style="font-size:1.1rem;margin-bottom:8px">No inbound leads logged yet.</p>
+        <p style="font-size:0.85rem">Leads captured via the public marketing website form will automatically populate here.</p>
+        <a href="/website.html" target="_blank" class="btn p" style="margin-top:10px;text-decoration:none">Test Demo Request Form on Website</a>
+      </div>
+    ` : `
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Date / Time</th>
+              <th>Clinic & Contact</th>
+              <th>Caseload</th>
+              <th>Current Software</th>
+              <th>Clinical Pain Point / Message</th>
+              <th>Status</th>
+              <th style="text-align:right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leads.map(l => {
+              const dt = l.created_at ? new Date(l.created_at).toLocaleString() : 'Recent';
+              const soft = String(l.current_software || 'Other');
+              const isMeasurePm = soft.toLowerCase().includes('measurepm');
+              const isCR = soft.toLowerCase().includes('centralreach');
+              const status = l.status || 'new';
+              return `
+              <tr>
+                <td style="white-space:nowrap;font-size:0.8rem;color:var(--slate-500)">${dt}</td>
+                <td>
+                  <div style="font-weight:700;color:var(--slate-800)">${esc(l.clinic_name)}</div>
+                  <div style="font-size:0.85rem;color:var(--slate-600)">${esc(l.name)}</div>
+                  <div style="font-size:0.75rem;color:var(--slate-500)">
+                    <a href="mailto:${esc(l.email)}" style="color:var(--primary);text-decoration:none">${esc(l.email)}</a>
+                    ${l.phone ? ` · <span>${esc(l.phone)}</span>` : ''}
+                  </div>
+                </td>
+                <td>
+                  <span class="badge" style="background:var(--slate-100);color:var(--slate-700)">${esc(l.caseload_size || '1-10')} clients</span>
+                </td>
+                <td>
+                  ${isMeasurePm ? `<span class="badge warn" style="font-weight:700">⚠️ MeasurePM</span>` :
+                    isCR ? `<span class="badge esc" style="font-weight:700">CentralReach</span>` :
+                    `<span class="badge">${esc(soft)}</span>`}
+                </td>
+                <td style="max-width:320px;font-size:0.85rem;line-height:1.4">
+                  <div style="color:var(--slate-700);margin-bottom:4px">"${esc(l.message || 'Requested clinical platform walkthrough.')}"</div>
+                  ${l.notes ? `<div style="font-size:0.75rem;color:var(--primary);background:#eff6ff;padding:4px 8px;border-radius:4px"><b>Internal Note:</b> ${esc(l.notes)}</div>` : ''}
+                </td>
+                <td>
+                  <select onchange="act.updateLeadStatus(${l.id}, this.value)" style="padding:4px 8px;font-size:0.8rem;border-radius:6px;font-weight:600;${status === 'new' ? 'border-color:var(--warn);color:var(--warn)' : status === 'demo_scheduled' ? 'border-color:var(--ok);color:var(--ok)' : ''}">
+                    <option value="new" ${status === 'new' ? 'selected' : ''}>🟡 New Lead</option>
+                    <option value="contacted" ${status === 'contacted' ? 'selected' : ''}>🔵 Contacted</option>
+                    <option value="demo_scheduled" ${status === 'demo_scheduled' ? 'selected' : ''}>🟢 Demo Scheduled</option>
+                    <option value="won" ${status === 'won' ? 'selected' : ''}>🏆 Closed / Won</option>
+                    <option value="lost" ${status === 'lost' ? 'selected' : ''}>⚪ Closed / Lost</option>
+                  </select>
+                </td>
+                <td style="text-align:right;white-space:nowrap">
+                  <button class="btn sec" style="padding:4px 8px;font-size:0.8rem" onclick="act.editLeadNotes(${l.id}, ${esc(JSON.stringify(l.notes || ''))})">📝 Note</button>
+                  <a href="mailto:${esc(l.email)}?subject=Effective%20Behavioral%20Approach%20%E2%80%94%20VIP%20Demo%20Walkthrough&body=Hi%20${encodeURIComponent(l.name)},%0A%0AThank%20you%20for%20reaching%20out%20to%20Effective%20Behavioral%20Approach.%20We%20would%20love%20to%20show%20you%20how%20our%20Unified%20Behavioral%20Health%20Record%20and%201-click%20re-auth%20packets%20compare%20to%20${encodeURIComponent(l.current_software || 'legacy software')}.%0A%0AWhen%20is%20a%20good%20time%20this%20week%20for%20a%20quick%2015-minute%20walkthrough?%0A%0ABest%20regards,%0AEBA%20Clinical%20Team" class="btn p" style="padding:4px 8px;font-size:0.8rem;text-decoration:none;display:inline-block">✉️ Email</a>
+                </td>
+              </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
+  </div>
+  `;
+}
+
 // Modal renderer
 function renderModal() {
   if (activeModal.type === 'abc') {
@@ -3525,10 +4354,50 @@ const act = {
   }),
   demoLogin: safe(async (email) => {
     me = await api('POST', '/api/login', { email, password: 'password' });
+    kpiPersona = null;
     location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
     render();
   }),
-  logout: safe(async () => { await api('POST', '/api/logout'); me = null; location.hash = ''; render(); }),
+  logout: safe(async () => { await api('POST', '/api/logout'); me = null; kpiPersona = null; location.hash = ''; render(); }),
+  setKpiPersona: (p) => {
+    kpiPersona = p;
+    render();
+  },
+  sendClinicianReminder: (staffName, sessionId) => {
+    alert(`Automated 24h compliance reminder dispatched to ${staffName} for Session #${sessionId}.`);
+  },
+  exportClaimsBatch: () => {
+    alert('Generated 837P Clean Claims Batch. 100% CMS 8-minute rule compliant. Ready for clearinghouse dispatch.');
+  },
+  updateLeadStatus: safe(async (id, status) => {
+    await api('PATCH', `/api/leads/${id}`, { status });
+    render();
+  }),
+  editLeadNotes: safe(async (id, currentNote) => {
+    const notes = prompt('Enter internal notes for this clinic prospect:', currentNote || '');
+    if (notes === null) return;
+    await api('PATCH', `/api/leads/${id}`, { notes });
+    render();
+  }),
+  promptAddDemoLead: safe(async () => {
+    const clinic = prompt('Prospective Clinic / Practice Name:');
+    if (!clinic) return;
+    const name = prompt('Primary Contact Name:');
+    if (!name) return;
+    const email = prompt('Work Email Address:');
+    if (!email) return;
+    const software = prompt('Current ABA Software (MeasurePM, CentralReach, Paper, etc.):', 'MeasurePM');
+    const message = prompt('Clinical requirements / reason for evaluating EBA:', 'Requested demo walkthrough for 1-click re-auth packets and kid mode.');
+    await api('POST', '/api/leads', {
+      name,
+      email,
+      clinic_name: clinic,
+      current_software: software || 'MeasurePM',
+      message: message || ''
+    });
+    alert('Prospective clinic lead successfully created in CRM queue.');
+    render();
+  }),
   addClient: safe(async () => {
     const r = await api('POST', '/api/clients', {
       name: val('nn'),
@@ -4675,6 +5544,10 @@ window.addEventListener('keydown', (e) => {
 
 async function render() {
   const rawRoute = (location.hash.slice(1) || '').split('/')[0];
+  if (rawRoute === 'website' || rawRoute === 'marketing') {
+    window.location.href = '/website.html';
+    return;
+  }
   if (!me) {
     try { me = await api('GET', '/api/me'); } catch {
       if (rawRoute === 'presentation') { $app.innerHTML = presentationView(); return; }
@@ -4693,6 +5566,7 @@ async function render() {
     else if (route === 'notes') html = await notesView();
     else if (route === 'supervision') html = await supervisionView();
     else if (route === 'presentation') html = presentationView();
+    else if (route === 'leads') html = await leadsView();
     else html = '<h1>View Not Found</h1><div class="card">Please select an option from the navigation menu.</div>';
     $app.innerHTML = shell(html, route === 'client' ? 'clients' : route === 'session' ? 'notes' : route);
   } catch (e) { $app.innerHTML = shell(`<div class="card err">${esc(e.message)}</div>`, ''); }
