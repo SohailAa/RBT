@@ -141,7 +141,7 @@ h4 {
   min-height: 100vh;
 }
 
-nav {
+nav:not(.site-nav) {
   background:
     radial-gradient(circle at 15% 8%, rgba(52, 211, 153, 0.22) 0%, transparent 38%),
     radial-gradient(circle at 88% 48%, rgba(56, 189, 248, 0.20) 0%, transparent 45%),
@@ -1347,7 +1347,7 @@ tbody tr:hover td {
 }
 
 .login-box {
-  max-width: 490px;
+  max-width: 530px;
   width: 100%;
   background: linear-gradient(155deg, #e0f5f3 0%, #d8eef7 52%, #ddf4eb 100%);
   border-radius: var(--radius-xl);

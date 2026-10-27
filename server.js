@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEG
 CREATE TABLE IF NOT EXISTS fidelity_ioa_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, ts TEXT, log_type TEXT DEFAULT 'both', fidelity_pct INTEGER DEFAULT 100, ioa_pct INTEGER DEFAULT 100, data_json TEXT DEFAULT '{}', notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id INTEGER, user_name TEXT, client_id INTEGER, session_id INTEGER, entity_type TEXT, entity_id INTEGER, action TEXT, details TEXT);
 CREATE TABLE IF NOT EXISTS leads(id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, clinic_name TEXT, caseload_size TEXT, current_software TEXT, message TEXT, status TEXT DEFAULT 'new', notes TEXT DEFAULT '', created_at TEXT);
+CREATE TABLE IF NOT EXISTS facility_models(id INTEGER PRIMARY KEY, name TEXT, subtitle TEXT, is_default INTEGER DEFAULT 0, config_json TEXT DEFAULT '{}', updated_at TEXT);
+CREATE TABLE IF NOT EXISTS facility_signups(id INTEGER PRIMARY KEY, child_name TEXT, age INTEGER, diagnosis TEXT, tier TEXT, weekly_hours INTEGER, payer TEXT, cohort TEXT, gym_track TEXT, enrollment_status TEXT DEFAULT 'committed', target_month INTEGER DEFAULT 1, notes TEXT DEFAULT '');
 `);
 try { db.exec("ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'new'"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
@@ -285,7 +287,7 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
   }
 }
 
-seed();
+if (!get('SELECT COUNT(*) c FROM users').c) seed();
 
 function upgradeExistingData() {
   const el = get('SELECT * FROM clients WHERE name=?', 'Eleanor');
@@ -333,6 +335,41 @@ function upgradeExistingData() {
       'Robert Chen, M.S., BCBA', 'rchen@blueskybehavioral.com', '(555) 749-2234', 'Blue Sky Behavioral Health', '50-100', 'CentralReach',
       'Our RBTs are burning out collecting data in CentralReach. We need a modern tablet-first system with built-in BACB 5% supervision tracking and clean CPT unit billing.',
       'demo_scheduled', 'Scheduled live zoom walkthrough for Thursday at 2 PM EST.', tLead2);
+  }
+  if (!get("SELECT COUNT(*) c FROM facility_models").c) {
+    const nowStr = new Date().toISOString();
+    (G.DEFAULT_FACILITY_MODELS || []).forEach((preset) => {
+      run(
+        'INSERT INTO facility_models(name, subtitle, is_default, config_json, updated_at) VALUES(?,?,?,?,?)',
+        preset.name,
+        preset.subtitle,
+        preset.is_default ? 1 : 0,
+        JSON.stringify(preset.config),
+        nowStr
+      );
+    });
+  }
+  if (!get("SELECT COUNT(*) c FROM facility_signups").c) {
+    const initialSignups = [
+      ['Eleanor Carter', 8, 'ASD (F84.0)', 'Focused', 20, 'Sample Commercial PPO #A123', 'Afternoon Cohort (1–5 PM)', 'Sensory Gym NET + Climbing Wall Regulation', 'committed', 1, 'Transitioning from school/home to center-based DTT + sensory gym'],
+      ['Leon Okafor', 8, 'ASD (F84.0)', 'Comprehensive', 32, 'Sample Commercial PPO #B456', 'Morning Cohort (8:30 AM–12:30 PM)', 'Vestibular Swing Rig & Deep Pressure Circuit', 'committed', 1, 'High vestibular/proprioceptive seeker; 480 units authorized'],
+      ['Maya Lin', 4, 'ASD (F84.0)', 'Comprehensive', 35, 'Aetna Behavioral Health (Synthetic)', 'Morning Cohort (8:30 AM–12:30 PM)', 'Early Intensive Gross-Motor & Crash Pit Track', 'committed', 1, 'Signed intake packet; 97151 assessment completed'],
+      ['Liam Navarro', 6, 'ASD (F84.0)', 'Comprehensive', 30, 'BlueCross Pediatric ABA (Synthetic)', 'Morning Cohort (8:30 AM–12:30 PM)', 'Climbing Wall, Trampoline & FCT Transitions', 'committed', 1, 'Parent requested center + gym for peer generalization'],
+      ['Sophia Rossi', 5, 'ASD (F84.0)', 'Focused', 18, 'United Optum Behavioral (Synthetic)', 'Afternoon Cohort (1–5 PM)', 'Tactile Sensory Wall & Balance Beam Circuit', 'committed', 1, 'Authorized for 18 hrs/wk 97153 + 2 hrs/wk 97158 gym group'],
+      ['Noah Washington', 7, 'ASD (F84.0)', 'Focused', 20, 'Cigna Evernorth (Synthetic)', 'Afternoon Cohort (1–5 PM)', 'Proprioceptive Heavy-Work & Peer Cooperative Play', 'committed', 1, 'Transferring from home-only provider for gym facility access'],
+      ['Ethan Brooks', 4, 'ASD (F84.0)', 'Comprehensive', 32, 'Anthem Commercial (Synthetic)', 'Morning Cohort (8:30 AM–12:30 PM)', 'Full Vestibular & Snoezelen Regulation Track', 'committed', 1, 'Early learner cohort; starting Day 1 of clinic opening'],
+      ['Chloe Kim', 9, 'ASD (F84.0)', 'Gym Group', 8, 'BlueCross Pediatric ABA (Synthetic)', 'After-School Gym Group (4–6 PM)', 'Social Skills & Adaptive Fitness Gym Club (97158)', 'committed', 1, 'Enrolled in after-school peer social + gross motor group'],
+      ['Aria Patel', 5, 'ASD (F84.0)', 'Comprehensive', 30, 'Aetna Behavioral Health (Synthetic)', 'Morning Cohort (8:30 AM–12:30 PM)', 'Vestibular Swing & Early Manding NET', 'auth_pending', 2, '97151 initial assessment completed; payer auth expected Month 2'],
+      ['Lucas Rivera', 6, 'ASD (F84.0)', 'Focused', 18, 'United Optum Behavioral (Synthetic)', 'Afternoon Cohort (1–5 PM)', 'Rock Wall & Obstacle Course Motor Planning', 'auth_pending', 2, 'Waitlist deposit paid; onboarding Month 2'],
+      ['Zoe Mercer', 4, 'ASD (F84.0)', 'Comprehensive', 34, 'Cigna Evernorth (Synthetic)', 'Morning Cohort (8:30 AM–12:30 PM)', 'Early Intensive DTT + Sensory Gym', 'waitlist', 3, 'Pediatrician referral; scheduled for Month 3 cohort'],
+      ['Caleb Sterling', 8, 'ASD (F84.0)', 'Gym Group', 10, 'Private Pay + Out-of-Network', 'After-School Gym Group (4–6 PM)', 'Adaptive Gym & Peer Executive Function Group', 'waitlist', 3, 'Signed up for adaptive gym + social group track']
+    ];
+    initialSignups.forEach((row) => {
+      run(
+        'INSERT INTO facility_signups(child_name, age, diagnosis, tier, weekly_hours, payer, cohort, gym_track, enrollment_status, target_month, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+        ...row
+      );
+    });
   }
 }
 upgradeExistingData();

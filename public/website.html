@@ -24,32 +24,61 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: rgba(4, 29, 36, 0.92);
+  background: linear-gradient(90deg, rgba(3, 28, 36, 0.96) 0%, rgba(6, 48, 56, 0.96) 50%, rgba(4, 36, 42, 0.96) 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(45, 212, 191, 0.25);
-  padding: 14px 28px;
+  border-bottom: 1.5px solid rgba(45, 212, 191, 0.35);
+  border-right: none !important;
+  padding: 12px 28px;
+  height: auto !important;
+  min-height: 68px;
+  overflow: visible !important;
+  box-shadow: 0 6px 24px rgba(3, 24, 31, 0.28);
+}
+
+.site-nav-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  width: 100%;
   display: flex;
+  flex-direction: row !important;
   justify-content: space-between;
   align-items: center;
+  gap: 20px;
 }
 
 .site-nav-links {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 22px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .site-nav-links a {
-  color: #daf1ef;
-  font-size: 0.88rem;
+  display: inline-flex !important;
+  align-items: center;
+  color: #daf1ef !important;
+  font-size: 0.84rem;
   font-weight: 600;
   text-decoration: none;
-  transition: color 0.15s ease;
+  padding: 7px 13px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(94, 234, 212, 0.2) !important;
+  transition: all 0.15s ease;
+}
+
+.site-nav-links a::before {
+  display: none !important;
 }
 
 .site-nav-links a:hover {
-  color: #38bdf8;
+  background: rgba(45, 212, 191, 0.22) !important;
+  border-color: #5eead4 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
 }
 
 .hero-banner {
@@ -245,37 +274,40 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
+  margin-top: 0;
+  border: none;
 }
 
 .matrix-table th,
 .matrix-table td {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--slate-200);
+  border-bottom: 1px solid #9ad3ce;
   font-size: 0.9rem;
 }
 
-.matrix-table th {
-  background: #04242c;
-  color: #daf1ef;
+.matrix-table thead th {
+  background: #04242c !important;
+  color: #daf1ef !important;
   font-family: var(--font-mono);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  border-bottom: 2px solid #2dd4bf !important;
 }
 
-.matrix-table th.col-highlight {
-  background: #064e3b;
-  color: #ecfeff;
+.matrix-table thead th.col-highlight {
+  background: #064e3b !important;
+  color: #ecfeff !important;
   border-left: 2px solid #34d399;
   border-right: 2px solid #34d399;
 }
 
-.matrix-table td.col-highlight {
-  background: rgba(16, 185, 129, 0.08);
-  font-weight: 600;
-  color: var(--slate-900);
-  border-left: 2px solid #34d399;
-  border-right: 2px solid #34d399;
+.matrix-table tbody tr td.col-highlight {
+  background: rgba(16, 185, 129, 0.18) !important;
+  font-weight: 700;
+  color: #022c22 !important;
+  border-left: 2px solid #10b981;
+  border-right: 2px solid #10b981;
 }
 
 .check-yes {
@@ -299,7 +331,7 @@
 }
 
 .roi-card h3 {
-  color: #ecfeff;
+  color: #ecfeff !important;
   font-family: var(--font-serif);
   font-size: 1.8rem;
   margin: 0 0 8px;
@@ -309,6 +341,16 @@
   color: #a5f3fc;
   font-size: 0.95rem;
   margin: 0 0 28px;
+}
+
+.roi-card input[type="range"] {
+  padding: 0 !important;
+  border: none !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+  height: 8px !important;
+  border-radius: 999px !important;
+  accent-color: #34d399;
+  box-shadow: none !important;
 }
 
 .slider-group {
@@ -519,36 +561,38 @@
 <body class="site-wrapper">
 
   <!-- Top Navigation Bar -->
-  <nav class="site-nav">
-    <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="window.location.href='/'">
-      <div class="brand-icon sm">
-        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="64" height="64" rx="14" fill="#042e39"/>
-          <rect x="5" y="5" width="54" height="54" rx="10" fill="none" stroke="#34d399" stroke-width="1.5" stroke-opacity="0.6"/>
-          <path d="M12 35h10l5-15 8 26 5-16 4 5h8" fill="none" stroke="#ecfeff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="32" cy="14" r="4.5" fill="#38bdf8" stroke="#ecfeff" stroke-width="1.5"/>
-        </svg>
+  <div class="site-nav" role="navigation">
+    <div class="site-nav-inner">
+      <div style="display:flex;align-items:center;gap:12px;cursor:pointer;flex-shrink:0" onclick="window.location.href='/'">
+        <div class="brand-icon sm">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#042e39"/>
+            <rect x="5" y="5" width="54" height="54" rx="10" fill="none" stroke="#34d399" stroke-width="1.5" stroke-opacity="0.6"/>
+            <path d="M12 35h10l5-15 8 26 5-16 4 5h8" fill="none" stroke="#ecfeff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="32" cy="14" r="4.5" fill="#38bdf8" stroke="#ecfeff" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-family:var(--font-serif);font-weight:700;font-size:1.08rem;color:#f0fdfa;letter-spacing:-0.01em;line-height:1.15">Effective Behavioral</div>
+          <div style="font-family:var(--font-mono);font-size:0.65rem;color:#6ee7b7;letter-spacing:0.06em;text-transform:uppercase;margin-top:2px">Unified Pediatric ABA Operating System</div>
+        </div>
       </div>
-      <div>
-        <div style="font-family:var(--font-serif);font-weight:700;font-size:1.08rem;color:#f0fdfa;letter-spacing:-0.01em">Effective Behavioral</div>
-        <div style="font-family:var(--font-mono);font-size:0.65rem;color:#6ee7b7;letter-spacing:0.06em;text-transform:uppercase">Unified Pediatric ABA Operating System</div>
+
+      <div class="site-nav-links">
+        <a href="#unmet-needs">Why EBA</a>
+        <a href="#comparison">vs. MeasurePM</a>
+        <a href="#roi-calculator">ROI Estimator</a>
+        <a href="#modules">Platform Modules</a>
+        <a href="#sandbox">Live Test Drive</a>
+        <a href="#testimonials">Reviews</a>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <button class="sec" style="padding:8px 14px;font-size:0.82rem;background:rgba(255,255,255,0.08);color:#99f6e4;border-color:#2dd4bf;box-shadow:none" onclick="window.location.href='/'">Sign In</button>
+        <button class="ok" style="padding:8px 16px;font-size:0.82rem" onclick="openLeadModal()">Book Practice Demo →</button>
       </div>
     </div>
-
-    <div class="site-nav-links">
-      <a href="#unmet-needs">Why EBA</a>
-      <a href="#comparison">vs. MeasurePM</a>
-      <a href="#roi-calculator">ROI Estimator</a>
-      <a href="#modules">Platform Modules</a>
-      <a href="#sandbox">Live Test Drive</a>
-      <a href="#testimonials">Reviews</a>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:10px">
-      <button class="sec" style="padding:8px 14px;font-size:0.82rem;background:transparent;color:#99f6e4;border-color:#2dd4bf" onclick="window.location.href='/'">Sign In</button>
-      <button class="ok" style="padding:8px 16px;font-size:0.82rem" onclick="openLeadModal()">Book Practice Demo →</button>
-    </div>
-  </nav>
+  </div>
 
   <!-- Hero Section -->
   <header class="hero-banner">

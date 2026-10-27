@@ -552,26 +552,26 @@ function loginView(err) {
         Sign in to access real-time session tracking, unified FBA & ABC behavioral records, and dual-signature clinical documentation.
       </p>
 
-      <div style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--primary);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div class="role-emblem" style="background:#042e39;color:#fff;border-color:#2dd4bf;width:44px;height:44px;font-size:1.1rem">🌐</div>
-          <div>
-            <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:0.06em">Public Product Website & B2B Sales</div>
-            <div style="font-family:var(--font-serif);font-size:0.94rem;font-weight:600;color:var(--slate-900)">MeasurePM Comparison Matrix & ROI Calculator</div>
+      <div onclick="window.location.href='/website.html'" style="cursor:pointer;background:linear-gradient(135deg,#d4f2ea 0%,#c7ebf6 100%);border:1.5px solid #4fb3ad;border-left:4px solid var(--primary);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-sm);transition:transform 0.14s ease" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+        <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
+          <div class="role-emblem" style="background:#042e39;color:#fff;border-color:#2dd4bf;width:40px;height:40px;font-size:1.05rem;flex-shrink:0">🌐</div>
+          <div style="min-width:0">
+            <div style="font-family:var(--font-mono);font-size:0.64rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.06em">Public Product Website & B2B Sales</div>
+            <div style="font-family:var(--font-serif);font-size:0.88rem;font-weight:700;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">MeasurePM Matrix & ROI Calculator</div>
           </div>
         </div>
-        <button class="ok" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="window.location.href='/website.html'">Visit Product Website →</button>
+        <button class="ok" style="padding:8px 13px;font-size:0.78rem;white-space:nowrap;flex-shrink:0" onclick="event.stopPropagation();window.location.href='/website.html'">Visit Website →</button>
       </div>
 
-      <div style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--accent-clay);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow-sm)">
-        <div style="display:flex;align-items:center;gap:12px">
-          <div class="role-emblem" style="background:var(--primary);color:#F7F4EC;border-color:#D4A359;width:44px;height:44px;font-size:0.95rem;font-family:var(--font-mono)">EBA</div>
-          <div>
-            <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--accent-clay);text-transform:uppercase;letter-spacing:0.06em">Founder & Clinical Monograph</div>
-            <div style="font-family:var(--font-serif);font-size:0.94rem;font-weight:600;color:var(--slate-900)">Interactive Competitive Deck & Live Tour</div>
+      <div onclick="go('presentation')" style="cursor:pointer;background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--accent-clay);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-sm);transition:transform 0.14s ease" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+        <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
+          <div class="role-emblem" style="background:var(--primary);color:#F7F4EC;border-color:#D4A359;width:40px;height:40px;font-size:0.88rem;font-family:var(--font-mono);flex-shrink:0">EBA</div>
+          <div style="min-width:0">
+            <div style="font-family:var(--font-mono);font-size:0.64rem;font-weight:700;color:var(--accent-clay);text-transform:uppercase;letter-spacing:0.06em">Founder & Clinical Monograph</div>
+            <div style="font-family:var(--font-serif);font-size:0.88rem;font-weight:700;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Interactive Competitive Deck & Live Tour</div>
           </div>
         </div>
-        <button class="sec" style="padding:9px 15px;font-size:0.84rem;white-space:nowrap" onclick="go('presentation')">Open Pitch Deck →</button>
+        <button class="sec" style="padding:8px 13px;font-size:0.78rem;white-space:nowrap;flex-shrink:0" onclick="event.stopPropagation();go('presentation')">Open Pitch Deck →</button>
       </div>
 
       <label>Clinician / Guardian Email</label>
