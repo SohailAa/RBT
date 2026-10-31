@@ -413,15 +413,15 @@ function shell(content, route) {
             <div class="sidebar-client-avatar">EC</div>
             <div class="sidebar-client-info">
               <div class="sidebar-client-name">Eleanor Carter</div>
-              <div class="sidebar-client-meta">Open Profile / Goals</div>
+              <div class="sidebar-client-meta">Open Client Profile</div>
             </div>
-            <button class="sidebar-mini-btn" onclick="event.stopPropagation();act.start(1)">▶ Start</button>
+            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 1)">Open →</button>
           </div>
           <div class="sidebar-client-row" onclick="go('client', 2)">
             <div class="sidebar-client-avatar" style="background:linear-gradient(135deg,#0284c7,#0f766e)">LP</div>
             <div class="sidebar-client-info">
               <div class="sidebar-client-name">Leon Patel</div>
-              <div class="sidebar-client-meta">Open Profile / Goals</div>
+              <div class="sidebar-client-meta">Open Client Profile</div>
             </div>
             <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 2)">Open →</button>
           </div>
@@ -1036,58 +1036,40 @@ window.renderBcbaClientCardsHtml = function(profiles) {
   }
 
   return filtered.map(c => `
-    <div style="background:#fff;border:1.5px solid var(--slate-200);border-top:4px solid var(--primary);border-radius:var(--radius-md);padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;box-shadow:var(--shadow-xs)">
-      <div>
-        <!-- Client Header & Direct Open Button -->
-        <div class="flex-between" style="align-items:flex-start;gap:10px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="go('client', ${c.id})">
-            <div class="user-avatar" style="width:46px;height:46px;font-size:1rem;flex-shrink:0">${getInitials(c.name)}</div>
-            <div>
-              <div style="font-size:1.1rem;font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:3px">${esc(c.name)}</div>
-              <div style="font-size:0.78rem;color:var(--slate-500);margin-top:2px">
-                DOB: <b>${esc(c.dob)}</b> · Setting: <b>${esc(c.school)}</b> · Guardian: <b>${esc(c.guardian)}</b>
-              </div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
-                <span class="badge p">${esc(c.diagnosis)}</span>
-                <span class="badge">👨‍⚕️ RBT: ${esc((c.assignedRbts || []).join(', '))}</span>
-                ${c.pendingCoSignCount > 0 ? `<span class="badge bad">${c.pendingCoSignCount} Note to Co-Sign</span>` : ''}
-              </div>
+    <div style="background:#fff;border:1.5px solid var(--slate-200);border-top:4px solid var(--primary);border-radius:var(--radius-md);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;box-shadow:var(--shadow-xs)">
+      <!-- Clean Client Header -->
+      <div class="flex-between" style="align-items:flex-start;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="go('client', ${c.id})">
+          <div class="user-avatar" style="width:46px;height:46px;font-size:1rem;flex-shrink:0">${getInitials(c.name)}</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:1.12rem;font-weight:700;color:var(--slate-900)">${esc(c.name)}</span>
+              <span class="badge p">${esc(c.diagnosis)}</span>
+            </div>
+            <div style="font-size:0.8rem;color:var(--slate-500);margin-top:3px">
+              DOB: <b>${esc(c.dob)}</b> &nbsp;·&nbsp; Setting: <b>${esc(c.school)}</b> &nbsp;·&nbsp; RBT: <b>${esc((c.assignedRbts || []).join(', '))}</b>
             </div>
           </div>
-          <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap;flex-shrink:0" onclick="go('client', ${c.id})">
-            Open Client Page →
-          </button>
         </div>
-
-        <!-- 4 Clinical Profile Vitals Tiles -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.8rem">
-          <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
-            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.communication)}</div>
-          </div>
-          <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Needs</div>
-            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.sensory)}</div>
-          </div>
-          <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Common Triggers</div>
-            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.triggers)}</div>
-          </div>
-          <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Favorite Rewards</div>
-            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.reinforcers)}</div>
-          </div>
-        </div>
+        <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap;flex-shrink:0" onclick="go('client', ${c.id})">
+          Open Client Profile →
+        </button>
       </div>
 
-      <!-- Direct 1-Click Navigation to Client Page Tabs -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--slate-200)">
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'overview')">📋 Overview</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'plans')">🛡️ BIP (${esc(c.bipStatus)})</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'profile')">👤 Edit Vitals</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>
+      <!-- Clean, Uncluttered 3-Line Client Profile Snapshot -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;background:var(--slate-50);padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.82rem">
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.communication)}</div>
+        </div>
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Reinforcers & Sensory</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.reinforcers)} · ${esc(c.sensory)}</div>
+        </div>
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Known Triggers</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.triggers)}</div>
+        </div>
       </div>
     </div>
   `).join('');
@@ -1106,11 +1088,11 @@ function renderBcbaKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#0f766e;text-transform:uppercase">BCBA View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">My Clients & Clinical Profiles Ready to View, plus Assigned Sessions Today</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Client Profile Snapshots & Assigned Sessions Today</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">Open Full Schedule →</button>
-        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">Open Clients & 360 Snapshots →</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">📅 Open Full Schedule</button>
+        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">👧 Clients & 360 Snapshots →</button>
       </div>
     </div>
   </div>
@@ -1139,12 +1121,12 @@ function renderBcbaKpi(d) {
     </div>
   </div>
 
-  <!-- 1. MY CLIENTS & CLINICAL PROFILES (READY TO VIEW FIRST ON LOGIN) -->
+  <!-- 1. MY CLIENTS & CLINICAL PROFILES (CLEAN SNAPSHOT FIRST ON LOGIN) -->
   <div class="card">
     <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <div>
-        <h3 style="margin:0 0 2px">1. My Clients & Clinical Profiles — Ready to View</h3>
-        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">The client comes first: review each child's clinical profile & vitals, or click "Open Client Page →" to view their full 360 record.</p>
+        <h3 style="margin:0 0 2px">1. My Clients — Clean Profile Snapshot</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Quick snapshot of each client's communication, reinforcers, sensory profile, and triggers. Click "Open Client Profile →" for full details.</p>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="badge p" id="bcba_client_count_badge">${clientProfiles.length} of ${clientProfiles.length} Clients</span>
@@ -1167,7 +1149,7 @@ function renderBcbaKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
       <div>
         <h3 style="margin:0 0 2px">2. Assigned Sessions Today</h3>
-        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Start Session" to launch live data collection / supervision, or click the client's name to open their 360 profile.</p>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "👤 Client Snapshot" to preview the child's profile & vitals before or during a session, or "Open Profile →" for their full 360 page.</p>
       </div>
       <span class="badge p">${todaySessions.length} Scheduled Today</span>
     </div>
@@ -1189,7 +1171,7 @@ function renderBcbaKpi(d) {
               <tr>
                 <td><b>${esc(t.timeWindow)}</b></td>
                 <td>
-                  <a href="javascript:void(0)" onclick="go('client', ${t.clientId})" style="font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border)">${esc(t.clientName)}</a>
+                  <a href="javascript:void(0)" onclick="act.openClientSnapshotModal(${t.clientId}, ${t.appointmentId})" style="font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border)">${esc(t.clientName)}</a>
                 </td>
                 <td>
                   <div><b>${esc(t.staffName)}</b> <span class="badge ${t.role === 'BCBA' ? 'p' : 'tan'}">${esc(t.role)} · CPT ${esc(t.cptCode)}</span></div>
@@ -1202,9 +1184,10 @@ function renderBcbaKpi(d) {
                   </span>
                 </td>
                 <td style="text-align:right;white-space:nowrap">
-                  <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${t.clientId})">Client Page →</button>
-                  <button class="${t.status === 'Completed' ? 'sec' : 'ok'}" style="padding:6px 12px;font-size:0.78rem" onclick="act.start(${t.appointmentId})">
-                    ${t.status === 'In Session' ? 'Resume Session →' : t.status === 'Completed' ? 'Review Note' : '▶ Start Session'}
+                  <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.openClientSnapshotModal(${t.clientId}, ${t.appointmentId})">👤 Client Snapshot</button>
+                  <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${t.clientId})">Open Profile →</button>
+                  <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.start(${t.appointmentId})">
+                    ${t.status === 'In Session' ? 'Resume Session' : t.status === 'Completed' ? 'Session Note' : '▶ Start Session'}
                   </button>
                 </td>
               </tr>
@@ -1775,64 +1758,6 @@ async function clientsView() {
             <span class="badge att">${peak.count || 2} Incidents</span>
           </div>
         </div>
-      </div>
-
-      <!-- SNAPSHOT UNDERNEATH CLIENT PROFILE: 3. TARGET BEHAVIORS & 9-METHOD MEASUREMENT SUMMARY -->
-      <div style="background:#f8fafc;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:14px">
-        <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
-          <div>
-            <h3 style="margin:0 0 2px;font-size:0.96rem">3. Target Behavior Operational Definitions & 9-Method Measurement Suite</h3>
-            <p style="margin:0;font-size:0.78rem;color:var(--slate-500)">Continuous & Interval behavior metrics recorded across sessions for ${esc(c.name)}.</p>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'overview')">📋 Overview</button>
-            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals (${gs.activeCount})</button>
-            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC (${b360.abcCount})</button>
-            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'plans')">🛡️ BIP (${esc(bip.status)})</button>
-            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'caregiver')">👨‍👩‍👧 Caregiver</button>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">
-          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">1. Frequency & Rate</div>
-            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.totalEvents} <span style="font-size:0.76rem;color:var(--primary)">(${b360.ratePerHour}/hr)</span></div>
-          </div>
-          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">2. Duration Recording</div>
-            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgDurationSec}s <span style="font-size:0.74rem;color:var(--slate-500)">avg</span></div>
-          </div>
-          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">3. Latency from SD</div>
-            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgLatencySec}s <span style="font-size:0.74rem;color:var(--slate-500)">avg</span></div>
-          </div>
-          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">4. Inter-Response (IRT)</div>
-            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgIrtSec}s <span style="font-size:0.74rem;color:var(--slate-500)">gap</span></div>
-          </div>
-          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
-            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">5. Partial / Whole / MTS</div>
-            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.intervalPct !== null ? `${b360.intervalPct}%` : '0%'} <span style="font-size:0.74rem;color:var(--slate-500)">(${esc(b360.intervalNumDenom)})</span></div>
-          </div>
-        </div>
-
-        ${(b360.programs && b360.programs.length) ? `
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px">
-            ${b360.programs.map(bp => `
-              <div style="background:#fff;border:1px solid var(--slate-200);border-left:3px solid #be123c;border-radius:6px;padding:9px 11px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-                <div>
-                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                    <b style="font-size:0.84rem;color:var(--slate-900)">${esc(bp.name)}</b>
-                    <span class="badge esc" style="font-size:0.68rem">${esc(bp.function_hypothesis || 'Escape')}</span>
-                    <span class="badge" style="font-size:0.68rem">${esc(bp.measurement_type || 'frequency')}</span>
-                  </div>
-                  <div style="font-size:0.75rem;color:var(--slate-600);margin-top:3px">${esc(bp.operational_definition || 'Target behavior operational definition on file.')}</div>
-                </div>
-                <button class="sec" style="padding:4px 8px;font-size:0.72rem;white-space:nowrap" onclick="act.quickPillar(${c.id}, 'behavior_abc')">Log / View →</button>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
       </div>
     </div>
     `;
@@ -3082,8 +3007,8 @@ async function scheduleView() {
   return `
   <div class="page-header">
     <div>
-      <h1>Clinical Appointments & Sessions</h1>
-      <p class="page-sub">Electronic Visit Verification & Session Dispatch</p>
+      <h1>Clinical Appointments & Schedule</h1>
+      <p class="page-sub">Click "👤 Client Profile Snapshot" or a client's name to review their profile & clinical snapshot before starting a session.</p>
     </div>
   </div>
   ${form}
@@ -3097,20 +3022,30 @@ async function scheduleView() {
             <th>Client</th>
             <th>Therapist</th>
             <th>Modality & Setting</th>
-            <th>Status / Action</th>
+            <th style="text-align:right">Client Profile & Session Action</th>
           </tr>
         </thead>
         <tbody>
           ${xs.map((x) => `
             <tr>
               <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${x.start.slice(11)} – ${x.end.slice(11)}</span></td>
-              <td><b>${esc(x.client)}</b></td>
+              <td>
+                <a href="javascript:void(0)" onclick="act.openClientSnapshotModal(${x.client_id}, ${x.id})" style="font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border)">
+                  ${esc(x.client)}
+                </a>
+              </td>
               <td>${esc(x.staff)}</td>
               <td><span class="badge p">${esc(x.role)}</span> ${esc(x.setting)}</td>
-              <td>
-                ${x.session && x.session.end ? '<span class="tag approved">Completed</span>' : ''}
-                <button class="${x.session ? 'sec' : 'ok'}" onclick="act.start(${x.id})">
-                  ${x.session ? (x.session.end ? 'Open Note' : 'Resume Session ⚡') : 'Start Session'}
+              <td style="text-align:right;white-space:nowrap">
+                ${x.session && x.session.end ? '<span class="tag approved" style="margin-right:6px">Completed</span>' : ''}
+                <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.openClientSnapshotModal(${x.client_id}, ${x.id})">
+                  👤 Client Profile Snapshot
+                </button>
+                <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${x.client_id})">
+                  Open Profile →
+                </button>
+                <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.start(${x.id})">
+                  ${x.session ? (x.session.end ? 'Session Note' : 'Resume Session ⚡') : '▶ Start Session'}
                 </button>
               </td>
             </tr>
@@ -6803,11 +6738,145 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'client_profile_snapshot') {
+    const v = activeModal.clientData || {};
+    const c = v.client || {};
+    const goals = v.goals || [];
+    const abcSummary = v.abcSummary || {};
+    const plans = v.plans || [];
+    const topPlan = plans.find(p => p.status === 'approved') || plans[0] || null;
+    const readyGoals = goals.filter(g => g.mastery_met && g.status !== 'mastered');
+    const stalledGoals = goals.filter(g => g.stalled && g.status !== 'mastered');
+    const activeGoals = goals.filter(g => g.status !== 'mastered');
+    const fDist = abcSummary.functions || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
+    const totalBeh = (fDist.Escape + fDist.Attention + fDist.Tangible + fDist.Sensory) || 1;
+    const escPct = Math.round(((fDist.Escape || 0) / totalBeh) * 100);
+    const attPct = Math.round(((fDist.Attention || 0) / totalBeh) * 100);
+    const tanPct = Math.round(((fDist.Tangible || 0) / totalBeh) * 100);
+    const senPct = Math.round(((fDist.Sensory || 0) / totalBeh) * 100);
+    const peak = (abcSummary.scatterplot && abcSummary.scatterplot.peakWindow) || { label: '11:00 AM', count: 2, primaryAntecedent: c.triggers || 'Transition / demand' };
+
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:780px;width:95%;max-height:90vh;overflow-y:auto">
+        <!-- Clean Client Profile Header -->
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--slate-200)">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="user-avatar" style="width:52px;height:52px;font-size:1.1rem">${getInitials(c.name || 'Client')}</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="badge p">Client Profile Snapshot</span>
+                <span class="badge ok">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
+              </div>
+              <h3 style="margin:4px 0 2px;font-size:1.35rem">${esc(c.name)}</h3>
+              <div style="font-size:0.82rem;color:var(--slate-500)">
+                DOB: <b>${esc(c.dob || 'On file')}</b> &nbsp;·&nbsp;
+                Setting: <b>${esc(c.school || 'Clinic / Home')}</b> &nbsp;·&nbsp;
+                Guardian: <b>${esc(c.guardian || 'On file')}</b>
+              </div>
+            </div>
+          </div>
+          <button class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <!-- 4 Clinical Profile Vitals -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0">
+          <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
+            <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:3px">${esc(c.communication || 'Vocal / PECS')}</div>
+          </div>
+          <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Favorite Rewards</div>
+            <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:3px">${esc(c.reinforcers || 'LEGO, stickers, tablet time')}</div>
+          </div>
+          <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Profile</div>
+            <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:3px">${esc(c.sensory || 'Noise-canceling headphones')}</div>
+          </div>
+          <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Known Triggers</div>
+            <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:3px">${esc(c.triggers || 'Transitions, denied access')}</div>
+          </div>
+        </div>
+
+        <!-- 1A & 1B: Goals Ready to Master vs Stalled -->
+        <div class="row" style="margin-bottom:14px">
+          <div style="flex:1;background:#f8fafc;border:1px solid var(--slate-200);border-top:3px solid var(--ok);border-radius:var(--radius-md);padding:12px">
+            <div class="flex-between" style="margin-bottom:6px">
+              <b style="font-size:0.88rem">1A. Goals Ready to Master</b>
+              <span class="tag approved">${readyGoals.length} Ready</span>
+            </div>
+            ${readyGoals.length ? readyGoals.map(g => `
+              <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200);font-size:0.82rem;margin-top:4px;display:flex;justify-content:space-between;align-items:center">
+                <span><b>${esc(g.title)}</b> (${g.current ?? 85}%)</span>
+                <button class="ok" style="padding:4px 8px;font-size:0.74rem" onclick="act.closeModal();act.quickMasterGoal(${g.id})">✓ Master</button>
+              </div>
+            `).join('') : '<div style="font-size:0.8rem;color:var(--slate-500)">No goals waiting for mastery sign-off.</div>'}
+          </div>
+          <div style="flex:1;background:#f8fafc;border:1px solid var(--slate-200);border-top:3px solid var(--warn);border-radius:var(--radius-md);padding:12px">
+            <div class="flex-between" style="margin-bottom:6px">
+              <b style="font-size:0.88rem">1B. Stalled / Active Goals</b>
+              <span class="tag draft">${stalledGoals.length} Stalled</span>
+            </div>
+            ${(stalledGoals.length ? stalledGoals : activeGoals.slice(0, 2)).map(g => `
+              <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200);font-size:0.82rem;margin-top:4px;display:flex;justify-content:space-between;align-items:center">
+                <span><b>${esc(g.title)}</b> (${g.current ?? g.baseline ?? 20}% / ${g.target ?? 80}%)</span>
+                <button class="sec" style="padding:4px 8px;font-size:0.74rem" onclick="act.closeModal();act.quickPillar(${c.id}, 'skills')">View →</button>
+              </div>
+            `).join('') || '<div style="font-size:0.8rem;color:var(--slate-500)">All active goals progressing well.</div>'}
+          </div>
+        </div>
+
+        <!-- 2. Patterns in Behavior -->
+        <div style="background:#f8fafc;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:12px;margin-bottom:14px">
+          <div class="flex-between" style="margin-bottom:8px">
+            <b style="font-size:0.88rem">2. Patterns in Behavior (Why & When Behaviors Happen)</b>
+            <span class="badge esc">Peak: ${esc(peak.label || '11:00 AM')}</span>
+          </div>
+          <div style="display:flex;height:18px;border-radius:6px;overflow:hidden;margin-bottom:8px">
+            <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700">${escPct > 12 ? `Escape ${escPct}%` : ''}</div>
+            <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700">${attPct > 12 ? `Attention ${attPct}%` : ''}</div>
+            <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700">${tanPct > 12 ? `Tangible ${tanPct}%` : ''}</div>
+            <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.7rem;font-weight:700">${senPct > 12 ? `Sensory ${senPct}%` : ''}</div>
+          </div>
+          <div style="font-size:0.8rem;color:var(--slate-600)">
+            <b>Most Common Trigger:</b> ${esc(peak.primaryAntecedent || c.triggers || 'Transition')} &nbsp;·&nbsp;
+            <b>BIP Replacement (FCT):</b> ${esc(topPlan && topPlan.data ? topPlan.data.replacement : 'Prompted functional communication request')}
+          </div>
+        </div>
+
+        <!-- Clean Action Footer -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px solid var(--slate-200)">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="ok" style="padding:8px 16px;font-size:0.84rem" onclick="act.closeModal();go('client', ${c.id})">
+              👧 Open Full Client Profile →
+            </button>
+            <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="act.openClientBillingModal(${c.id})">
+              💳 Billing Snapshot
+            </button>
+          </div>
+          <div style="display:flex;gap:8px">
+            ${activeModal.appointmentId ? `
+              <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="const aid=${activeModal.appointmentId};act.closeModal();act.start(aid)">
+                ▶ Start / Open Session
+              </button>
+            ` : ''}
+            <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="act.closeModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
 // ---------- Actions ----------
 const act = {
+  openClientSnapshotModal: safe(async (clientId, appointmentId) => {
+    const clientData = await api('GET', `/api/clients/${clientId}`);
+    activeModal = { type: 'client_profile_snapshot', clientData, appointmentId: appointmentId || null };
+    render();
+  }),
   openClientBillingModal: safe(async (clientId) => {
     const cached = (lastClientBillingSnapshots || []).find(s => Number(s.clientId) === Number(clientId));
     const snapshot = cached || await api('GET', `/api/clients/${clientId}/billing-snapshot`);

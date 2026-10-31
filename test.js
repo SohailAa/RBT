@@ -478,6 +478,142 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const rbtFacPostRes = await r('POST', '/api/facility-model', { name: 'Unauthorized', config: {} });
   ok(rbtFacPostRes.s === 403, 'RBT role is blocked from modifying clinic & gym financial scenarios');
 
+  // 9. Commercial Software Licensing, Legal Agreements (MSA/BAA/EULA), Hybrid Caps & Hard Lockout
+  const { LICENSE_TIERS, calculateLicenseQuote, generateLicenseAgreements } = require('./lib/generators');
+  const quoteGrowth = calculateLicenseQuote({ tier: 'growth', billingCycle: 'monthly', activeClients: 45, activeSeats: 22 });
+  ok(LICENSE_TIERS.starter && LICENSE_TIERS.growth && LICENSE_TIERS.enterprise &&
+     quoteGrowth.baseFee === 599 && quoteGrowth.extraClients === 5 && quoteGrowth.extraSeats === 2 &&
+     quoteGrowth.netMonthlyTotal === quoteGrowth.grossMonthlyTotal && quoteGrowth.grossMonthlyTotal > 599,
+     'Hybrid license quote engine accurately calculates base clinic platform fee + per-client & per-seat overage caps');
+
+  const quoteAnnual = calculateLicenseQuote({ tier: 'starter', billingCycle: 'annual', activeClients: 15, activeSeats: 8 });
+  ok(quoteAnnual.discountPct === 15 && quoteAnnual.netMonthlyTotal < quoteAnnual.grossMonthlyTotal,
+     'Hybrid license quote engine applies 15% annual billing discount');
+
+  const legalDocs = generateLicenseAgreements({
+    clinicName: 'Summit Pediatric Therapy',
+    contactName: 'Dr. Rebecca Lin, BCBA-D',
+    contactEmail: 'rebecca@summitaba.test',
+    tier: 'growth',
+    billingCycle: 'annual',
+    maxClients: 40,
+    maxSeats: 20,
+    licenseKey: 'EBA-LIC-GROWTH-40C20S-20271231-ABCDEF123456',
+    issuedAt: '2026-04-01',
+    expiresAt: '2027-04-01',
+    msaSignedBy: 'Dr. Rebecca Lin, BCBA-D',
+    baaSignedBy: 'Dr. Rebecca Lin, BCBA-D',
+    eulaAcceptedBy: 'Dr. Rebecca Lin, BCBA-D'
+  });
+  ok(legalDocs.msa.content.includes('MASTER SUBSCRIPTION AGREEMENT') &&
+     legalDocs.baa.content.includes('164.504(e)') &&
+     legalDocs.eula.content.includes('Mandatory BCBA Review & Sign-Off'),
+     'Legal generator produces customized B2B SaaS MSA, HIPAA BAA, and Clinical EULA & AI Guardrails');
+
+  // Test public GET /api/licensing/status & authenticated GET /api/licensing
+  const pubLicStatus = await (await fetch(`http://127.0.0.1:${port}/api/licensing/status`)).json();
+  ok(pubLicStatus.status === 'active' && !pubLicStatus.isLockedOut && pubLicStatus.tier === 'growth',
+     'Public GET /api/licensing/status reports active flagship license telemetry');
+
+  const licGet = (await o('GET', '/api/licensing')).j;
+  ok(Array.isArray(licGet.clinicLicenses) && licGet.clinicLicenses.length >= 3 &&
+     licGet.primaryLicense && licGet.primaryLicense.signatureValid === true &&
+     licGet.primaryLicense.activeClients >= 2 && licGet.primaryLicense.activeSeats >= 4,
+     'GET /api/licensing returns seeded B2B clinic licenses with verified HMAC-SHA256 cryptographic keys and live usage caps');
+
+  // Test RBAC barrier on /api/licensing
+  const rbtLicRes = await r('GET', '/api/licensing');
+  ok(rbtLicRes.s === 403, 'RBT is blocked from accessing B2B software licensing management console');
+  const parentLicRes = await p('GET', '/api/licensing');
+  ok(parentLicRes.s === 403, 'Parent is blocked from accessing B2B software licensing management console');
+
+  // Test GET /api/licensing/:id/agreements
+  const licAgreementsRes = (await o('GET', '/api/licensing/1/agreements')).j;
+  ok(licAgreementsRes.msa && licAgreementsRes.msa.content && licAgreementsRes.baa.content && licAgreementsRes.eula.content,
+     'GET /api/licensing/:id/agreements returns clinic-specific MSA, HIPAA BAA, and EULA contracts');
+
+  // Test POST /api/licensing/issue to provision a new clinic license & POST /api/licensing/:id/sign-agreement
+  const issuedLicRes = await o('POST', '/api/licensing/issue', {
+    clinic_name: 'Summit Pediatric Therapy',
+    contact_name: 'Dr. Rebecca Lin, BCBA-D',
+    contact_email: 'rebecca@summitaba.test',
+    tier: 'growth',
+    billing_cycle: 'annual',
+    max_clients: 45,
+    max_seats: 22,
+    lead_id: submittedLeadId
+  });
+  const newLicId = issuedLicRes.j.id;
+  ok(issuedLicRes.s === 200 && newLicId && issuedLicRes.j.license_key.startsWith('EBA-LIC-GROWTH-45C22S-'),
+     'POST /api/licensing/issue provisions new clinic license with cryptographic HMAC-SHA256 key');
+
+  await o('POST', `/api/licensing/${newLicId}/sign-agreement`, { agreement_type: 'msa', signer_name: 'Dr. Rebecca Lin, BCBA-D' });
+  await o('POST', `/api/licensing/${newLicId}/sign-agreement`, { agreement_type: 'baa', signer_name: 'Dr. Rebecca Lin, BCBA-D' });
+  const finalSignRes = await o('POST', `/api/licensing/${newLicId}/sign-agreement`, { agreement_type: 'eula', signer_name: 'Dr. Rebecca Lin, BCBA-D' });
+  const newlyActiveLic = (finalSignRes.j.clinicLicenses || []).find(l => l.id === newLicId);
+  ok(finalSignRes.s === 200 && newlyActiveLic && newlyActiveLic.status === 'active' && newlyActiveLic.allAgreementsSigned === true,
+     'Signing MSA, HIPAA BAA, and Clinical EULA automatically activates pending clinic license');
+
+  // Test Hybrid Per-Client Cap Enforcement on POST /api/clients
+  await o('PATCH', '/api/licensing/1', { max_clients: 2 });
+  const capBlockedClient = await o('POST', '/api/clients', {
+    name: 'OverCap Child (Synthetic)',
+    dob: '2021-01-01',
+    diagnosis: 'ASD (Synthetic)'
+  });
+  ok(capBlockedClient.s === 403 && capBlockedClient.j.error.includes('Client Cap Reached'),
+     'Hybrid licensing enforces Per-Client Cap on POST /api/clients when active census reaches licensed limit');
+  await o('PATCH', '/api/licensing/1', { max_clients: 40 });
+
+  // Test Hybrid Per-Seat Cap Enforcement on POST /api/staff
+  await o('PATCH', '/api/licensing/1', { max_seats: 3 });
+  const capBlockedStaff = await o('POST', '/api/staff', {
+    name: 'OverCap Clinician',
+    email: 'overcap@eba.test',
+    role: 'RBT'
+  });
+  ok(capBlockedStaff.s === 403 && capBlockedStaff.j.error.includes('Clinician Seat Cap Reached'),
+     'Hybrid licensing enforces Per-Seat Cap on POST /api/staff when active clinician seats reach licensed limit');
+  await o('PATCH', '/api/licensing/1', { max_seats: 20 });
+
+  // Test Hard Lockout Enforcement when primary license expires
+  await o('PATCH', '/api/licensing/1', { status: 'expired', expires_at: '2025-01-01' });
+
+  const bcbaLockedLogin = await fetch(`http://127.0.0.1:${port}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'bcba@eba.test', password: 'password' })
+  });
+  const bcbaLockedJson = await bcbaLockedLogin.json();
+  ok(bcbaLockedLogin.status === 403 && bcbaLockedJson.error.includes('Hard Lockout'),
+     'Hard Lockout blocks non-Owner (BCBA/RBT/Admin/Parent) logins with HTTP 403 when clinic license is expired');
+
+  const bcbaLockedApi = await b('GET', '/api/dashboard');
+  ok(bcbaLockedApi.s === 403 && bcbaLockedApi.j.error.includes('Hard Lockout'),
+     'Hard Lockout blocks existing non-Owner sessions from accessing clinical API endpoints while license is expired');
+
+  const ownerEmergencyLogin = await fetch(`http://127.0.0.1:${port}/api/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'owner@eba.test', password: 'password' })
+  });
+  ok(ownerEmergencyLogin.status === 200,
+     'Practice Owner retains emergency login access during Hard Lockout to renew or activate license key');
+
+  // Test Owner License Key Renewal to lift Hard Lockout
+  const renewRes = await o('POST', '/api/licensing/1/activate-key', { renew: true });
+  ok(renewRes.s === 200 && renewRes.j.primaryLicense.status === 'active' && !renewRes.j.primaryLicense.isLockedOut,
+     'POST /api/licensing/1/activate-key renews cryptographic license key and immediately lifts Hard Lockout');
+
+  const bcbaRestoredApi = await b('GET', '/api/dashboard');
+  ok(bcbaRestoredApi.s === 200,
+     'Clinician API access is immediately restored after Practice Owner renews clinic license');
+
+  // Verify website.html includes commercial pricing tiers & legal BAA/MSA copy
+  const webLicHtml = await (await fetch(`http://127.0.0.1:${port}/website.html`)).text();
+  ok(webLicHtml.includes('id="pricing"') && webLicHtml.includes('Starter Clinic') && webLicHtml.includes('HIPAA Business Associate Agreement'),
+     'Public marketing website displays Hybrid B2B Pricing Tiers and MSA/BAA/EULA licensing safeguards');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);
