@@ -2564,11 +2564,39 @@ route('GET', '/api/schedule', (u, b, p, ctx) => {
   return a.map((x) => ({ ...x, session: get('SELECT id,end FROM sessions WHERE appointment_id=?', x.id) || null }));
 });
 route('POST', '/api/appointments', (u, b) => {
-  need(u, 'BCBA'); if (!b.client_id || !b.user_id || !b.start || !b.end) bad(400, 'All fields required');
+  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  const today = new Date().toISOString().slice(0, 10);
+  const startVal = b.start || (b.date && b.start_time ? `${b.date}T${b.start_time}` : `${today}T09:00`);
+  const endVal = b.end || (b.date && b.end_time ? `${b.date}T${b.end_time}` : `${today}T12:00`);
+  if (!b.client_id || !b.user_id || !startVal || !endVal) bad(400, 'All fields required');
   const staff = get('SELECT * FROM users WHERE id=?', +b.user_id);
-  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +b.user_id, b.start, b.end, staff.role, b.setting || 'Home');
-  if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
-  return { id: Number(r.lastInsertRowid) };
+  if (!staff) bad(404, 'Clinician not found');
+  const settingVal = b.setting || 'Clinic';
+  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +b.user_id, startVal, endVal, staff.role, settingVal);
+  if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
+  }
+  return { id: Number(r.lastInsertRowid), client_id: +b.client_id, user_id: +b.user_id, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
+});
+route('PUT', '/api/appointments/:id', (u, b, p) => {
+  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  const ex = get('SELECT * FROM appointments WHERE id=?', +p.id);
+  if (!ex) bad(404, 'Appointment not found');
+  const newUserId = b.user_id ? +b.user_id : ex.user_id;
+  const staff = get('SELECT * FROM users WHERE id=?', newUserId) || { id: ex.user_id, role: ex.role, name: '' };
+  const startVal = b.start || ex.start;
+  const endVal = b.end || ex.end;
+  const settingVal = b.setting || ex.setting;
+  run('UPDATE appointments SET user_id=?, start=?, end=?, role=?, setting=? WHERE id=?', staff.id, startVal, endVal, staff.role, settingVal, +p.id);
+  if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', ex.client_id, staff.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', ex.client_id, staff.id);
+  }
+  return { id: +p.id, user_id: staff.id, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
+});
+route('DELETE', '/api/appointments/:id', (u, b, p) => {
+  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  run('DELETE FROM appointments WHERE id=?', +p.id);
+  return { deleted: true };
 });
 route('GET', '/api/staff', (u) => { need(u, 'BCBA', 'OWNER', 'ADMIN'); return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\')'); });
 route('POST', '/api/staff', (u, b) => {

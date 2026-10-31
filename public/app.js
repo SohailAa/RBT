@@ -1086,9 +1086,14 @@ window.renderBcbaClientCardsHtml = function(profiles) {
             </div>
           </div>
         </div>
-        <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap;flex-shrink:0" onclick="go('client', ${c.id})">
-          Open Client Profile →
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
+          <button class="sec" style="padding:8px 12px;font-size:0.8rem;white-space:nowrap" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">
+            📅 Schedule RBT
+          </button>
+          <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap" onclick="go('client', ${c.id})">
+            Open Client Profile →
+          </button>
+        </div>
       </div>
 
       <!-- Clean, Uncluttered 3-Line Client Profile Snapshot -->
@@ -1605,6 +1610,9 @@ async function clientsView() {
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+            <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">📅 Schedule RBT</button>
+          ` : ''}
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>
           <button class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="go('client', ${c.id})">Open Full 360 Record →</button>
@@ -1940,8 +1948,11 @@ async function clientView(id) {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+          <button class="ok" style="padding:7px 12px;font-size:0.8rem" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">📅 Schedule RBT</button>
+        ` : ''}
         ${!P ? `
-          <button class="ok" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
+          <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Log (${auditLogs.length})</button>
         ` : ''}
@@ -2995,33 +3006,96 @@ function storyCard(s, B) {
   </div>`;
 }
 
+let scheduleStaffFilter = 'ALL';
+
 async function scheduleView() {
   const a = await api('GET', '/api/schedule');
+  const canSchedule = ['BCBA', 'OWNER', 'ADMIN'].includes(me.role);
+  const todayIso = new Date().toISOString().slice(0, 10);
   let form = '';
-  if (me.role === 'BCBA') {
-    const [cs, st] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
+  let st = [];
+  if (canSchedule) {
+    const [cs, staffList] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
+    st = staffList || [];
+    const rbts = st.filter((s) => s.role === 'RBT');
+    const bcbas = st.filter((s) => s.role === 'BCBA');
+    const defaultRbtId = rbts.length ? rbts[0].id : (st[0] ? st[0].id : '');
     form = `
-    <div class="card" style="background:var(--slate-50);border:1px solid var(--slate-300)">
-      <h3>Schedule Clinical Session</h3>
-      <div class="row">
-        <div><label>Client</label><select id="ac">${cs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
-        <div><label>Clinician</label><select id="as">${st.map((s) => `<option value="${s.id}">${esc(s.name)} (${s.role})</option>`).join('')}</select></div>
-        <div><label>Start Window</label><input id="astart" type="datetime-local"></div>
-        <div><label>End Window</label><input id="aend" type="datetime-local"></div>
-        <div><label>Treatment Setting</label><select id="aset"><option>Home</option><option>School</option><option>Clinic</option></select></div>
+    <div class="card" style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-top:4px solid var(--primary)">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div>
+          <h3 style="margin:0 0 2px">📅 Schedule RBT or Clinical Session</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-600)">Assign an RBT (CPT 97153 Direct Therapy) or BCBA Supervision (CPT 97155) to a client. Assigned RBTs automatically gain access to the client's profile & session data sheet.</p>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Quick Shift:</span>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T09:00','${todayIso}T12:00')">☀️ Morning (9:00–12:00)</button>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T12:30','${todayIso}T15:30')">🌤️ Midday (12:30–3:30)</button>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T15:30','${todayIso}T17:30')">🌇 Afternoon (3:30–5:30)</button>
+        </div>
       </div>
-      <button class="ok" onclick="act.addAppt()">Schedule Session</button>
+      <div class="row">
+        <div>
+          <label>Client</label>
+          <select id="ac">${cs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label>Assign RBT / Clinician</label>
+          <select id="as">
+            ${rbts.length ? `<optgroup label="RBTs — Direct Therapy (CPT 97153)">${rbts.map((s) => `<option value="${s.id}" ${s.id === defaultRbtId ? 'selected' : ''}>👨‍⚕️ ${esc(s.name)} (RBT)</option>`).join('')}</optgroup>` : ''}
+            ${bcbas.length ? `<optgroup label="BCBAs — Supervision & Direction (CPT 97155)">${bcbas.map((s) => `<option value="${s.id}">👩‍⚕️ ${esc(s.name)} (BCBA)</option>`).join('')}</optgroup>` : ''}
+          </select>
+        </div>
+        <div>
+          <label>Start Window</label>
+          <input id="astart" type="datetime-local" value="${todayIso}T09:00">
+        </div>
+        <div>
+          <label>End Window</label>
+          <input id="aend" type="datetime-local" value="${todayIso}T12:00">
+        </div>
+        <div>
+          <label>Treatment Setting</label>
+          <select id="aset">
+            <option value="Clinic">Clinic</option>
+            <option value="Home">Home</option>
+            <option value="School">School</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
+        <span style="font-size:0.8rem;color:var(--slate-500)">✓ Pre-filled with today's date & shift window — click <b>"+ Schedule RBT Session"</b> to assign immediately.</span>
+        <button class="ok" onclick="act.addAppt()">+ Schedule RBT Session</button>
+      </div>
     </div>`;
   }
+
+  const filteredAppts = a.filter((x) => {
+    if (scheduleStaffFilter === 'ALL') return true;
+    if (scheduleStaffFilter === 'RBT_ONLY') return x.role === 'RBT';
+    if (scheduleStaffFilter === 'BCBA_ONLY') return x.role === 'BCBA';
+    return String(x.user_id) === String(scheduleStaffFilter);
+  });
+
   const days = {};
-  a.forEach((x) => { (days[x.start.slice(0, 10)] ||= []).push(x); });
+  filteredAppts.forEach((x) => { (days[x.start.slice(0, 10)] ||= []).push(x); });
   
   return `
   <div class="page-header">
     <div>
-      <h1>Clinical Appointments & Schedule</h1>
-      <p class="page-sub">Click "👤 Client Profile Snapshot" or a client's name to review their profile & clinical snapshot before starting a session.</p>
+      <h1>Clinical Appointments & RBT Schedule</h1>
+      <p class="page-sub">Assign RBTs to client sessions above, or click "👤 Client Profile Snapshot" on any appointment to review the client's profile before starting a session.</p>
     </div>
+    ${canSchedule ? `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select style="margin:0;width:230px;background:#fff" onchange="scheduleStaffFilter=this.value;render()">
+          <option value="ALL" ${scheduleStaffFilter === 'ALL' ? 'selected' : ''}>👥 All Clinicians (${a.length} sessions)</option>
+          <option value="RBT_ONLY" ${scheduleStaffFilter === 'RBT_ONLY' ? 'selected' : ''}>👨‍⚕️ All RBTs Only</option>
+          <option value="BCBA_ONLY" ${scheduleStaffFilter === 'BCBA_ONLY' ? 'selected' : ''}>👩‍⚕️ All BCBAs Only</option>
+          ${st.map((s) => `<option value="${s.id}" ${String(scheduleStaffFilter) === String(s.id) ? 'selected' : ''}>Filter: ${esc(s.name)} (${s.role})</option>`).join('')}
+        </select>
+      </div>
+    ` : ''}
   </div>
   ${form}
   ${Object.entries(days).map(([d, xs]) => `
@@ -3032,7 +3106,7 @@ async function scheduleView() {
           <tr>
             <th>Time</th>
             <th>Client</th>
-            <th>Therapist</th>
+            <th>Assigned RBT / Therapist</th>
             <th>Modality & Setting</th>
             <th style="text-align:right">Client Profile & Session Action</th>
           </tr>
@@ -3046,7 +3120,14 @@ async function scheduleView() {
                   ${esc(x.client)}
                 </a>
               </td>
-              <td>${esc(x.staff)}</td>
+              <td>
+                <b>${esc(x.staff)}</b>
+                ${canSchedule && st.length ? `
+                  <select style="margin:0 0 0 6px;padding:3px 6px;font-size:0.75rem;width:auto;display:inline-block" title="Reassign RBT / Clinician" onchange="act.reassignAppt(${x.id}, this.value)">
+                    ${st.map((s) => `<option value="${s.id}" ${Number(s.id) === Number(x.user_id) ? 'selected' : ''}>${esc(s.name)} (${s.role})</option>`).join('')}
+                  </select>
+                ` : ''}
+              </td>
               <td><span class="badge p">${esc(x.role)}</span> ${esc(x.setting)}</td>
               <td style="text-align:right;white-space:nowrap">
                 ${x.session && x.session.end ? '<span class="tag approved" style="margin-right:6px">Completed</span>' : ''}
@@ -3065,7 +3146,7 @@ async function scheduleView() {
         </tbody>
       </table>
     </div>
-  `).join('') || '<div class="card">No appointments scheduled.</div>'}`;
+  `).join('') || '<div class="card">No appointments scheduled for this filter.</div>'}`;
 }
 
 let timer = null;
@@ -6863,6 +6944,11 @@ function renderModal() {
             <button class="ok" style="padding:8px 16px;font-size:0.84rem" onclick="act.closeModal();go('client', ${c.id})">
               👧 Open Full Client Profile →
             </button>
+            ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+              <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">
+                📅 Schedule RBT
+              </button>
+            ` : ''}
             <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="act.openClientBillingModal(${c.id})">
               💳 Billing Snapshot
             </button>
@@ -6879,11 +6965,102 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'schedule_rbt') {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const staffList = activeModal.staffList || [];
+    const rbts = staffList.filter((s) => s.role === 'RBT');
+    const bcbas = staffList.filter((s) => s.role === 'BCBA');
+    const defaultRbtId = rbts.length ? rbts[0].id : (staffList[0] ? staffList[0].id : 2);
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:600px;width:95%">
+        <div class="flex-between" style="padding-bottom:12px;border-bottom:1px solid var(--slate-200);margin-bottom:14px">
+          <div>
+            <span class="badge p">Assign & Schedule RBT Appointment</span>
+            <h3 style="margin:4px 0 0">📅 Schedule RBT Session for ${esc(activeModal.clientName || 'Client')}</h3>
+          </div>
+          <button class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span style="font-size:0.78rem;font-weight:700;color:var(--slate-600)">1-Click Shift Window Presets:</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setModalApptWindow('${todayIso}T09:00','${todayIso}T12:00')">☀️ 9:00 AM–12:00 PM</button>
+              <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setModalApptWindow('${todayIso}T12:30','${todayIso}T15:30')">🌤️ 12:30 PM–3:30 PM</button>
+              <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setModalApptWindow('${todayIso}T15:30','${todayIso}T17:30')">🌇 3:30 PM–5:30 PM</button>
+            </div>
+          </div>
+        </div>
+
+        <label>Select RBT / Clinician</label>
+        <select id="m_sched_rbt">
+          ${rbts.length ? `<optgroup label="RBTs — Direct Therapy (CPT 97153)">${rbts.map((s) => `<option value="${s.id}" ${s.id === defaultRbtId ? 'selected' : ''}>👨‍⚕️ ${esc(s.name)} (RBT)</option>`).join('')}</optgroup>` : ''}
+          ${bcbas.length ? `<optgroup label="BCBAs — Supervision & Direction (CPT 97155)">${bcbas.map((s) => `<option value="${s.id}">👩‍⚕️ ${esc(s.name)} (BCBA)</option>`).join('')}</optgroup>` : ''}
+        </select>
+
+        <div class="row">
+          <div>
+            <label>Start Date & Time</label>
+            <input id="m_sched_start" type="datetime-local" value="${todayIso}T09:00">
+          </div>
+          <div>
+            <label>End Date & Time</label>
+            <input id="m_sched_end" type="datetime-local" value="${todayIso}T12:00">
+          </div>
+        </div>
+
+        <label>Treatment Setting</label>
+        <select id="m_sched_setting">
+          <option value="Clinic">Clinic</option>
+          <option value="Home">Home</option>
+          <option value="School">School</option>
+        </select>
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--slate-200)">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitScheduleRbtModal(${activeModal.clientId})">✓ Assign & Schedule RBT Session</button>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
 // ---------- Actions ----------
 const act = {
+  openScheduleRbtModal: safe(async (clientId, clientName) => {
+    const staffList = await api('GET', '/api/staff');
+    activeModal = { type: 'schedule_rbt', clientId, clientName: clientName || 'Client', staffList };
+    render();
+  }),
+  setApptWindow: (startVal, endVal) => {
+    const sEl = document.getElementById('astart');
+    const eEl = document.getElementById('aend');
+    if (sEl) sEl.value = startVal;
+    if (eEl) eEl.value = endVal;
+  },
+  setModalApptWindow: (startVal, endVal) => {
+    const sEl = document.getElementById('m_sched_start');
+    const eEl = document.getElementById('m_sched_end');
+    if (sEl) sEl.value = startVal;
+    if (eEl) eEl.value = endVal;
+  },
+  submitScheduleRbtModal: safe(async (clientId) => {
+    const user_id = val('m_sched_rbt');
+    const start = val('m_sched_start');
+    const end = val('m_sched_end');
+    const setting = val('m_sched_setting') || 'Clinic';
+    const res = await api('POST', '/api/appointments', { client_id: clientId, user_id, start, end, setting });
+    activeModal = null;
+    alert(`✓ Scheduled ${res.staff || 'RBT'} (${res.role || 'RBT'}) for session (${res.start.replace('T', ' ')} – ${res.end.slice(11)} · ${res.setting})!`);
+    render();
+  }),
+  reassignAppt: safe(async (apptId, newUserId) => {
+    const res = await api('PUT', `/api/appointments/${apptId}`, { user_id: +newUserId });
+    alert(`✓ Reassigned appointment #${apptId} to ${res.staff} (${res.role}).`);
+    render();
+  }),
   openClientSnapshotModal: safe(async (clientId, appointmentId) => {
     const clientData = await api('GET', `/api/clients/${clientId}`);
     activeModal = { type: 'client_profile_snapshot', clientData, appointmentId: appointmentId || null };
@@ -7423,7 +7600,11 @@ const act = {
   }),
   approveStory: safe(async (id) => { await api('POST', `/api/stories/${id}/approve`); render(); }),
   shareStory: safe(async (id) => { const r = await api('POST', `/api/stories/${id}/share`); prompt('Parent Story Link (Share with family):', location.origin + r.url); render(); }),
-  addAppt: safe(async () => { await api('POST', '/api/appointments', { client_id: val('ac'), user_id: val('as'), start: val('astart'), end: val('aend'), setting: val('aset') }); render(); }),
+  addAppt: safe(async () => {
+    const res = await api('POST', '/api/appointments', { client_id: val('ac'), user_id: val('as'), start: val('astart'), end: val('aend'), setting: val('aset') });
+    alert(`✓ Scheduled ${res.staff || 'RBT'} (${res.role || 'RBT'}) for ${res.start.replace('T', ' ')} – ${res.end.slice(11)} (${res.setting})!`);
+    render();
+  }),
   start: safe(async (id) => { const r = await api('POST', `/api/appointments/${id}/start`); go('session', r.id); }),
   trial: safe(async (sid, gid, level) => {
     await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level, trial_type: activeTrialType });

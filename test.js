@@ -614,6 +614,21 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(webLicHtml.includes('id="pricing"') && webLicHtml.includes('Starter Clinic') && webLicHtml.includes('HIPAA Business Associate Agreement'),
      'Public marketing website displays Hybrid B2B Pricing Tiers and MSA/BAA/EULA licensing safeguards');
 
+  // 28. BCBA Scheduling & Reassigning RBT Appointments
+  const rbtScheduleCreate = await b('POST', '/api/appointments', {
+    client_id: 2,
+    user_id: 4,
+    setting: 'Clinic'
+  });
+  ok(rbtScheduleCreate.s === 200 && rbtScheduleCreate.j.id && rbtScheduleCreate.j.role === 'RBT',
+     'BCBA can schedule an RBT appointment (with default or explicit shift window) and auto-assign RBT to client');
+  const rbtReassign = await b('PUT', `/api/appointments/${rbtScheduleCreate.j.id}`, {
+    user_id: 5,
+    setting: 'School'
+  });
+  ok(rbtReassign.s === 200 && rbtReassign.j.user_id === 5 && rbtReassign.j.setting === 'School',
+     'BCBA can reassign an appointment to another RBT and update treatment setting');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);
