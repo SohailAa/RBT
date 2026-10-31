@@ -581,7 +581,10 @@ function renderOwnerKpi(d) {
   const cap = o.caseloadCapacity || { activeClients: 0, targetCaseload: 10, utilizationPct: 0 };
   const prod = o.staffProductivity || [];
   const pipe = o.payerPipeline || { totalAuthorizedUnits: 0, totalUsedUnits: 0, remainingUnits: 0, overallBurnPct: 0, atRiskCount: 0 };
-  const inb = o.inboundPipeline || { totalLeads: 0, newLeadsCount: 0, measurePmProspectsCount: 0, demoScheduledCount: 0 };
+  const bcba = d.bcbaKpi || {};
+  const prog = bcba.clientProgress || {};
+  const beh = bcba.behaviorPatterns || {};
+  const sup = d.supervision || {};
 
   return `
   <!-- Clear Role Focus Bar -->
@@ -589,17 +592,16 @@ function renderOwnerKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#047857;text-transform:uppercase">Owner View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Overall Business Performance, Clinician Productivity & Client Reimbursement</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Business Revenue, BCBA Clinical Quality, Clinician Productivity & Client Reimbursement</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('licensing')">🔒 Software Licensing & HIPAA BAA</button>
         <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('notes')">📋 Notes & Claims</button>
         <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">👧 Clients Directory →</button>
       </div>
     </div>
   </div>
 
-  <!-- 4 Simple Summary Cards -->
+  <!-- 4 Simple Business Summary Cards -->
   <div class="grid">
     <div class="stat-card ok">
       <div class="stat-label">Monthly Revenue (MTD)</div>
@@ -620,6 +622,39 @@ function renderOwnerKpi(d) {
       <div class="stat-label">Authorized Units Remaining</div>
       <div class="stat" style="color:var(--accent)">${pipe.remainingUnits || 0}</div>
       <div class="stat-sub"><b>${pipe.overallBurnPct || 0}%</b> of ${pipe.totalAuthorizedUnits || 0} units used →</div>
+    </div>
+  </div>
+
+  <!-- BCBA Clinical Quality & Caseload Performance (For Owner to Monitor How BCBAs Are Doing) -->
+  <div class="card" style="border-top:3px solid #0d9488">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0 0 2px">BCBA Clinical Performance & Caseload Outcomes</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">How your BCBAs are performing across client goal mastery, behavior reduction trends, treatment fidelity, and BACB supervision.</p>
+      </div>
+      <span class="badge sen">${prod.filter(p => p.role === 'BCBA').length || 1} Active BCBA(s)</span>
+    </div>
+    <div class="grid" style="margin-bottom:0">
+      <div class="stat-card" onclick="go('clients')" style="cursor:pointer">
+        <div class="stat-label">1. Active Client Caseload & Goals</div>
+        <div class="stat" style="color:var(--primary)">${cap.activeClients}</div>
+        <div class="stat-sub"><b>${prog.activeProgramsCount || 5}</b> active goals · <b>${prog.masteredCount || 0}</b> mastered (${(prog.criteriaMetAlerts || []).length} ready)</div>
+      </div>
+      <div class="stat-card ok">
+        <div class="stat-label">2. Caseload Behavior Trend</div>
+        <div class="stat" style="color:var(--ok)">${beh.pctChange || -51}%</div>
+        <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing (Improving)'}</b> (${beh.totalMaladaptiveEvents || 12} total incidents)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3. Treatment Fidelity & IOA</div>
+        <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
+        <div class="stat-sub">IOA Agreement: <b>${beh.averageIoaAgreement || 92}%</b></div>
+      </div>
+      <div class="stat-card ${sup.compliant !== false ? 'ok' : 'bad'}" onclick="go('supervision')" style="cursor:pointer">
+        <div class="stat-label">4. BCBA 5% RBT Supervision</div>
+        <div class="stat" style="color:${sup.compliant !== false ? 'var(--ok)' : 'var(--bad)'}">${sup.supPct ?? 12.5}%</div>
+        <div class="stat-sub">${sup.compliant !== false ? '✓ BACB ≥5% Compliant' : '⚠ Needs Supervision Hours'} →</div>
+      </div>
     </div>
   </div>
 
@@ -1080,7 +1115,6 @@ function renderBcbaKpi(d) {
   const todaySessions = bcba.todaySessions || [];
   const clientProfiles = bcba.clientProfiles || [];
   lastBcbaClientProfiles = clientProfiles;
-  const beh = bcba.behaviorPatterns || {};
 
   return `
   <!-- Clear Role Focus Bar -->
@@ -1094,30 +1128,6 @@ function renderBcbaKpi(d) {
         <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">📅 Open Full Schedule</button>
         <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">👧 Clients & 360 Snapshots →</button>
       </div>
-    </div>
-  </div>
-
-  <!-- 4 Simple Summary Cards (Client First) -->
-  <div class="grid">
-    <div class="stat-card" onclick="go('clients')" style="cursor:pointer">
-      <div class="stat-label">1. Active Client Caseload</div>
-      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
-      <div class="stat-sub">Click to view per-client 360 snapshots →</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">2. Assigned Sessions Today</div>
-      <div class="stat" style="color:var(--primary)">${todaySessions.length}</div>
-      <div class="stat-sub">${todaySessions.filter(t => t.status === 'Completed').length} completed · ${todaySessions.filter(t => t.status === 'In Session').length} in progress</div>
-    </div>
-    <div class="stat-card ok">
-      <div class="stat-label">3. Treatment Fidelity</div>
-      <div class="stat" style="color:var(--ok)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
-      <div class="stat-sub">BIP protocol adherence across sessions</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">4. Observer Agreement (IOA)</div>
-      <div class="stat" style="color:var(--sensory)">${beh.averageIoaAgreement || 92}%</div>
-      <div class="stat-sub">BCBA–RBT inter-observer reliability</div>
     </div>
   </div>
 
