@@ -36,6 +36,11 @@ let lastStaffProdData = [];
 let clientBillingSearchQuery = '';
 let clientBillingStatusFilter = 'ALL';
 let lastClientBillingSnapshots = [];
+let licensingSubTab = 'agreements';
+let activeAgreementDoc = 'msa';
+let selectedAgreementLicId = null;
+let showIssueLicenseForm = false;
+let lastLicensingData = null;
 
 const KID_THEMES = {
   space: {
@@ -344,44 +349,37 @@ const NAV_ICONS = {
 const NAV = {
   OWNER: [
     ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Business Performance & Revenue'],
-    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, Goals & Behavior'],
+    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'SOAP Notes & Billing Sign-Off'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
-    ['leads', NAV_ICONS.clients, 'Website Leads CRM', 'Demo Requests & Prospects'],
-    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
-    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
+    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
   ],
   BCBA: [
-    ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Client Progress & Behavior'],
-    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, Goals & Behavior'],
+    ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Clients & Assigned Sessions'],
+    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Review & Co-Sign Notes'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
-    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
-    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
+    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
   ],
   RBT: [
     ['dashboard', NAV_ICONS.dashboard, 'My Daily Dashboard', 'Tasks, Data Quotas & Training'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', '1-Tap Start Session'],
     ['clients', NAV_ICONS.clients, 'My Clients', 'Goals, Trials & ABC Logs'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Draft Session Notes'],
-    ['supervision', NAV_ICONS.supervision, 'My Supervision', '5% Progress & Feedback'],
-    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
+    ['supervision', NAV_ICONS.supervision, 'My Supervision', '5% Progress & Feedback']
   ],
   ADMIN: [
     ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Missing Notes, Sessions & Billing'],
     ['notes', NAV_ICONS.notes, 'Notes & Billing', 'Missing Notes & Ready Claims'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Attendance'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles & Insurance Auths'],
-    ['leads', NAV_ICONS.clients, 'Website Leads CRM', 'Demo Requests & Prospects'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Compliance'],
-    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
-    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
+    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
   ],
   PARENT: [
-    ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Social Stories'],
-    ['website', NAV_ICONS.presentation, 'Public Website', 'Practice Overview']
+    ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Social Stories']
   ]
 };
 
@@ -510,19 +508,7 @@ function loginView(err) {
         </div>
       </div>
 
-      <!-- Public Sales Website Banner -->
-      <div onclick="window.location.href='/website.html'" style="cursor:pointer;background:#f0fdfa;border:1.5px solid #2dd4bf;border-left:4px solid #059669;border-radius:var(--radius-lg);padding:12px 14px;margin:14px 0 18px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
-          <div class="role-emblem" style="background:#059669;color:#fff;width:38px;height:38px;font-size:1rem;flex-shrink:0">🌐</div>
-          <div style="min-width:0">
-            <div style="font-size:0.72rem;font-weight:700;color:#047857;text-transform:uppercase">Public Sales Website</div>
-            <div style="font-size:0.88rem;font-weight:700;color:var(--slate-900)">Compare vs. MeasurePM & ROI Calculator</div>
-          </div>
-        </div>
-        <button class="ok" style="padding:8px 13px;font-size:0.8rem;white-space:nowrap" onclick="event.stopPropagation();window.location.href='/website.html'">Open Website →</button>
-      </div>
-
-      <div class="demo-pills" style="margin-top:0;margin-bottom:16px">
+      <div class="demo-pills" style="margin-top:14px;margin-bottom:16px">
         <div style="font-size:0.78rem;font-weight:700;color:var(--slate-700);margin-bottom:6px">Choose a Role to Log In (1-Click Demo):</div>
         <div class="demo-pill" onclick="act.demoLogin('owner@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
@@ -606,11 +592,12 @@ function renderOwnerKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#047857;text-transform:uppercase">Owner View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Overall Business Performance & Monthly Revenue</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Overall Business Performance, Clinician Productivity & Client Reimbursement</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('facility')">🏗️ Clinic & Gym Budget Model</button>
-        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('leads')">📈 Website Leads (${inb.totalLeads})</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('licensing')">🔒 Software Licensing & HIPAA BAA</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('notes')">📋 Notes & Claims</button>
+        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">👧 Clients Directory →</button>
       </div>
     </div>
   </div>
@@ -632,10 +619,10 @@ function renderOwnerKpi(d) {
       <div class="stat">${cap.activeClients} <span style="font-size:1rem;color:var(--slate-400)">/ ${cap.targetCaseload}</span></div>
       <div class="stat-sub">${cap.utilizationPct}% clinic capacity filled</div>
     </div>
-    <div class="stat-card" onclick="go('leads')" style="cursor:pointer">
-      <div class="stat-label">New Clinic Leads</div>
-      <div class="stat" style="color:var(--accent)">${inb.totalLeads}</div>
-      <div class="stat-sub"><b>${inb.measurePmProspectsCount}</b> switching from MeasurePM →</div>
+    <div class="stat-card" onclick="go('clients')" style="cursor:pointer">
+      <div class="stat-label">Authorized Units Remaining</div>
+      <div class="stat" style="color:var(--accent)">${pipe.remainingUnits || 0}</div>
+      <div class="stat-sub"><b>${pipe.overallBurnPct || 0}%</b> of ${pipe.totalAuthorizedUnits || 0} units used →</div>
     </div>
   </div>
 
@@ -849,7 +836,7 @@ function renderOwnerKpi(d) {
   </div>
 
   <!-- Client Administrative Billing & Reimbursement Snapshots -->
-  ${renderClientBillingSnapshotsCard(owner.clientBillingSnapshots || (d.adminKpi && d.adminKpi.clientBillingSnapshots) || [], '4. Client Billing & Reimbursement Snapshots')}
+  ${renderClientBillingSnapshotsCard(o.clientBillingSnapshots || (d.adminKpi && d.adminKpi.clientBillingSnapshots) || [], '4. Client Billing & Reimbursement Snapshots')}
   `;
 }
 
@@ -1065,8 +1052,8 @@ window.renderBcbaClientCardsHtml = function(profiles) {
               </div>
               <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
                 <span class="badge p">${esc(c.diagnosis)}</span>
-                <span class="badge att">💬 ${esc(c.communication)}</span>
                 <span class="badge">👨‍⚕️ RBT: ${esc((c.assignedRbts || []).join(', '))}</span>
+                ${c.pendingCoSignCount > 0 ? `<span class="badge bad">${c.pendingCoSignCount} Note to Co-Sign</span>` : ''}
               </div>
             </div>
           </div>
@@ -1075,46 +1062,32 @@ window.renderBcbaClientCardsHtml = function(profiles) {
           </button>
         </div>
 
-        <!-- Clinical Profile Vitals Box -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.8rem;margin-bottom:10px">
+        <!-- 4 Clinical Profile Vitals Tiles -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.8rem">
           <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Top Reinforcers</div>
-            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.reinforcers)}</div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
+            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.communication)}</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Profile</div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Needs</div>
             <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.sensory)}</div>
           </div>
           <div>
-            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Known Triggers</div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Common Triggers</div>
             <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.triggers)}</div>
           </div>
-        </div>
-
-        <!-- Live Clinical Progress & Active Goals Preview -->
-        <div style="margin-bottom:8px">
-          <div class="flex-between" style="font-size:0.78rem;margin-bottom:6px">
-            <span style="font-weight:700;color:var(--slate-700)">Active Skill Goals (${c.activeGoalsCount} active · Avg ${c.avgSkillScorePct}% indep):</span>
-            <div style="display:flex;gap:4px">
-              ${c.criteriaMetCount > 0 ? `<span class="tag approved">${c.criteriaMetCount} Ready to Master</span>` : ''}
-              ${c.stalledCount > 0 ? `<span class="tag draft">${c.stalledCount} Stalled</span>` : ''}
-              ${c.pendingCoSignCount > 0 ? `<span class="badge bad">${c.pendingCoSignCount} Note to Co-Sign</span>` : ''}
-            </div>
+          <div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Favorite Rewards</div>
+            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.reinforcers)}</div>
           </div>
-          ${(c.topGoals && c.topGoals.length) ? c.topGoals.map(g => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#f8fafc;border:1px solid var(--slate-200);border-radius:6px;font-size:0.79rem;margin-bottom:4px;cursor:pointer" onclick="act.quickPillar(${c.id}, 'skills')">
-              <span style="font-weight:600;color:var(--slate-800)">🎯 ${esc(g.title)}</span>
-              <span style="font-weight:700;color:${g.masteryMet ? 'var(--ok)' : g.stalled ? 'var(--warn)' : 'var(--primary)'}">${g.current}% / ${g.target}%</span>
-            </div>
-          `).join('') : ''}
         </div>
       </div>
 
       <!-- Direct 1-Click Navigation to Client Page Tabs -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--slate-200)">
         <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'overview')">📋 Overview</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals (${c.activeGoalsCount})</button>
-        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC (${c.abcCount})</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC</button>
         <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'plans')">🛡️ BIP (${esc(c.bipStatus)})</button>
         <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'profile')">👤 Edit Vitals</button>
         <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>
@@ -1128,15 +1101,7 @@ function renderBcbaKpi(d) {
   const todaySessions = bcba.todaySessions || [];
   const clientProfiles = bcba.clientProfiles || [];
   lastBcbaClientProfiles = clientProfiles;
-  const prog = bcba.clientProgress || {};
   const beh = bcba.behaviorPatterns || {};
-  const fDist = beh.functionDistribution || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
-  const totalBeh = beh.totalMaladaptiveEvents || (fDist.Escape + fDist.Attention + fDist.Tangible + fDist.Sensory) || 1;
-  const escPct = Math.round((fDist.Escape / totalBeh) * 100);
-  const attPct = Math.round((fDist.Attention / totalBeh) * 100);
-  const tanPct = Math.round((fDist.Tangible / totalBeh) * 100);
-  const senPct = Math.round((fDist.Sensory / totalBeh) * 100);
-  const peak = beh.peakDisruptionWindow || { label: '10:00 AM', count: 2, primaryAntecedent: 'Transition from preferred activity' };
 
   return `
   <!-- Clear Role Focus Bar -->
@@ -1144,44 +1109,67 @@ function renderBcbaKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#0f766e;text-transform:uppercase">BCBA View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Assigned Sessions Today, Client Profiles Ready to View, Progress & Behavior Patterns</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">My Clients & Clinical Profiles Ready to View, plus Assigned Sessions Today</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">Open Full Schedule →</button>
-        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">View Full Clients Directory →</button>
+        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">Open Clients & 360 Snapshots →</button>
       </div>
     </div>
   </div>
 
-  <!-- 4 Simple Summary Cards -->
+  <!-- 4 Simple Summary Cards (Client First) -->
   <div class="grid">
+    <div class="stat-card" onclick="go('clients')" style="cursor:pointer">
+      <div class="stat-label">1. Active Client Caseload</div>
+      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
+      <div class="stat-sub">Click to view per-client 360 snapshots →</div>
+    </div>
     <div class="stat-card">
-      <div class="stat-label">1. Assigned Sessions Today</div>
+      <div class="stat-label">2. Assigned Sessions Today</div>
       <div class="stat" style="color:var(--primary)">${todaySessions.length}</div>
       <div class="stat-sub">${todaySessions.filter(t => t.status === 'Completed').length} completed · ${todaySessions.filter(t => t.status === 'In Session').length} in progress</div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">2. Active Client Caseload</div>
-      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
-      <div class="stat-sub"><b>${prog.activeProgramsCount || 0}</b> active goals · <b>${prog.masteredCount || 0}</b> mastered</div>
-    </div>
     <div class="stat-card ok">
-      <div class="stat-label">3. Behavior Trend</div>
-      <div class="stat" style="color:var(--ok)">${beh.pctChange || -25}%</div>
-      <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> (${beh.totalMaladaptiveEvents || 0} total incidents)</div>
+      <div class="stat-label">3. Treatment Fidelity</div>
+      <div class="stat" style="color:var(--ok)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
+      <div class="stat-sub">BIP protocol adherence across sessions</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">4. Treatment Fidelity & IOA</div>
-      <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
-      <div class="stat-sub">IOA Agreement: <b>${beh.averageIoaAgreement || 92}%</b></div>
+      <div class="stat-label">4. Observer Agreement (IOA)</div>
+      <div class="stat" style="color:var(--sensory)">${beh.averageIoaAgreement || 92}%</div>
+      <div class="stat-sub">BCBA–RBT inter-observer reliability</div>
     </div>
   </div>
 
-  <!-- 1. ASSIGNED SESSIONS TODAY FOR BCBA & SUPERVISED CASELOAD -->
+  <!-- 1. MY CLIENTS & CLINICAL PROFILES (READY TO VIEW FIRST ON LOGIN) -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0 0 2px">1. My Clients & Clinical Profiles — Ready to View</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">The client comes first: review each child's clinical profile & vitals, or click "Open Client Page →" to view their full 360 record.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="badge p" id="bcba_client_count_badge">${clientProfiles.length} of ${clientProfiles.length} Clients</span>
+        <input
+          placeholder="🔍 Search client, RBT, or diagnosis..."
+          value="${esc(bcbaClientSearchQuery)}"
+          oninput="bcbaClientSearchQuery=this.value;const g=document.getElementById('bcba_client_cards_grid');if(g)g.innerHTML=window.renderBcbaClientCardsHtml(lastBcbaClientProfiles);"
+          style="margin:0;padding:6px 12px;font-size:0.82rem;width:240px;background:var(--slate-50)"
+        >
+      </div>
+    </div>
+
+    <div id="bcba_client_cards_grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px">
+      ${window.renderBcbaClientCardsHtml(clientProfiles)}
+    </div>
+  </div>
+
+  <!-- 2. ASSIGNED SESSIONS TODAY FOR BCBA & SUPERVISED CASELOAD -->
   <div class="card">
     <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
       <div>
-        <h3 style="margin:0 0 2px">1. Assigned Sessions Today</h3>
+        <h3 style="margin:0 0 2px">2. Assigned Sessions Today</h3>
         <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Start Session" to launch live data collection / supervision, or click the client's name to open their 360 profile.</p>
       </div>
       <span class="badge p">${todaySessions.length} Scheduled Today</span>
@@ -1228,112 +1216,6 @@ function renderBcbaKpi(d) {
         </table>
       </div>
     ` : '<p style="color:var(--slate-500);text-align:center;padding:18px">No sessions assigned for today.</p>'}
-  </div>
-
-  <!-- 2. MY CLIENTS & CLINICAL PROFILES (READY TO VIEW ON LOGIN) -->
-  <div class="card">
-    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
-      <div>
-        <h3 style="margin:0 0 2px">2. My Clients & Clinical Profiles — Ready to View</h3>
-        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Open Client Page →" or any section button below to jump straight into a child's 360 profile, skill goals, behavior graphs, or BIP.</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <span class="badge p" id="bcba_client_count_badge">${clientProfiles.length} of ${clientProfiles.length} Clients</span>
-        <input
-          placeholder="🔍 Search client, RBT, or diagnosis..."
-          value="${esc(bcbaClientSearchQuery)}"
-          oninput="bcbaClientSearchQuery=this.value;const g=document.getElementById('bcba_client_cards_grid');if(g)g.innerHTML=window.renderBcbaClientCardsHtml(lastBcbaClientProfiles);"
-          style="margin:0;padding:6px 12px;font-size:0.82rem;width:240px;background:var(--slate-50)"
-        >
-      </div>
-    </div>
-
-    <div id="bcba_client_cards_grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px">
-      ${window.renderBcbaClientCardsHtml(clientProfiles)}
-    </div>
-  </div>
-
-  <!-- 1. Client Progress: Ready to Master vs Stalled -->
-  <div class="row">
-    <div class="card" style="flex:1;border-top:3px solid var(--ok)">
-      <div class="flex-between" style="margin-bottom:8px">
-        <div>
-          <h3 style="margin:0 0 2px">1A. Goals Ready to Master</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Clients who scored ≥80% across 3 sessions in a row.</p>
-        </div>
-        <span class="tag approved">${(prog.criteriaMetAlerts || []).length} Ready</span>
-      </div>
-      ${(prog.criteriaMetAlerts && prog.criteriaMetAlerts.length) ? prog.criteriaMetAlerts.map(a => `
-        <div style="background:var(--slate-50);padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
-          <div>
-            <b>${esc(a.clientName)}</b> — <span style="color:var(--primary);font-weight:600">${esc(a.title)}</span>
-            <div style="font-size:0.78rem;color:var(--slate-500)">Independent Score: <b>${a.avgPct}%</b> (${esc(a.numDenom)})</div>
-          </div>
-          <button class="ok" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="act.quickMasterGoal(${a.goalId})">✓ Mark Mastered</button>
-        </div>
-      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0;margin:0">No goals waiting for mastery review right now.</p>'}
-    </div>
-
-    <div class="card" style="flex:1;border-top:3px solid var(--warn)">
-      <div class="flex-between" style="margin-bottom:8px">
-        <div>
-          <h3 style="margin:0 0 2px">1B. Stalled Goals (Needs Review)</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Goals with 5+ sessions and little progress.</p>
-        </div>
-        <span class="tag draft">${(prog.stalledAlerts || []).length} Stalled</span>
-      </div>
-      ${(prog.stalledAlerts && prog.stalledAlerts.length) ? prog.stalledAlerts.map(a => `
-        <div style="background:var(--slate-50);padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
-          <div>
-            <b>${esc(a.clientName)}</b> — <span style="color:var(--warn);font-weight:600">${esc(a.title)}</span>
-            <div style="font-size:0.78rem;color:var(--slate-500)">Current: <b>${a.currentPct}%</b> (Started at ${a.baselinePct}%)</div>
-          </div>
-          <button class="sec" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="go('client', ${a.clientId})">Open Goal →</button>
-        </div>
-      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0;margin:0">All active goals are progressing well.</p>'}
-    </div>
-  </div>
-
-  <!-- 2. Behavior Patterns -->
-  <div class="card">
-    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
-      <div>
-        <h3 style="margin:0 0 2px">2. Patterns in Behavior (Why & When Behaviors Happen)</h3>
-        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Summary of ABC behavior logs across your caseload.</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="badge esc">Main Reason: ${esc(beh.dominantFunction || 'Escape')}</span>
-        <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="act.quickPillar(1, 'behavior_abc')">View Full Behavior Graphs →</button>
-      </div>
-    </div>
-
-    <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
-      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);margin-bottom:8px">Why Behaviors Occur (4 Functions of Behavior):</div>
-      <div style="display:flex;height:22px;border-radius:6px;overflow:hidden">
-        <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${escPct > 10 ? `Escape ${escPct}%` : ''}</div>
-        <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${attPct > 10 ? `Attention ${attPct}%` : ''}</div>
-        <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${tanPct > 10 ? `Tangible ${tanPct}%` : ''}</div>
-        <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${senPct > 10 ? `Sensory ${senPct}%` : ''}</div>
-      </div>
-      <div class="row" style="margin-top:10px;margin-bottom:0;font-size:0.82rem">
-        <div><span style="color:#be123c">●</span> <b>Escape:</b> ${fDist.Escape || 0} (${escPct}%)</div>
-        <div><span style="color:#0284c7">●</span> <b>Attention:</b> ${fDist.Attention || 0} (${attPct}%)</div>
-        <div><span style="color:#d97706">●</span> <b>Tangible:</b> ${fDist.Tangible || 0} (${tanPct}%)</div>
-        <div><span style="color:#0f766e">●</span> <b>Sensory:</b> ${fDist.Sensory || 0} (${senPct}%)</div>
-      </div>
-    </div>
-
-    <div style="background:#f8fcff;border:1px solid #bae6fd;border-left:4px solid var(--accent);border-radius:var(--radius-md);padding:12px 16px">
-      <div class="flex-between">
-        <div>
-          <b style="color:var(--slate-900)">Peak Behavior Time: ${esc(peak.label)}</b>
-          <div style="font-size:0.84rem;color:var(--slate-600);margin-top:2px">
-            Most Common Trigger: <b>${esc(peak.primaryAntecedent)}</b>
-          </div>
-        </div>
-        <span class="badge att">${peak.count || 2} Incidents</span>
-      </div>
-    </div>
   </div>
   `;
 }
@@ -1657,7 +1539,7 @@ async function dashboardView() {
       <p class="page-sub">${personaSubtitles[kpiPersona] || ''} (${todayStr})</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="sec" onclick="window.location.href='/website.html'">🌐 Public Sales Website</button>
+      <button class="sec" onclick="go('clients')">👧 Clients Directory</button>
       <button class="ok" onclick="go('schedule')">📅 Schedule</button>
     </div>
   </div>
@@ -1705,23 +1587,30 @@ async function clientsView() {
   const filtered = cs.filter(c => {
     if (!clientSearchQuery) return true;
     const q = clientSearchQuery.toLowerCase();
-    return (c.name || '').toLowerCase().includes(q) || (c.diagnosis || '').toLowerCase().includes(q);
+    return (c.name || '').toLowerCase().includes(q) ||
+           (c.diagnosis || '').toLowerCase().includes(q) ||
+           (c.communication || '').toLowerCase().includes(q) ||
+           (c.school || '').toLowerCase().includes(q) ||
+           (c.assignedRbts || []).join(' ').toLowerCase().includes(q);
   });
 
   return `
   <div class="page-header">
     <div>
-      <h1>Clients</h1>
-      <p class="page-sub">Select a client to view skill goals, behavior tracking, BIPs, and session data.</p>
+      <h1>Clients — 360 Clinical Records & Snapshots</h1>
+      <p class="page-sub">Each client's profile, clinical vitals, skill goal mastery/stall snapshot, behavior function patterns, and 9-method measurement data are displayed right below their profile.</p>
     </div>
-    ${me.role === 'BCBA' ? `
-      <div>
-        <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Add New Client</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div style="width:280px">
+        <input style="margin:0" placeholder="🔍 Search client, diagnosis, RBT..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
       </div>
-    ` : ''}
+      ${me.role === 'BCBA' || me.role === 'OWNER' ? `
+        <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Add New Client</button>
+      ` : ''}
+    </div>
   </div>
 
-  ${me.role === 'BCBA' ? `
+  ${me.role === 'BCBA' || me.role === 'OWNER' ? `
     <div class="card" id="intake_card" style="display:none;animation:slideDown 0.2s ease">
       <div class="flex-between">
         <h3>Intake New Client Profile</h3>
@@ -1740,49 +1629,218 @@ async function clientsView() {
     </div>
   ` : ''}
 
-  <div class="card">
-    <div class="flex-between" style="margin-bottom:12px">
-      <h3>Active Caseload (${filtered.length} Children)</h3>
-      <div style="max-width:280px;width:100%">
-        <input style="margin:0" placeholder="Search by name or diagnosis..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
+  ${filtered.map((c) => {
+    const r360 = c.record360 || {};
+    const gs = r360.goalsSummary || { activeCount: 0, masteredCount: 0, criteriaMetCount: 0, stalledCount: 0, avgSkillPct: 0, goals: [] };
+    const b360 = r360.behavior360 || { programs: [], byBehavior: {}, totalEvents: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, avgIrtSec: 0, intervalPct: null, intervalNumDenom: '0/0', abcCount: 0, functions: { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 }, dominantFunction: 'Escape', dominantFunctionPct: 0, pctChange: 0, peakWindow: '11:00 AM', peakWindowObj: { label: '11:00 AM', count: 2, primaryAntecedent: 'Pre-lunch clean-up transition' } };
+    const bip = r360.bip360 || { status: 'approved', behavior: 'Target Behavior', replacement: 'Prompted functional communication request (FCT)' };
+    const bill = r360.billing360 || { payerName: c.insurance || 'BlueCross ABA', authNumber: 'BC-88412', totalAuthorizedUnits: 120, totalUsedUnits: 92, remainingUnits: 28, authBurnPct: 77, reimbursementRatePct: 94 };
+
+    const readyGoals = (gs.goals || []).filter(g => g.masteryMet && g.status !== 'mastered');
+    const stalledOrActiveGoals = (gs.goals || []).filter(g => g.stalled && g.status !== 'mastered');
+    const allActiveGoals = (gs.goals || []).filter(g => g.status !== 'mastered');
+
+    const fDist = b360.functions || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
+    const totalBeh = (fDist.Escape + fDist.Attention + fDist.Tangible + fDist.Sensory) || 1;
+    const escPct = Math.round(((fDist.Escape || 0) / totalBeh) * 100);
+    const attPct = Math.round(((fDist.Attention || 0) / totalBeh) * 100);
+    const tanPct = Math.round(((fDist.Tangible || 0) / totalBeh) * 100);
+    const senPct = Math.round(((fDist.Sensory || 0) / totalBeh) * 100);
+    const peak = b360.peakWindowObj || { label: b360.peakWindow || '11:00 AM', count: 2, primaryAntecedent: c.triggers || 'Transition from preferred activity' };
+
+    return `
+    <div class="card" style="margin-bottom:24px;border-top:4px solid var(--primary);padding:20px">
+      <!-- 1. CLIENT PROFILE HEADER & CLINICAL VITALS -->
+      <div class="flex-between" style="align-items:flex-start;flex-wrap:wrap;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--slate-200)">
+        <div style="display:flex;align-items:center;gap:16px;cursor:pointer" onclick="go('client', ${c.id})">
+          <div class="user-avatar" style="width:56px;height:56px;font-size:1.15rem;flex-shrink:0">${getInitials(c.name)}</div>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:1.35rem;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:3px">${esc(c.name)}</h2>
+              <span class="badge p">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
+              <span class="badge">👨‍⚕️ RBT: ${esc((c.assignedRbts || ['Sam Lee, RBT']).join(', '))}</span>
+              <span class="badge ${bill.authBurnPct >= 85 ? 'bad' : 'ok'}">💳 ${esc(bill.payerName)} (${bill.totalUsedUnits}/${bill.totalAuthorizedUnits} u · ${bill.reimbursementRatePct}% paid)</span>
+            </div>
+            <div style="font-size:0.83rem;color:var(--slate-600);margin-top:4px">
+              <b>DOB:</b> ${esc(c.dob || 'On file')} &nbsp;·&nbsp;
+              <b>Guardian:</b> ${esc(c.guardian || 'On file')} &nbsp;·&nbsp;
+              <b>School / Setting:</b> ${esc(c.school || 'Clinic / Home')} &nbsp;·&nbsp;
+              <b>BIP Status:</b> <span style="font-weight:700;color:var(--ok)">${esc((bip.status || 'approved').toUpperCase())}</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
+          <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>
+          <button class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="go('client', ${c.id})">Open Full 360 Record →</button>
+        </div>
+      </div>
+
+      <!-- 4 CLINICAL VITALS TILES -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:14px;margin-bottom:16px">
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
+          <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:2px">${esc(c.communication || 'Vocal / PECS')}</div>
+        </div>
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Needs</div>
+          <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:2px">${esc(c.sensory || 'Noise-canceling headphones, deep pressure')}</div>
+        </div>
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Common Triggers</div>
+          <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:2px">${esc(c.triggers || 'Unannounced transitions, multi-step demands')}</div>
+        </div>
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+          <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Favorite Rewards</div>
+          <div style="font-weight:600;color:var(--slate-800);font-size:0.84rem;margin-top:2px">${esc(c.reinforcers || 'Magna-Tiles, bubbles, iPad token board')}</div>
+        </div>
+      </div>
+
+      <!-- SNAPSHOT UNDERNEATH CLIENT PROFILE: 1A. GOALS READY TO MASTER & 1B. STALLED / ACTIVE GOALS -->
+      <div class="row" style="margin-bottom:14px">
+        <div style="flex:1;background:#f8fafc;border:1px solid var(--slate-200);border-top:3px solid var(--ok);border-radius:var(--radius-md);padding:14px">
+          <div class="flex-between" style="margin-bottom:8px">
+            <div>
+              <h3 style="margin:0 0 2px;font-size:0.96rem">1A. Goals Ready to Master (${esc(c.name)})</h3>
+              <p style="margin:0;font-size:0.78rem;color:var(--slate-500)">Scored ≥80% independent across 3 consecutive sessions (${gs.masteredCount} already mastered).</p>
+            </div>
+            <span class="tag approved">${readyGoals.length} Ready</span>
+          </div>
+          ${readyGoals.length ? readyGoals.map(g => `
+            <div style="background:#fff;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px">
+              <div>
+                <b style="color:var(--primary);font-size:0.86rem">${esc(g.title)}</b>
+                <div style="font-size:0.76rem;color:var(--slate-500)">Independent Score: <b>${g.current}%</b> (${esc(g.indepNumDenom)}) · Target: ${g.target}%</div>
+              </div>
+              <button class="ok" style="padding:5px 10px;font-size:0.76rem;white-space:nowrap" onclick="act.quickMasterGoal(${g.id})">✓ Mark Mastered</button>
+            </div>
+          `).join('') : `<p style="color:var(--slate-500);font-size:0.82rem;padding:8px 0;margin:0">No goals waiting for mastery sign-off right now (${gs.masteredCount} mastered).</p>`}
+        </div>
+
+        <div style="flex:1;background:#f8fafc;border:1px solid var(--slate-200);border-top:3px solid var(--warn);border-radius:var(--radius-md);padding:14px">
+          <div class="flex-between" style="margin-bottom:8px">
+            <div>
+              <h3 style="margin:0 0 2px;font-size:0.96rem">1B. Stalled & Active Goals (Needs Review)</h3>
+              <p style="margin:0;font-size:0.78rem;color:var(--slate-500)">Goals with flat trendlines or active acquisition (${gs.activeCount} active · Avg ${gs.avgSkillPct}%).</p>
+            </div>
+            <span class="tag draft">${stalledOrActiveGoals.length} Stalled</span>
+          </div>
+          ${(stalledOrActiveGoals.length ? stalledOrActiveGoals : allActiveGoals.slice(0, 3)).map(g => `
+            <div style="background:#fff;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px">
+              <div>
+                <b style="color:${g.stalled ? 'var(--warn)' : 'var(--slate-800)'};font-size:0.86rem">${esc(g.title)}</b>
+                <div style="font-size:0.76rem;color:var(--slate-500)">Current: <b>${g.current}%</b> (Started at ${g.baseline}% · Target ${g.target}%)</div>
+              </div>
+              <button class="sec" style="padding:5px 10px;font-size:0.76rem;white-space:nowrap" onclick="act.quickPillar(${c.id}, 'skills')">Open Goal →</button>
+            </div>
+          `).join('') || '<p style="color:var(--slate-500);font-size:0.82rem;padding:8px 0;margin:0">All active goals are progressing well.</p>'}
+        </div>
+      </div>
+
+      <!-- SNAPSHOT UNDERNEATH CLIENT PROFILE: 2. PATTERNS IN BEHAVIOR (WHY & WHEN BEHAVIORS HAPPEN) -->
+      <div style="background:#f8fafc;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:14px;margin-bottom:14px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px;font-size:0.96rem">2. Patterns in Behavior (Why & When Behaviors Happen — ${esc(c.name)})</h3>
+            <p style="margin:0;font-size:0.78rem;color:var(--slate-500)">Summary of ${b360.abcCount} ABC behavior logs & functional analysis for ${esc(c.name)}.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="badge esc">Main Reason: ${esc(b360.dominantFunction || 'Escape')} (${b360.dominantFunctionPct || escPct}%)</span>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">View Full Behavior Graphs →</button>
+          </div>
+        </div>
+
+        <div style="background:#fff;padding:12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);margin-bottom:10px">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--slate-700);margin-bottom:6px">Why Behaviors Occur (4 Functions of Behavior):</div>
+          <div style="display:flex;height:20px;border-radius:6px;overflow:hidden">
+            <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.72rem;font-weight:700">${escPct > 10 ? `Escape ${escPct}%` : ''}</div>
+            <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.72rem;font-weight:700">${attPct > 10 ? `Attention ${attPct}%` : ''}</div>
+            <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.72rem;font-weight:700">${tanPct > 10 ? `Tangible ${tanPct}%` : ''}</div>
+            <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.72rem;font-weight:700">${senPct > 10 ? `Sensory ${senPct}%` : ''}</div>
+          </div>
+          <div class="row" style="margin-top:8px;margin-bottom:0;font-size:0.8rem">
+            <div><span style="color:#be123c">●</span> <b>Escape:</b> ${fDist.Escape || 0} (${escPct}%)</div>
+            <div><span style="color:#0284c7">●</span> <b>Attention:</b> ${fDist.Attention || 0} (${attPct}%)</div>
+            <div><span style="color:#d97706">●</span> <b>Tangible:</b> ${fDist.Tangible || 0} (${tanPct}%)</div>
+            <div><span style="color:#0f766e">●</span> <b>Sensory:</b> ${fDist.Sensory || 0} (${senPct}%)</div>
+          </div>
+        </div>
+
+        <div style="background:#f8fcff;border:1px solid #bae6fd;border-left:4px solid var(--accent);border-radius:var(--radius-sm);padding:10px 14px">
+          <div class="flex-between">
+            <div>
+              <b style="color:var(--slate-900);font-size:0.86rem">Peak Behavior Time: ${esc(peak.label || b360.peakWindow || '11:00 AM')}</b>
+              <div style="font-size:0.8rem;color:var(--slate-600);margin-top:2px">
+                Most Common Trigger: <b>${esc(peak.primaryAntecedent || c.triggers || 'Transition / task demand')}</b> &nbsp;·&nbsp;
+                Replacement FCT: <b>${esc(bip.replacement)}</b>
+              </div>
+            </div>
+            <span class="badge att">${peak.count || 2} Incidents</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SNAPSHOT UNDERNEATH CLIENT PROFILE: 3. TARGET BEHAVIORS & 9-METHOD MEASUREMENT SUMMARY -->
+      <div style="background:#f8fafc;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:14px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px;font-size:0.96rem">3. Target Behavior Operational Definitions & 9-Method Measurement Suite</h3>
+            <p style="margin:0;font-size:0.78rem;color:var(--slate-500)">Continuous & Interval behavior metrics recorded across sessions for ${esc(c.name)}.</p>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'overview')">📋 Overview</button>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals (${gs.activeCount})</button>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC (${b360.abcCount})</button>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'plans')">🛡️ BIP (${esc(bip.status)})</button>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'caregiver')">👨‍👩‍👧 Caregiver</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:10px">
+          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">1. Frequency & Rate</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.totalEvents} <span style="font-size:0.76rem;color:var(--primary)">(${b360.ratePerHour}/hr)</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">2. Duration Recording</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgDurationSec}s <span style="font-size:0.74rem;color:var(--slate-500)">avg</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">3. Latency from SD</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgLatencySec}s <span style="font-size:0.74rem;color:var(--slate-500)">avg</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">4. Inter-Response (IRT)</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.avgIrtSec}s <span style="font-size:0.74rem;color:var(--slate-500)">gap</span></div>
+          </div>
+          <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:8px 10px">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">5. Partial / Whole / MTS</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--slate-900);margin-top:2px">${b360.intervalPct !== null ? `${b360.intervalPct}%` : '0%'} <span style="font-size:0.74rem;color:var(--slate-500)">(${esc(b360.intervalNumDenom)})</span></div>
+          </div>
+        </div>
+
+        ${(b360.programs && b360.programs.length) ? `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px">
+            ${b360.programs.map(bp => `
+              <div style="background:#fff;border:1px solid var(--slate-200);border-left:3px solid #be123c;border-radius:6px;padding:9px 11px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <b style="font-size:0.84rem;color:var(--slate-900)">${esc(bp.name)}</b>
+                    <span class="badge esc" style="font-size:0.68rem">${esc(bp.function_hypothesis || 'Escape')}</span>
+                    <span class="badge" style="font-size:0.68rem">${esc(bp.measurement_type || 'frequency')}</span>
+                  </div>
+                  <div style="font-size:0.75rem;color:var(--slate-600);margin-top:3px">${esc(bp.operational_definition || 'Target behavior operational definition on file.')}</div>
+                </div>
+                <button class="sec" style="padding:4px 8px;font-size:0.72rem;white-space:nowrap" onclick="act.quickPillar(${c.id}, 'behavior_abc')">Log / View →</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Client Name</th>
-          <th>Diagnosis</th>
-          <th>Insurance Payer & Auth</th>
-          <th>Communication Modality</th>
-          <th>Setting / School</th>
-          <th style="text-align:right">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filtered.map((c) => `
-          <tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:14px">
-                <div class="user-avatar" style="width:42px;height:42px;font-size:0.95rem">${getInitials(c.name)}</div>
-                <div>
-                  <div style="font-family:var(--font-serif);font-weight:600;font-size:1.02rem;color:var(--slate-900)">${esc(c.name)}</div>
-                  <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--slate-500)">DOB: ${esc(c.dob || 'On file')}</div>
-                </div>
-              </div>
-            </td>
-            <td><span class="badge p">${esc(c.diagnosis || 'ASD')}</span></td>
-            <td><span class="badge">${esc(c.insurance || 'BlueCross ABA Auth #BC-88412')}</span></td>
-            <td><span class="badge att">${esc(c.communication || 'Vocal')}</span></td>
-            <td>${esc(c.school || 'Home / Clinic')}</td>
-            <td style="text-align:right;white-space:nowrap">
-              <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
-              <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="go('client',${c.id})">Open 360 Record →</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>`;
+    `;
+  }).join('')}
+  `;
 }
 
 let tab = 'overview';

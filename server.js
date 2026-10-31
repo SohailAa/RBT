@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id I
 CREATE TABLE IF NOT EXISTS leads(id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT, clinic_name TEXT, caseload_size TEXT, current_software TEXT, message TEXT, status TEXT DEFAULT 'new', notes TEXT DEFAULT '', created_at TEXT);
 CREATE TABLE IF NOT EXISTS facility_models(id INTEGER PRIMARY KEY, name TEXT, subtitle TEXT, is_default INTEGER DEFAULT 0, config_json TEXT DEFAULT '{}', updated_at TEXT);
 CREATE TABLE IF NOT EXISTS facility_signups(id INTEGER PRIMARY KEY, child_name TEXT, age INTEGER, diagnosis TEXT, tier TEXT, weekly_hours INTEGER, payer TEXT, cohort TEXT, gym_track TEXT, enrollment_status TEXT DEFAULT 'committed', target_month INTEGER DEFAULT 1, notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS clinic_licenses(id INTEGER PRIMARY KEY, clinic_name TEXT, contact_name TEXT, contact_email TEXT, tier TEXT DEFAULT 'growth', status TEXT DEFAULT 'active', license_key TEXT UNIQUE, base_fee INTEGER DEFAULT 599, max_clients INTEGER DEFAULT 40, per_client_fee INTEGER DEFAULT 15, max_seats INTEGER DEFAULT 20, per_seat_fee INTEGER DEFAULT 24, billing_cycle TEXT DEFAULT 'annual', is_primary INTEGER DEFAULT 0, issued_at TEXT, expires_at TEXT, msa_signed_by TEXT DEFAULT '', msa_signed_at TEXT DEFAULT '', baa_signed_by TEXT DEFAULT '', baa_signed_at TEXT DEFAULT '', eula_accepted_by TEXT DEFAULT '', eula_accepted_at TEXT DEFAULT '', notes TEXT DEFAULT '');
 `);
 try { db.exec("ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'new'"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
@@ -82,6 +83,44 @@ const readToken = (t) => {
   if (!sig || sign(`${uid}.${exp}`) !== sig || Date.now() > +exp) return null;
   return +uid;
 };
+
+// Cryptographic Software License Key Engine (HMAC-SHA256)
+const makeLicenseKey = ({ tier = 'growth', maxClients = 40, maxSeats = 20, expiresAt = '2027-10-31' } = {}) => {
+  const tCode = String(tier || 'growth').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 8) || 'GROWTH';
+  const expClean = String(expiresAt || '2027-10-31').slice(0, 10).replace(/-/g, '');
+  const payload = `${tCode}-${Number(maxClients) || 40}C${Number(maxSeats) || 20}S-${expClean}`;
+  const sig = sign(`EBA-LIC:${payload}`).slice(0, 12).toUpperCase();
+  return `EBA-LIC-${payload}-${sig}`;
+};
+const verifyLicenseKey = (key) => {
+  const m = /^EBA-LIC-([A-Z]+)-(\d+)C(\d+)S-(\d{8})-([A-F0-9]{12})$/.exec(String(key || '').trim());
+  if (!m) return { valid: false, expired: true, reason: 'Invalid cryptographic license key format' };
+  const [, tCode, mc, ms, expClean, sig] = m;
+  const payload = `${tCode}-${mc}C${ms}S-${expClean}`;
+  const expectedSig = sign(`EBA-LIC:${payload}`).slice(0, 12).toUpperCase();
+  if (sig !== expectedSig) return { valid: false, expired: true, reason: 'Cryptographic HMAC-SHA256 signature mismatch' };
+  const expIso = `${expClean.slice(0, 4)}-${expClean.slice(4, 6)}-${expClean.slice(6, 8)}`;
+  const expired = new Date(expIso + 'T23:59:59Z').getTime() < Date.now();
+  return {
+    valid: true,
+    expired,
+    tierCode: tCode.toLowerCase(),
+    maxClients: Number(mc),
+    maxSeats: Number(ms),
+    expiresAt: expIso
+  };
+};
+function getPrimaryLicense() {
+  return get('SELECT * FROM clinic_licenses WHERE is_primary=1') || get('SELECT * FROM clinic_licenses ORDER BY id DESC LIMIT 1');
+}
+function isLicenseLockedOut(lic) {
+  if (!lic) return false;
+  if (lic.status === 'expired' || lic.status === 'suspended' || lic.status === 'locked') return true;
+  const v = verifyLicenseKey(lic.license_key);
+  if (!v.valid || v.expired) return true;
+  if (lic.expires_at && new Date(String(lic.expires_at).slice(0, 10) + 'T23:59:59Z').getTime() < Date.now()) return true;
+  return false;
+}
 
 function seed() {
   const bcba = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Dr. Dana Rivera, BCBA', 'bcba@eba.test', hash('password'), 'BCBA').lastInsertRowid;
@@ -372,6 +411,92 @@ function upgradeExistingData() {
       );
     });
   }
+  if (!get("SELECT COUNT(*) c FROM clinic_licenses").c) {
+    const todayStr = getLocalDate();
+    const nextYearStr = getLocalDate(new Date(Date.now() + 365 * 86400e3));
+    const nowIso = new Date().toISOString();
+
+    const kPrimary = makeLicenseKey({ tier: 'growth', maxClients: 40, maxSeats: 20, expiresAt: nextYearStr });
+    run(
+      'INSERT INTO clinic_licenses(clinic_name, contact_name, contact_email, tier, status, license_key, base_fee, max_clients, per_client_fee, max_seats, per_seat_fee, billing_cycle, is_primary, issued_at, expires_at, msa_signed_by, msa_signed_at, baa_signed_by, baa_signed_at, eula_accepted_by, eula_accepted_at, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'Effective Behavioral Approach — Flagship Clinic',
+      'Sarah Jenkins',
+      'owner@eba.test',
+      'growth',
+      'active',
+      kPrimary,
+      599,
+      40,
+      15,
+      20,
+      24,
+      'annual',
+      1,
+      todayStr,
+      nextYearStr,
+      'Sarah Jenkins, Practice CEO',
+      nowIso,
+      'Sarah Jenkins, Practice CEO',
+      nowIso,
+      'Sarah Jenkins, Practice CEO',
+      nowIso,
+      'Primary flagship clinic tenant license. Hybrid Base + 40 Client Cap + 20 Clinician Seat Cap.'
+    );
+
+    const kEnt = makeLicenseKey({ tier: 'enterprise', maxClients: 100, maxSeats: 50, expiresAt: nextYearStr });
+    run(
+      'INSERT INTO clinic_licenses(clinic_name, contact_name, contact_email, tier, status, license_key, base_fee, max_clients, per_client_fee, max_seats, per_seat_fee, billing_cycle, is_primary, issued_at, expires_at, msa_signed_by, msa_signed_at, baa_signed_by, baa_signed_at, eula_accepted_by, eula_accepted_at, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'Bright Horizons Pediatric ABA',
+      'Dr. Dana Rivera, BCBA-D',
+      'drivera@brighthorizonsaba.org',
+      'enterprise',
+      'active',
+      kEnt,
+      1199,
+      100,
+      12,
+      50,
+      19,
+      'annual',
+      0,
+      todayStr,
+      nextYearStr,
+      'Dr. Dana Rivera, Clinical Director',
+      nowIso,
+      'Dr. Dana Rivera, Clinical Director',
+      nowIso,
+      'Dr. Dana Rivera, Clinical Director',
+      nowIso,
+      'Multi-site enterprise customer switched from MeasurePM. Full MSA, HIPAA BAA & EULA executed.'
+    );
+
+    const kStarter = makeLicenseKey({ tier: 'starter', maxClients: 15, maxSeats: 8, expiresAt: nextYearStr });
+    run(
+      'INSERT INTO clinic_licenses(clinic_name, contact_name, contact_email, tier, status, license_key, base_fee, max_clients, per_client_fee, max_seats, per_seat_fee, billing_cycle, is_primary, issued_at, expires_at, msa_signed_by, msa_signed_at, baa_signed_by, baa_signed_at, eula_accepted_by, eula_accepted_at, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'Pediatric Steps Therapy Collective',
+      'Marcus Vance, M.S.',
+      'mvance@pediatricsteps.org',
+      'starter',
+      'pending_agreement',
+      kStarter,
+      299,
+      15,
+      18,
+      8,
+      29,
+      'monthly',
+      0,
+      todayStr,
+      nextYearStr,
+      'Marcus Vance, Operations Director',
+      nowIso,
+      '',
+      '',
+      '',
+      '',
+      'MSA signed; awaiting HIPAA BAA & Clinical EULA execution before onboarding RBT tablets.'
+    );
+  }
 }
 upgradeExistingData();
 
@@ -657,12 +782,311 @@ const clientOr403 = (u, cid) => { if (!canSeeClient(u, +cid)) bad(403, 'No acces
 route('POST', '/api/login', (u, b, p, ctx) => {
   const row = get('SELECT * FROM users WHERE email=?', (b.email || '').toLowerCase());
   if (!row || !verify(b.password || '', row.pw)) bad(401, 'Invalid email or password');
+  const primaryLic = getPrimaryLicense();
+  if (row.role !== 'OWNER' && isLicenseLockedOut(primaryLic)) {
+    bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner logins are blocked until the Practice Owner renews the clinic license key.');
+  }
   const tok = makeToken(row.id);
   ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
   return { id: row.id, name: row.name, role: row.role };
 }, { public: true });
 route('POST', '/api/logout', (u, b, p, ctx) => { ctx.setCookie = 'tok=; Max-Age=0; Path=/'; return {}; });
 route('GET', '/api/me', (u) => ({ id: u.id, name: u.name, role: u.role }));
+
+// ---------- B2B Commercial Software Licensing, Hybrid Caps & Legal Agreements API ----------
+function enrichLicenseRow(lic, activeClientsCount = 0, activeSeatsCount = 0) {
+  if (!lic) return null;
+  const isPrimary = Number(lic.is_primary) === 1;
+  const effClients = isPrimary ? activeClientsCount : Math.min(Number(lic.max_clients) || 15, Math.round((Number(lic.max_clients) || 15) * 0.75));
+  const effSeats = isPrimary ? activeSeatsCount : Math.min(Number(lic.max_seats) || 8, Math.round((Number(lic.max_seats) || 8) * 0.8));
+
+  const quote = G.calculateLicenseQuote({
+    tier: lic.tier,
+    activeClients: effClients,
+    activeSeats: effSeats,
+    maxClientsOverride: lic.max_clients,
+    maxSeatsOverride: lic.max_seats,
+    baseFeeOverride: lic.base_fee,
+    perClientFeeOverride: lic.per_client_fee,
+    perSeatFeeOverride: lic.per_seat_fee,
+    billingCycle: lic.billing_cycle
+  });
+  const keyCheck = verifyLicenseKey(lic.license_key);
+  const lockedOut = isLicenseLockedOut(lic);
+  const agreements = G.generateLicenseAgreements({
+    clinicName: lic.clinic_name,
+    contactName: lic.contact_name,
+    contactEmail: lic.contact_email,
+    tier: lic.tier,
+    licenseKey: lic.license_key,
+    baseFee: lic.base_fee,
+    maxClients: lic.max_clients,
+    perClientFee: lic.per_client_fee,
+    maxSeats: lic.max_seats,
+    perSeatFee: lic.per_seat_fee,
+    billingCycle: lic.billing_cycle,
+    issuedAt: lic.issued_at,
+    expiresAt: lic.expires_at,
+    msaSignedBy: lic.msa_signed_by,
+    msaSignedAt: lic.msa_signed_at,
+    baaSignedBy: lic.baa_signed_by,
+    baaSignedAt: lic.baa_signed_at,
+    eulaAcceptedBy: lic.eula_accepted_by,
+    eulaAcceptedAt: lic.eula_accepted_at
+  });
+  const allAgreementsSigned = Boolean(lic.msa_signed_by && lic.baa_signed_by && lic.eula_accepted_by);
+
+  return {
+    ...lic,
+    isPrimary,
+    activeClients: effClients,
+    activeSeats: effSeats,
+    isLockedOut: lockedOut,
+    signatureValid: keyCheck.valid,
+    keyExpired: keyCheck.expired,
+    keyCheck,
+    hybridPricing: quote,
+    allAgreementsSigned,
+    agreements
+  };
+}
+
+function buildLicensingPayload() {
+  const activeClientsCount = (all('SELECT COUNT(*) c FROM clients')[0] || {}).c || 0;
+  const activeSeatsCount = all('SELECT id,role FROM users').filter((usr) => ['BCBA', 'RBT', 'ADMIN', 'OWNER'].includes(usr.role)).length;
+  const rawLicenses = all('SELECT * FROM clinic_licenses ORDER BY id DESC');
+  const enriched = rawLicenses.map((l) => enrichLicenseRow(l, activeClientsCount, activeSeatsCount));
+  const primaryLicense = enriched.find((l) => l.isPrimary) || enriched[0] || null;
+
+  const activeLicenses = enriched.filter((l) => l.status === 'active' && !l.isLockedOut);
+  const totalLicensingMrr = activeLicenses.reduce((sum, l) => sum + (l.hybridPricing ? l.hybridPricing.netMonthlyTotal : 0), 0);
+  const totalLicensingArr = totalLicensingMrr * 12;
+
+  return {
+    primaryLicense,
+    clinicLicenses: enriched,
+    portfolioSummary: {
+      totalLicenses: enriched.length,
+      activeCount: activeLicenses.length,
+      lockedOutCount: enriched.filter((l) => l.isLockedOut).length,
+      pendingAgreementsCount: enriched.filter((l) => !l.allAgreementsSigned).length,
+      totalLicensingMrr,
+      totalLicensingArr
+    },
+    tiers: G.LICENSE_TIERS
+  };
+}
+
+route('GET', '/api/licensing/status', () => {
+  const p = getPrimaryLicense();
+  const locked = isLicenseLockedOut(p);
+  return {
+    clinicName: p ? p.clinic_name : 'Effective Behavioral Approach',
+    tier: p ? p.tier : 'growth',
+    status: p ? p.status : 'active',
+    isLockedOut: locked,
+    expiresAt: p ? p.expires_at : null,
+    enforcementPolicy: 'hard_lockout'
+  };
+}, { public: true });
+
+route('GET', '/api/licensing', (u) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  return buildLicensingPayload();
+});
+
+route('GET', '/api/licensing/:id/agreements', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const row = get('SELECT * FROM clinic_licenses WHERE id=?', Number(p.id));
+  if (!row) bad(404, 'Clinic license not found');
+  const activeClientsCount = (all('SELECT COUNT(*) c FROM clients')[0] || {}).c || 0;
+  const activeSeatsCount = all('SELECT id,role FROM users').filter((usr) => ['BCBA', 'RBT', 'ADMIN', 'OWNER'].includes(usr.role)).length;
+  const enriched = enrichLicenseRow(row, activeClientsCount, activeSeatsCount);
+  return {
+    licenseId: row.id,
+    clinicName: row.clinic_name,
+    licenseKey: row.license_key,
+    allAgreementsSigned: enriched.allAgreementsSigned,
+    ...enriched.agreements
+  };
+});
+
+route('POST', '/api/licensing/issue', (u, b) => {
+  need(u, 'OWNER', 'ADMIN');
+  const clinicName = String(b.clinic_name || '').trim();
+  const contactName = String(b.contact_name || '').trim();
+  const contactEmail = String(b.contact_email || '').trim().toLowerCase();
+  if (!clinicName || !contactName || !contactEmail) {
+    bad(400, 'Clinic name, contact name, and contact email are required');
+  }
+  const tierKey = ['starter', 'growth', 'enterprise'].includes(String(b.tier || '').toLowerCase())
+    ? String(b.tier).toLowerCase()
+    : 'growth';
+  const tMeta = G.LICENSE_TIERS[tierKey] || G.LICENSE_TIERS.growth;
+  const baseFee = b.base_fee !== undefined ? Math.max(0, Number(b.base_fee)) : tMeta.baseFee;
+  const maxClients = b.max_clients !== undefined ? Math.max(1, Number(b.max_clients)) : tMeta.maxClients;
+  const perClientFee = b.per_client_fee !== undefined ? Math.max(0, Number(b.per_client_fee)) : tMeta.perClientFee;
+  const maxSeats = b.max_seats !== undefined ? Math.max(1, Number(b.max_seats)) : tMeta.maxSeats;
+  const perSeatFee = b.per_seat_fee !== undefined ? Math.max(0, Number(b.per_seat_fee)) : tMeta.perSeatFee;
+  const billingCycle = String(b.billing_cycle || 'annual').toLowerCase() === 'monthly' ? 'monthly' : 'annual';
+  const todayStr = getLocalDate();
+  const expiresAt = b.expires_at ? String(b.expires_at).slice(0, 10) : getLocalDate(new Date(Date.now() + 365 * 86400e3));
+  const licenseKey = makeLicenseKey({ tier: tierKey, maxClients, maxSeats, expiresAt });
+  const signNow = Boolean(b.auto_sign);
+  const nowIso = new Date().toISOString();
+  const signer = signNow ? `${contactName} (Authorized Signer)` : '';
+  const signTs = signNow ? nowIso : '';
+  const status = b.status || (signNow ? 'active' : 'pending_agreement');
+
+  const res = run(
+    'INSERT INTO clinic_licenses(clinic_name, contact_name, contact_email, tier, status, license_key, base_fee, max_clients, per_client_fee, max_seats, per_seat_fee, billing_cycle, is_primary, issued_at, expires_at, msa_signed_by, msa_signed_at, baa_signed_by, baa_signed_at, eula_accepted_by, eula_accepted_at, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    clinicName,
+    contactName,
+    contactEmail,
+    tierKey,
+    status,
+    licenseKey,
+    baseFee,
+    maxClients,
+    perClientFee,
+    maxSeats,
+    perSeatFee,
+    billingCycle,
+    0,
+    todayStr,
+    expiresAt,
+    signer,
+    signTs,
+    signer,
+    signTs,
+    signer,
+    signTs,
+    String(b.notes || `Issued ${tMeta.name} hybrid license (${maxClients} client cap / ${maxSeats} clinician seat cap).`).trim()
+  );
+
+  if (b.lead_id) {
+    try {
+      run('UPDATE leads SET status=? WHERE id=?', 'won', Number(b.lead_id));
+    } catch (e) {}
+  }
+
+  const newId = Number(res.lastInsertRowid);
+  logAudit(u, { entity_type: 'clinic_license', entity_id: newId, action: 'ISSUE_CLINIC_LICENSE', details: `Issued ${tierKey.toUpperCase()} license key ${licenseKey} to ${clinicName}` });
+  return { id: newId, license_key: licenseKey, ...buildLicensingPayload() };
+});
+
+route('PATCH', '/api/licensing/:id', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM clinic_licenses WHERE id=?', id);
+  if (!row) bad(404, 'Clinic license not found');
+
+  const tierKey = b.tier !== undefined ? String(b.tier).toLowerCase() : row.tier;
+  const tMeta = G.LICENSE_TIERS[tierKey] || G.LICENSE_TIERS.growth;
+  const status = b.status !== undefined ? String(b.status).trim() : row.status;
+  const baseFee = b.base_fee !== undefined ? Math.max(0, Number(b.base_fee)) : (b.tier && b.tier !== row.tier ? tMeta.baseFee : row.base_fee);
+  const maxClients = b.max_clients !== undefined ? Math.max(1, Number(b.max_clients)) : (b.tier && b.tier !== row.tier ? tMeta.maxClients : row.max_clients);
+  const perClientFee = b.per_client_fee !== undefined ? Math.max(0, Number(b.per_client_fee)) : (b.tier && b.tier !== row.tier ? tMeta.perClientFee : row.per_client_fee);
+  const maxSeats = b.max_seats !== undefined ? Math.max(1, Number(b.max_seats)) : (b.tier && b.tier !== row.tier ? tMeta.maxSeats : row.max_seats);
+  const perSeatFee = b.per_seat_fee !== undefined ? Math.max(0, Number(b.per_seat_fee)) : (b.tier && b.tier !== row.tier ? tMeta.perSeatFee : row.per_seat_fee);
+  const billingCycle = b.billing_cycle !== undefined ? String(b.billing_cycle).toLowerCase() : row.billing_cycle;
+  const expiresAt = b.expires_at !== undefined ? String(b.expires_at).slice(0, 10) : row.expires_at;
+  const notes = b.notes !== undefined ? String(b.notes).trim() : row.notes;
+  const licenseKey = b.license_key !== undefined
+    ? String(b.license_key).trim()
+    : makeLicenseKey({ tier: tierKey, maxClients, maxSeats, expiresAt });
+
+  run(
+    'UPDATE clinic_licenses SET tier=?, status=?, license_key=?, base_fee=?, max_clients=?, per_client_fee=?, max_seats=?, per_seat_fee=?, billing_cycle=?, expires_at=?, notes=? WHERE id=?',
+    tierKey,
+    status,
+    licenseKey,
+    baseFee,
+    maxClients,
+    perClientFee,
+    maxSeats,
+    perSeatFee,
+    billingCycle,
+    expiresAt,
+    notes,
+    id
+  );
+  logAudit(u, { entity_type: 'clinic_license', entity_id: id, action: 'UPDATE_CLINIC_LICENSE', details: `Updated ${row.clinic_name}: status=${status}, tier=${tierKey}, caps=${maxClients}C/${maxSeats}S` });
+  return { id, ...buildLicensingPayload() };
+});
+
+route('POST', '/api/licensing/:id/activate-key', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM clinic_licenses WHERE id=?', id);
+  if (!row) bad(404, 'Clinic license not found');
+
+  let targetKey = String(b.license_key || '').trim();
+  let nextExpiresAt = b.expires_at ? String(b.expires_at).slice(0, 10) : getLocalDate(new Date(Date.now() + 365 * 86400e3));
+  let nextTier = b.tier ? String(b.tier).toLowerCase() : row.tier;
+  let nextMaxClients = b.max_clients !== undefined ? Number(b.max_clients) : row.max_clients;
+  let nextMaxSeats = b.max_seats !== undefined ? Number(b.max_seats) : row.max_seats;
+
+  if (!targetKey || b.renew) {
+    targetKey = makeLicenseKey({ tier: nextTier, maxClients: nextMaxClients, maxSeats: nextMaxSeats, expiresAt: nextExpiresAt });
+  } else {
+    const check = verifyLicenseKey(targetKey);
+    if (!check.valid) bad(400, check.reason || 'Invalid cryptographic license key');
+    if (check.expired) bad(400, 'Provided license key is already expired');
+    nextMaxClients = check.maxClients;
+    nextMaxSeats = check.maxSeats;
+    nextExpiresAt = check.expiresAt;
+  }
+
+  run(
+    'UPDATE clinic_licenses SET status=?, tier=?, license_key=?, max_clients=?, max_seats=?, expires_at=? WHERE id=?',
+    'active',
+    nextTier,
+    targetKey,
+    nextMaxClients,
+    nextMaxSeats,
+    nextExpiresAt,
+    id
+  );
+  logAudit(u, { entity_type: 'clinic_license', entity_id: id, action: 'ACTIVATE_LICENSE_KEY', details: `Activated/renewed cryptographic key ${targetKey} for ${row.clinic_name} (expires ${nextExpiresAt})` });
+  return { id, license_key: targetKey, status: 'active', expires_at: nextExpiresAt, ...buildLicensingPayload() };
+});
+
+route('POST', '/api/licensing/:id/sign-agreement', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM clinic_licenses WHERE id=?', id);
+  if (!row) bad(404, 'Clinic license not found');
+
+  const docType = String(b.agreement_type || b.type || 'all').toLowerCase();
+  const signer = String(b.signer_name || `${u.name} (${u.role})`).trim();
+  if (!signer) bad(400, 'Authorized signer name is required');
+  const nowIso = new Date().toISOString();
+
+  const msaBy = (docType === 'msa' || docType === 'all') ? signer : row.msa_signed_by;
+  const msaAt = (docType === 'msa' || docType === 'all') ? nowIso : row.msa_signed_at;
+  const baaBy = (docType === 'baa' || docType === 'all') ? signer : row.baa_signed_by;
+  const baaAt = (docType === 'baa' || docType === 'all') ? nowIso : row.baa_signed_at;
+  const eulaBy = (docType === 'eula' || docType === 'all') ? signer : row.eula_accepted_by;
+  const eulaAt = (docType === 'eula' || docType === 'all') ? nowIso : row.eula_accepted_at;
+
+  const allSigned = Boolean(msaBy && baaBy && eulaBy);
+  const nextStatus = (row.status === 'pending_agreement' && allSigned) ? 'active' : row.status;
+
+  run(
+    'UPDATE clinic_licenses SET status=?, msa_signed_by=?, msa_signed_at=?, baa_signed_by=?, baa_signed_at=?, eula_accepted_by=?, eula_accepted_at=? WHERE id=?',
+    nextStatus,
+    msaBy,
+    msaAt,
+    baaBy,
+    baaAt,
+    eulaBy,
+    eulaAt,
+    id
+  );
+  logAudit(u, { entity_type: 'clinic_license', entity_id: id, action: 'SIGN_LEGAL_AGREEMENT', details: `${signer} electronically signed ${docType.toUpperCase()} for ${row.clinic_name}` });
+  return { id, signed: docType, signer, signed_at: nowIso, status: nextStatus, ...buildLicensingPayload() };
+});
 
 route('POST', '/api/leads', (u, b) => {
   const name = String(b.name || '').trim();
@@ -1268,6 +1692,25 @@ route('GET', '/api/dashboard', (u) => {
         measurePmProspectsCount: allLeadsList.filter(l => String(l.current_software || '').toLowerCase().includes('measurepm')).length,
         demoScheduledCount: allLeadsList.filter(l => l.status === 'demo_scheduled').length
       };
+    })(),
+    licensingSummary: (() => {
+      const licPayload = buildLicensingPayload();
+      const pLic = licPayload.primaryLicense;
+      return {
+        clinicName: pLic ? pLic.clinic_name : 'Effective Behavioral Approach',
+        tier: pLic ? pLic.tier : 'growth',
+        status: pLic ? pLic.status : 'active',
+        licenseKey: pLic ? pLic.license_key : '',
+        isLockedOut: pLic ? pLic.isLockedOut : false,
+        activeClients: pLic ? pLic.activeClients : allClients.length,
+        maxClients: pLic ? pLic.max_clients : 40,
+        activeSeats: pLic ? pLic.activeSeats : staffUsers.length,
+        maxSeats: pLic ? pLic.max_seats : 20,
+        allAgreementsSigned: pLic ? pLic.allAgreementsSigned : true,
+        portfolioMrr: licPayload.portfolioSummary.totalLicensingMrr,
+        portfolioArr: licPayload.portfolioSummary.totalLicensingArr,
+        totalLicensedClinics: licPayload.portfolioSummary.totalLicenses
+      };
     })()
   };
 
@@ -1553,9 +1996,125 @@ route('GET', '/api/dashboard', (u) => {
   };
 }, {});
 
-route('GET', '/api/clients', (u) => visibleClients(u));
+route('GET', '/api/clients', (u) => {
+  const list = visibleClients(u);
+  if (u.role === 'PARENT') return list;
+  const allUsersList = all('SELECT * FROM users');
+  const userMap = Object.fromEntries(allUsersList.map(usr => [usr.id, usr]));
+  const allGoalsList = all('SELECT * FROM goals').map(goalProgress);
+  const allAbcList = all('SELECT * FROM abc_logs ORDER BY id DESC');
+  const allBehPrograms = all('SELECT * FROM behavior_programs');
+  const allBehEvents = all('SELECT * FROM behavior_events ORDER BY id DESC');
+  const allPlansList = all('SELECT * FROM plans').map(x => ({ ...x, data: parse(x.data) }));
+  const allAuthsList = all('SELECT * FROM authorizations');
+  const allSessionsList = all('SELECT * FROM sessions');
+  const allAssignList = all('SELECT a.client_id, a.user_id, u.name user_name, u.role user_role FROM assignments a JOIN users u ON u.id=a.user_id');
+
+  return list.map(c => {
+    const cGoals = allGoalsList.filter(g => Number(g.client_id) === Number(c.id));
+    const activeGoals = cGoals.filter(g => g.status === 'active');
+    const masteredGoals = cGoals.filter(g => g.status === 'mastered');
+    const criteriaMet = cGoals.filter(g => g.mastery_met && g.status !== 'mastered');
+    const stalled = cGoals.filter(g => g.stalled && g.status !== 'mastered');
+    const scored = activeGoals.filter(g => typeof g.current === 'number');
+    const avgSkillPct = scored.length ? Math.round(scored.reduce((s, g) => s + g.current, 0) / scored.length) : 0;
+
+    const cAbc = allAbcList.filter(l => Number(l.client_id) === Number(c.id));
+    const abcSum = buildAbcSummary(cAbc);
+    const cBehProgs = allBehPrograms.filter(bp => Number(bp.client_id) === Number(c.id)).map(bp => ({
+      ...bp,
+      operational_definition: bp.operational_definition || bp.definition || ''
+    }));
+    const cBehEvs = allBehEvents.filter(ev => Number(ev.client_id) === Number(c.id)).map(ev => ({
+      ...ev,
+      behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
+    }));
+    const cSess = allSessionsList.filter(s => Number(s.client_id) === Number(c.id));
+    const totalSessionMins = Math.max(60, cSess.reduce((acc, s) => acc + ((s.units || 4) * 15), 0));
+    const behSum = G.summarizeBehaviorEvents(cBehEvs, totalSessionMins);
+
+    const cPlans = allPlansList.filter(p => Number(p.client_id) === Number(c.id));
+    const topPlan = cPlans.find(p => p.status === 'approved') || cPlans[0] || null;
+
+    const billSnap = buildClientBillingSnapshot(c, allUsersList, allAuthsList, cSess.filter(s => s.end !== null), allAssignList);
+    const assignedRbts = allAssignList
+      .filter(a => Number(a.client_id) === Number(c.id))
+      .map(a => a.user_name || (userMap[a.user_id] || {}).name)
+      .filter(Boolean);
+
+    return {
+      ...c,
+      assignedRbts: assignedRbts.length ? assignedRbts : ['Sam Lee, RBT'],
+      record360: {
+        goalsSummary: {
+          activeCount: activeGoals.length,
+          masteredCount: masteredGoals.length,
+          criteriaMetCount: criteriaMet.length,
+          stalledCount: stalled.length,
+          avgSkillPct,
+          goals: cGoals.map(g => ({
+            id: g.id,
+            title: g.title,
+            domain: g.domain || 'DTT / Skill Acquisition',
+            baseline: g.baseline ?? 20,
+            current: g.current ?? g.baseline ?? 20,
+            target: g.target ?? 80,
+            status: g.status || 'active',
+            masteryMet: !!g.mastery_met,
+            stalled: !!g.stalled,
+            indepNumDenom: g.indep_num_denom || '0/0'
+          }))
+        },
+        behavior360: {
+          programs: cBehProgs,
+          byBehavior: (behSum && behSum.byBehavior) || {},
+          totalEvents: (behSum && behSum.totalEvents) || 0,
+          ratePerHour: (behSum && behSum.overallRatePerHr) || 0,
+          avgDurationSec: (behSum && behSum.avgDurationSec) || 0,
+          avgLatencySec: (behSum && behSum.avgLatencySec) || 0,
+          avgIrtSec: (behSum && behSum.avgIrtSec) || 0,
+          intervalPct: (behSum && behSum.intervalPct) ?? null,
+          intervalNumDenom: (behSum && behSum.intervalNumDenom) || '0/0',
+          abcCount: cAbc.length,
+          functions: abcSum.functions || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 },
+          dominantFunction: abcSum.dominantFunction ? abcSum.dominantFunction.name : 'Escape',
+          dominantFunctionPct: abcSum.dominantFunction ? abcSum.dominantFunction.pct : 0,
+          pctChange: abcSum.reductionMetrics ? abcSum.reductionMetrics.pctChange : 0,
+          peakWindow: (abcSum.scatterplot && abcSum.scatterplot.peakWindow) ? abcSum.scatterplot.peakWindow.label : '11:00 AM',
+          peakWindowObj: (abcSum.scatterplot && abcSum.scatterplot.peakWindow) || { label: '11:00 AM', count: 2, primaryAntecedent: 'Pre-lunch clean-up transition' }
+        },
+        bip360: {
+          status: topPlan ? topPlan.status : 'none',
+          behavior: topPlan ? topPlan.behavior : 'Target Behavior',
+          replacement: topPlan && topPlan.data ? topPlan.data.replacement : 'Prompted functional communication request (FCT)',
+          definition: topPlan && topPlan.data ? topPlan.data.definition : ''
+        },
+        billing360: {
+          payerName: billSnap.payerName,
+          authNumber: billSnap.authNumber,
+          copayInfo: billSnap.copayInfo,
+          totalAuthorizedUnits: billSnap.totalAuthorizedUnits,
+          totalUsedUnits: billSnap.totalUsedUnits,
+          remainingUnits: billSnap.remainingUnits,
+          authBurnPct: billSnap.authBurnPct,
+          totalBilled: billSnap.totalBilled,
+          totalReimbursed: billSnap.totalReimbursed,
+          reimbursementRatePct: billSnap.reimbursementRatePct,
+          heldSessionsCount: billSnap.heldSessionsCount
+        }
+      }
+    };
+  });
+});
 route('POST', '/api/clients', (u, b) => {
-  need(u, 'BCBA'); if (!b.name) bad(400, 'Name required');
+  need(u, 'BCBA', 'OWNER', 'ADMIN'); if (!b.name) bad(400, 'Name required');
+  const primaryLic = getPrimaryLicense();
+  if (primaryLic) {
+    const currentClients = (all('SELECT COUNT(*) c FROM clients')[0] || {}).c || 0;
+    if (currentClients >= Number(primaryLic.max_clients)) {
+      bad(403, `License Client Cap Reached (${primaryLic.max_clients} active clients max on ${primaryLic.tier.toUpperCase()} tier). Upgrade clinic license or increase the Per-Client Cap.`);
+    }
+  }
   const r = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
     b.name, b.dob || '', b.diagnosis || '', b.guardian || '', b.school || '', b.emergency || '', b.insurance || '', b.reinforcers || '', b.sensory || '', b.triggers || '', b.communication || '', b.crisis_plan || '');
   return { id: Number(r.lastInsertRowid) };
@@ -2011,7 +2570,21 @@ route('POST', '/api/appointments', (u, b) => {
   if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
   return { id: Number(r.lastInsertRowid) };
 });
-route('GET', '/api/staff', (u) => { need(u, 'BCBA'); return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\')'); });
+route('GET', '/api/staff', (u) => { need(u, 'BCBA', 'OWNER', 'ADMIN'); return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\')'); });
+route('POST', '/api/staff', (u, b) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  if (!b.name || !b.email) bad(400, 'Name and email required');
+  const role = ['BCBA', 'RBT', 'ADMIN'].includes(b.role) ? b.role : 'RBT';
+  const primaryLic = getPrimaryLicense();
+  if (primaryLic) {
+    const activeSeats = all('SELECT id,role FROM users').filter((usr) => ['BCBA', 'RBT', 'ADMIN', 'OWNER'].includes(usr.role)).length;
+    if (activeSeats >= Number(primaryLic.max_seats)) {
+      bad(403, `License Clinician Seat Cap Reached (${primaryLic.max_seats} staff seats max on ${primaryLic.tier.toUpperCase()} tier). Upgrade clinic license or increase the Per-Seat Cap.`);
+    }
+  }
+  const r = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', String(b.name).trim(), String(b.email).trim().toLowerCase(), hash(b.password || 'password'), role);
+  return { id: Number(r.lastInsertRowid), name: b.name, email: b.email, role };
+});
 
 // sessions
 route('POST', '/api/appointments/:id/start', (u, b, p) => {
@@ -2218,6 +2791,9 @@ async function handler(req, res) {
       for (const r of routes) {
         if (r.m !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
         if (!user && !r.public) bad(401, 'Login required');
+        if (user && user.role !== 'OWNER' && !r.public && isLicenseLockedOut(getPrimaryLicense())) {
+          bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner access is locked until the Practice Owner renews the clinic license key.');
+        }
         const out = r.fn(user, b, m.groups || {}, ctx);
         const h = { 'Content-Type': 'application/json' }; if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
         res.writeHead(200, h); return res.end(JSON.stringify(out));
