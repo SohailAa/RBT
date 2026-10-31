@@ -614,7 +614,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(webLicHtml.includes('id="pricing"') && webLicHtml.includes('Starter Clinic') && webLicHtml.includes('HIPAA Business Associate Agreement'),
      'Public marketing website displays Hybrid B2B Pricing Tiers and MSA/BAA/EULA licensing safeguards');
 
-  // 28. BCBA Scheduling & Reassigning RBT Appointments
+  // 28. BCBA & Admin Scheduling & Reassigning RBT Appointments
   const rbtScheduleCreate = await b('POST', '/api/appointments', {
     client_id: 2,
     user_id: 4,
@@ -628,6 +628,15 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   });
   ok(rbtReassign.s === 200 && rbtReassign.j.user_id === 5 && rbtReassign.j.setting === 'School',
      'BCBA can reassign an appointment to another RBT and update treatment setting');
+
+  const adm = await login('admin@eba.test');
+  const admScheduleCreate = await adm('POST', '/api/appointments', {
+    client_id: 1,
+    user_id: 5,
+    setting: 'Clinic'
+  });
+  ok(admScheduleCreate.s === 200 && admScheduleCreate.j.id && admScheduleCreate.j.role === 'RBT',
+     'Administrator (ADMIN) can schedule RBT appointments and auto-assign RBT to client');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');

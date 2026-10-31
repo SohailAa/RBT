@@ -951,6 +951,9 @@ window.renderClientBillingRowsHtml = function(list) {
           ${!c.pendingPayerAmount && !c.heldAmount ? `<span class="tag approved">All Claims Settled</span>` : ''}
         </td>
         <td style="text-align:right;white-space:nowrap">
+          ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+            <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:4px" onclick="act.openScheduleRbtModal(${c.clientId}, '${esc(c.clientName)}')">📅 Schedule RBT</button>
+          ` : ''}
           <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:4px" onclick="act.openClientBillingModal(${c.clientId})">💳 Billing Snapshot</button>
           <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.quickPillar(${c.clientId}, 'services')" title="Open Insurance & Supervision Tab">360 →</button>
         </td>
@@ -1310,9 +1313,13 @@ function renderAdminKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#0369a1;text-transform:uppercase">Administrator View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Identify Missing Notes, Incomplete Sessions & Billing Issues</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Schedule RBT Appointments, Identify Missing Notes, Incomplete Sessions & Billing Issues</div>
       </div>
-      <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('notes')">Open Notes & Claims →</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="act.openScheduleRbtModal()">📅 + Schedule RBT Session</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">📅 Open Full Schedule</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('notes')">Open Notes & Claims →</button>
+      </div>
     </div>
   </div>
 
@@ -1401,12 +1408,15 @@ function renderAdminKpi(d) {
 
       ${unstarted.length ? unstarted.map(u => `
         <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);border-left:3px solid var(--bad);margin-bottom:8px">
-          <div class="flex-between">
-            <b>${esc(u.clientName)}</b>
-            <span class="badge bad">Not Started</span>
-          </div>
-          <div style="font-size:0.8rem;color:var(--slate-600);margin-top:3px">
-            Therapist: ${esc(u.staffName)} · Scheduled: ${esc(u.scheduledTime)}
+          <div class="flex-between" style="gap:8px;flex-wrap:wrap">
+            <div>
+              <b>${esc(u.clientName)}</b>
+              <span class="badge bad" style="margin-left:6px">Not Started</span>
+              <div style="font-size:0.8rem;color:var(--slate-600);margin-top:3px">
+                Therapist: ${esc(u.staffName)} · Scheduled: ${esc(u.scheduledTime)}
+              </div>
+            </div>
+            <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.openScheduleRbtModal(null, '${esc(u.clientName)}')">📅 Schedule / Reassign RBT</button>
           </div>
         </div>
       `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0">✓ All scheduled sessions are properly logged.</p>'}
@@ -1544,13 +1554,14 @@ async function clientsView() {
       <div style="width:280px">
         <input style="margin:0" placeholder="🔍 Search client, diagnosis, RBT..." value="${esc(clientSearchQuery)}" oninput="clientSearchQuery=this.value;render()">
       </div>
-      ${me.role === 'BCBA' || me.role === 'OWNER' ? `
+      ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+        <button class="sec" onclick="act.openScheduleRbtModal()">📅 Schedule RBT Session</button>
         <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Add New Client</button>
       ` : ''}
     </div>
   </div>
 
-  ${me.role === 'BCBA' || me.role === 'OWNER' ? `
+  ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
     <div class="card" id="intake_card" style="display:none;animation:slideDown 0.2s ease">
       <div class="flex-between">
         <h3>Intake New Client Profile</h3>
@@ -6968,16 +6979,21 @@ function renderModal() {
   if (activeModal.type === 'schedule_rbt') {
     const todayIso = new Date().toISOString().slice(0, 10);
     const staffList = activeModal.staffList || [];
+    const clientList = activeModal.clientList || [];
     const rbts = staffList.filter((s) => s.role === 'RBT');
     const bcbas = staffList.filter((s) => s.role === 'BCBA');
-    const defaultRbtId = rbts.length ? rbts[0].id : (staffList[0] ? staffList[0].id : 2);
+    const defaultRbtId = rbts.length ? rbts[0].id : (staffList[0] ? staffList[0].id : 4);
+    const matchedClient = activeModal.clientId
+      ? clientList.find((c) => Number(c.id) === Number(activeModal.clientId))
+      : (activeModal.clientName ? clientList.find((c) => (c.name || '').toLowerCase() === String(activeModal.clientName).toLowerCase()) : clientList[0]);
+    const selectedClientId = matchedClient ? matchedClient.id : (activeModal.clientId || (clientList[0] && clientList[0].id) || 1);
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
       <div class="modal-card" style="max-width:600px;width:95%">
         <div class="flex-between" style="padding-bottom:12px;border-bottom:1px solid var(--slate-200);margin-bottom:14px">
           <div>
             <span class="badge p">Assign & Schedule RBT Appointment</span>
-            <h3 style="margin:4px 0 0">📅 Schedule RBT Session for ${esc(activeModal.clientName || 'Client')}</h3>
+            <h3 style="margin:4px 0 0">📅 Schedule RBT Session${activeModal.clientName ? ` for ${esc(activeModal.clientName)}` : ''}</h3>
           </div>
           <button class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
         </div>
@@ -6992,6 +7008,11 @@ function renderModal() {
             </div>
           </div>
         </div>
+
+        <label>Select Client</label>
+        <select id="m_sched_client">
+          ${clientList.map((c) => `<option value="${c.id}" ${Number(c.id) === Number(selectedClientId) ? 'selected' : ''}>👧 ${esc(c.name)} (${esc(c.diagnosis || 'ABA Therapy')})</option>`).join('')}
+        </select>
 
         <label>Select RBT / Clinician</label>
         <select id="m_sched_rbt">
@@ -7019,7 +7040,7 @@ function renderModal() {
 
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--slate-200)">
           <button class="sec" onclick="act.closeModal()">Cancel</button>
-          <button class="ok" onclick="act.submitScheduleRbtModal(${activeModal.clientId})">✓ Assign & Schedule RBT Session</button>
+          <button class="ok" onclick="act.submitScheduleRbtModal(${selectedClientId})">✓ Assign & Schedule RBT Session</button>
         </div>
       </div>
     </div>`;
@@ -7029,9 +7050,9 @@ function renderModal() {
 
 // ---------- Actions ----------
 const act = {
-  openScheduleRbtModal: safe(async (clientId, clientName) => {
-    const staffList = await api('GET', '/api/staff');
-    activeModal = { type: 'schedule_rbt', clientId, clientName: clientName || 'Client', staffList };
+  openScheduleRbtModal: safe(async (clientId = null, clientName = '') => {
+    const [staffList, clientList] = await Promise.all([api('GET', '/api/staff'), api('GET', '/api/clients')]);
+    activeModal = { type: 'schedule_rbt', clientId, clientName: clientName || '', staffList, clientList };
     render();
   }),
   setApptWindow: (startVal, endVal) => {
@@ -7046,12 +7067,13 @@ const act = {
     if (sEl) sEl.value = startVal;
     if (eEl) eEl.value = endVal;
   },
-  submitScheduleRbtModal: safe(async (clientId) => {
+  submitScheduleRbtModal: safe(async (fallbackClientId) => {
+    const client_id = val('m_sched_client') || fallbackClientId;
     const user_id = val('m_sched_rbt');
     const start = val('m_sched_start');
     const end = val('m_sched_end');
     const setting = val('m_sched_setting') || 'Clinic';
-    const res = await api('POST', '/api/appointments', { client_id: clientId, user_id, start, end, setting });
+    const res = await api('POST', '/api/appointments', { client_id, user_id, start, end, setting });
     activeModal = null;
     alert(`✓ Scheduled ${res.staff || 'RBT'} (${res.role || 'RBT'}) for session (${res.start.replace('T', ' ')} – ${res.end.slice(11)} · ${res.setting})!`);
     render();

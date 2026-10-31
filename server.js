@@ -2128,7 +2128,7 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   let stories = all('SELECT * FROM stories WHERE client_id=?', c.id).map((x) => ({ ...x, inputs: parse(x.inputs), content: parse(x.content) }));
   if (isParent) { plans = []; stories = stories.filter((s) => s.status === 'shared'); }
   const auths = isParent ? [] : all('SELECT * FROM authorizations WHERE client_id=?', c.id);
-  const assigned = u.role === 'BCBA' ? all('SELECT u.id,u.name FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.client_id=?', c.id) : [];
+  const assigned = ['BCBA', 'OWNER', 'ADMIN'].includes(u.role) ? all('SELECT u.id,u.name FROM assignments a JOIN users u ON u.id=a.user_id WHERE a.client_id=?', c.id) : [];
   
   // ABC logs & analytics (unified clinical hub)
   const rawAbc = isParent ? [] : all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
@@ -2307,7 +2307,7 @@ route('POST', '/api/goals/:id/status', (u, b, p) => {
   return { id: +p.id, status: b.status };
 });
 route('POST', '/api/clients/:id/auths', (u, b, p) => {
-  need(u, 'BCBA'); run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', +p.id, b.code, +b.authorized || 0); return {};
+  need(u, 'BCBA', 'OWNER', 'ADMIN'); run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', +p.id, b.code, +b.authorized || 0); return {};
 });
 
 // Target Behavior Program Definitions & Continuous / Interval Behavior Events
