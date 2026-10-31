@@ -29,6 +29,10 @@ let facilityCfg = null;
 let facilitySubTab = 'overview';
 let facilityPnlViewMode = 'annual';
 let showAddSignupForm = false;
+let staffProdSearchQuery = '';
+let staffProdRoleFilter = 'ALL';
+let staffProdClientFilter = 'ALL';
+let lastStaffProdData = [];
 
 const KID_THEMES = {
   space: {
@@ -681,35 +685,133 @@ function renderOwnerKpi(d) {
     </div>
   </div>
 
-  <!-- 2. Staff Utilization & Insurance Hours -->
-  <div class="row">
-    <div class="card" style="flex:1.3">
-      <h3 style="margin:0 0 2px">2. Staff Billable Hours</h3>
-      <p style="margin:0 0 10px;font-size:0.84rem;color:var(--slate-500)">Hours logged by each therapist compared to their monthly goal.</p>
-      <table>
-        <thead>
+  <!-- 2. Clinician Billable Productivity (with Clinician/Client Search & Client Column) -->
+  ${(() => {
+    lastStaffProdData = prod;
+    const allClientNames = Array.from(new Set(
+      prod.flatMap(p => (p.clients || []).map(c => c.name)).filter(Boolean)
+    ));
+
+    window.renderStaffProdRowsHtml = (list) => {
+      const q = (staffProdSearchQuery || '').trim().toLowerCase();
+      const filtered = (list || []).filter(p => {
+        if (staffProdRoleFilter !== 'ALL' && p.role !== staffProdRoleFilter) return false;
+        const cNames = (p.clients || []).map(c => c.name);
+        if (staffProdClientFilter !== 'ALL' && !cNames.includes(staffProdClientFilter)) return false;
+        if (!q) return true;
+        const matchName = (p.name || '').toLowerCase().includes(q);
+        const matchRole = (p.role || '').toLowerCase().includes(q);
+        const matchClient = (p.clientNames || cNames.join(' ')).toLowerCase().includes(q);
+        return matchName || matchRole || matchClient;
+      });
+
+      const countEl = document.getElementById('staff_prod_count');
+      if (countEl) countEl.textContent = `${filtered.length} of ${(list || []).length} Clinicians`;
+
+      if (!filtered.length) {
+        return `<tr><td colspan="6" style="text-align:center;color:var(--slate-500);padding:18px">No clinicians match "${esc(staffProdSearchQuery)}".</td></tr>`;
+      }
+
+      return filtered.map(p => {
+        const isHigh = p.utilizationPct >= 70;
+        const isPacing = p.utilizationPct >= 30;
+        const clientList = p.clients && p.clients.length ? p.clients : [];
+        return `
           <tr>
-            <th>Staff Member</th>
-            <th>Role</th>
-            <th>Hours Logged</th>
-            <th>Goal Progress</th>
+            <td>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="user-avatar" style="width:32px;height:32px;font-size:0.78rem">${getInitials(p.name)}</div>
+                <b>${esc(p.name)}</b>
+              </div>
+            </td>
+            <td><span class="badge ${p.role === 'BCBA' ? 'sen' : 'tan'}">${esc(p.role)}</span></td>
+            <td>
+              ${clientList.length ? `
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                  ${clientList.map(c => `
+                    <span class="badge p" style="cursor:pointer" onclick="go('client', ${c.id})" title="Open ${esc(c.name)}'s profile">
+                      👧 ${esc(c.name)}${c.hours > 0 ? ` (${c.hours}h)` : ''}
+                    </span>
+                  `).join('')}
+                </div>
+              ` : `<span style="color:var(--slate-400);font-size:0.82rem">Unassigned</span>`}
+            </td>
+            <td><b>${p.billableHours} hrs</b> <span style="font-size:0.78rem;color:var(--slate-500)">(${p.billableUnits} u)</span></td>
+            <td style="min-width:140px">
+              <div class="flex-between" style="font-size:0.75rem;font-weight:600;margin-bottom:3px">
+                <span>${p.utilizationPct}%</span>
+                <span style="color:var(--slate-500)">${p.targetHours}h goal</span>
+              </div>
+              <div class="bar" style="height:6px"><div style="width:${p.utilizationPct}%;background:${isHigh ? 'var(--ok)' : isPacing ? 'var(--accent)' : 'var(--warn)'}"></div></div>
+            </td>
+            <td><span class="tag ${isHigh ? 'approved' : 'draft'}">${isHigh ? 'High Yield' : isPacing ? 'On Track' : 'Pacing'}</span></td>
           </tr>
-        </thead>
-        <tbody>
-          ${prod.map(p => `
-            <tr>
-              <td><b>${esc(p.name)}</b></td>
-              <td><span class="badge ${p.role === 'BCBA' ? 'sen' : 'tan'}">${esc(p.role)}</span></td>
-              <td><b>${p.billableHours} hrs</b> / ${p.targetHours}h</td>
-              <td style="min-width:120px">
-                <div style="font-size:0.75rem;font-weight:600;margin-bottom:3px">${p.utilizationPct}%</div>
-                <div class="bar" style="height:6px"><div style="width:${p.utilizationPct}%;background:var(--ok)"></div></div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
+        `;
+      }).join('');
+    };
+
+    window.filterStaffProd = () => {
+      const sEl = document.getElementById('staff_prod_search');
+      const rEl = document.getElementById('staff_prod_role');
+      const cEl = document.getElementById('staff_prod_client');
+      if (sEl) staffProdSearchQuery = sEl.value;
+      if (rEl) staffProdRoleFilter = rEl.value;
+      if (cEl) staffProdClientFilter = cEl.value;
+      const tbody = document.getElementById('staff_prod_tbody');
+      if (tbody) tbody.innerHTML = window.renderStaffProdRowsHtml(lastStaffProdData);
+    };
+
+    return `
+    <div class="row">
+      <div class="card" style="flex:1.5">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px">2. Clinician Billable Productivity</h3>
+            <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Monthly billable target utilization, assigned clients, and direct therapy hours delivered.</p>
+          </div>
+          <span class="badge tan" id="staff_prod_count">${prod.length} of ${prod.length} Clinicians</span>
+        </div>
+
+        <!-- Search & Filter Bar for 20+ RBTs/BCBAs -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;background:var(--slate-50);padding:10px;border-radius:var(--radius-md);border:1px solid var(--slate-200)">
+          <div style="flex:1.6;min-width:190px">
+            <input id="staff_prod_search" style="margin:0" placeholder="🔍 Search by clinician or client name..." value="${esc(staffProdSearchQuery)}" oninput="window.filterStaffProd()">
+          </div>
+          <div style="flex:0.8;min-width:120px">
+            <select id="staff_prod_role" style="margin:0" onchange="window.filterStaffProd()">
+              <option value="ALL" ${staffProdRoleFilter === 'ALL' ? 'selected' : ''}>All Roles</option>
+              <option value="RBT" ${staffProdRoleFilter === 'RBT' ? 'selected' : ''}>RBTs Only</option>
+              <option value="BCBA" ${staffProdRoleFilter === 'BCBA' ? 'selected' : ''}>BCBAs Only</option>
+            </select>
+          </div>
+          <div style="flex:0.9;min-width:130px">
+            <select id="staff_prod_client" style="margin:0" onchange="window.filterStaffProd()">
+              <option value="ALL" ${staffProdClientFilter === 'ALL' ? 'selected' : ''}>All Clients</option>
+              ${allClientNames.map(cn => `<option value="${esc(cn)}" ${staffProdClientFilter === cn ? 'selected' : ''}>Client: ${esc(cn)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Clinician</th>
+                <th>Role</th>
+                <th>Client</th>
+                <th>Hours Logged</th>
+                <th>Target Progress</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="staff_prod_tbody">
+              ${window.renderStaffProdRowsHtml(prod)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  })()}
 
     <div class="card" style="flex:1">
       <div class="flex-between" style="margin-bottom:8px">

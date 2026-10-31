@@ -942,6 +942,7 @@ route('GET', '/api/dashboard', (u) => {
   const caseloadUtilizationPct = Math.min(100, Math.round((allClients.length / targetCaseload) * 100));
   const avgRevenuePerClient = allClients.length > 0 ? Math.round(totalGrossRevenue / allClients.length) : 0;
 
+  const allAssignments = all('SELECT a.client_id, a.user_id, c.name client_name FROM assignments a JOIN clients c ON c.id=a.client_id');
   const staffUsers = allUsers.filter(usr => usr.role === 'BCBA' || usr.role === 'RBT');
   const staffProductivity = staffUsers.map(uStaff => {
     const staffSess = completedThisMonth.filter(s => s.user_id === uStaff.id);
@@ -949,10 +950,33 @@ route('GET', '/api/dashboard', (u) => {
     const uHours = +(uUnits * 0.25).toFixed(1);
     const targetHours = uStaff.role === 'BCBA' ? 25 * 4 : 30 * 4;
     const utilPct = Math.min(100, Math.round((uHours / targetHours) * 100));
+
+    // Determine assigned clients (BCBAs oversee all clients; RBTs have explicit assignments + any session clients)
+    const assignedMap = new Map();
+    if (uStaff.role === 'BCBA') {
+      allClients.forEach(c => assignedMap.set(c.id, { id: c.id, name: c.name, units: 0, hours: 0 }));
+    } else {
+      allAssignments.filter(a => a.user_id === uStaff.id).forEach(a => {
+        assignedMap.set(a.client_id, { id: a.client_id, name: a.client_name, units: 0, hours: 0 });
+      });
+    }
+    staffSess.forEach(s => {
+      if (!assignedMap.has(s.client_id)) {
+        assignedMap.set(s.client_id, { id: s.client_id, name: s.client_name || 'Client', units: 0, hours: 0 });
+      }
+      const entry = assignedMap.get(s.client_id);
+      entry.units += (s.units || 0);
+      entry.hours = +(entry.units * 0.25).toFixed(1);
+    });
+    const clients = Array.from(assignedMap.values());
+    const clientNames = clients.map(c => c.name).join(', ') || 'Unassigned';
+
     return {
       id: uStaff.id,
       name: uStaff.name,
       role: uStaff.role,
+      clients,
+      clientNames,
       billableUnits: uUnits,
       billableHours: uHours,
       targetHours,

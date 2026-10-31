@@ -316,6 +316,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(typeof oDash.owner === 'object' && typeof oDash.owner.totalRevenueMtd === 'number', 'Owner KPI computes gross billed revenue MTD');
   ok(oDash.owner.cptRevenueBreakdown && oDash.owner.cptRevenueBreakdown.cpt97153.hrRate === 65 && oDash.owner.cptRevenueBreakdown.cpt97155.hrRate === 125, 'Owner KPI includes CPT fee schedule breakdown (97153 & 97155)');
   ok(Array.isArray(oDash.owner.staffProductivity) && oDash.owner.staffProductivity.some(s => s.role === 'RBT'), 'Owner KPI computes clinician staff billable productivity & utilization');
+  ok(oDash.owner.staffProductivity.every(s => Array.isArray(s.clients) && s.clients.length >= 1 && typeof s.clientNames === 'string'), 'Owner KPI clinician productivity includes assigned clients and per-client hours');
   ok(oDash.owner.caseloadCapacity && oDash.owner.caseloadCapacity.activeClients >= 2, 'Owner KPI tracks active caseload capacity & target utilization');
 
   // 2. BCBA KPI Telemetry
