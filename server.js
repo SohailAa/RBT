@@ -1368,7 +1368,27 @@ route('GET', '/api/dashboard', (u) => {
     };
   });
 
+  const bcbaTodaySessions = all(`SELECT a.*, c.name client, u.name staff_name, u.role staff_role FROM appointments a JOIN clients c ON c.id=a.client_id JOIN users u ON u.id=a.user_id WHERE a.start LIKE ? ORDER BY a.start`, `${day}%`).map(a => {
+    const sess = get('SELECT id, end FROM sessions WHERE appointment_id=?', a.id);
+    const isBcbaSession = (a.role === 'BCBA' || a.staff_role === 'BCBA');
+    return {
+      appointmentId: a.id,
+      clientId: a.client_id,
+      clientName: a.client,
+      staffId: a.user_id,
+      staffName: a.staff_name || 'Dr. Dana Rivera, BCBA',
+      role: a.role || a.staff_role || 'BCBA',
+      cptCode: isBcbaSession ? '97155' : '97153',
+      serviceType: isBcbaSession ? 'BCBA Supervision & Protocol Mod (97155)' : 'Supervised RBT 1:1 Session (97153)',
+      timeWindow: `${a.start.slice(11)} – ${a.end.slice(11)}`,
+      setting: a.setting || 'Clinic',
+      status: sess ? (sess.end ? 'Completed' : 'In Session') : 'Scheduled',
+      sessionId: sess ? sess.id : null
+    };
+  });
+
   const bcbaKpi = {
+    todaySessions: bcbaTodaySessions,
     clientProfiles: bcbaClientProfiles,
     clientProgress: {
       activeProgramsCount: activeGoalsList.length,

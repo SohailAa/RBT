@@ -1125,6 +1125,7 @@ window.renderBcbaClientCardsHtml = function(profiles) {
 
 function renderBcbaKpi(d) {
   const bcba = d.bcbaKpi || {};
+  const todaySessions = bcba.todaySessions || [];
   const clientProfiles = bcba.clientProfiles || [];
   lastBcbaClientProfiles = clientProfiles;
   const prog = bcba.clientProgress || {};
@@ -1143,41 +1144,97 @@ function renderBcbaKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#0f766e;text-transform:uppercase">BCBA View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Monitor Client Progress, Open Client Profiles Directly & Identify Behavior Patterns</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Assigned Sessions Today, Client Profiles Ready to View, Progress & Behavior Patterns</div>
       </div>
-      <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">View Full Clients Directory →</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">Open Full Schedule →</button>
+        <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">View Full Clients Directory →</button>
+      </div>
     </div>
   </div>
 
   <!-- 4 Simple Summary Cards -->
   <div class="grid">
     <div class="stat-card">
-      <div class="stat-label">Active Client Caseload</div>
-      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
-      <div class="stat-sub">Click any client card below to open their profile</div>
+      <div class="stat-label">1. Assigned Sessions Today</div>
+      <div class="stat" style="color:var(--primary)">${todaySessions.length}</div>
+      <div class="stat-sub">${todaySessions.filter(t => t.status === 'Completed').length} completed · ${todaySessions.filter(t => t.status === 'In Session').length} in progress</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Active Skill Goals</div>
-      <div class="stat" style="color:var(--primary)">${prog.activeProgramsCount || 0}</div>
-      <div class="stat-sub"><b>${prog.masteredCount || 0}</b> goals mastered this month</div>
+      <div class="stat-label">2. Active Client Caseload</div>
+      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
+      <div class="stat-sub"><b>${prog.activeProgramsCount || 0}</b> active goals · <b>${prog.masteredCount || 0}</b> mastered</div>
     </div>
     <div class="stat-card ok">
-      <div class="stat-label">Behavior Trend</div>
+      <div class="stat-label">3. Behavior Trend</div>
       <div class="stat" style="color:var(--ok)">${beh.pctChange || -25}%</div>
       <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> (${beh.totalMaladaptiveEvents || 0} total incidents)</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Treatment Fidelity & IOA</div>
+      <div class="stat-label">4. Treatment Fidelity & IOA</div>
       <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
       <div class="stat-sub">IOA Agreement: <b>${beh.averageIoaAgreement || 92}%</b></div>
     </div>
   </div>
 
-  <!-- MY CLIENTS & CLINICAL PROFILES (READY TO VIEW ON LOGIN) -->
+  <!-- 1. ASSIGNED SESSIONS TODAY FOR BCBA & SUPERVISED CASELOAD -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
+      <div>
+        <h3 style="margin:0 0 2px">1. Assigned Sessions Today</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Start Session" to launch live data collection / supervision, or click the client's name to open their 360 profile.</p>
+      </div>
+      <span class="badge p">${todaySessions.length} Scheduled Today</span>
+    </div>
+    ${todaySessions.length ? `
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Client</th>
+              <th>Clinician & Service Type</th>
+              <th>Setting</th>
+              <th>Status</th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${todaySessions.map(t => `
+              <tr>
+                <td><b>${esc(t.timeWindow)}</b></td>
+                <td>
+                  <a href="javascript:void(0)" onclick="go('client', ${t.clientId})" style="font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border)">${esc(t.clientName)}</a>
+                </td>
+                <td>
+                  <div><b>${esc(t.staffName)}</b> <span class="badge ${t.role === 'BCBA' ? 'p' : 'tan'}">${esc(t.role)} · CPT ${esc(t.cptCode)}</span></div>
+                  <div style="font-size:0.75rem;color:var(--slate-500)">${esc(t.serviceType)}</div>
+                </td>
+                <td><span class="badge">${esc(t.setting)}</span></td>
+                <td>
+                  <span class="tag ${t.status === 'Completed' ? 'approved' : t.status === 'In Session' ? 'att' : 'draft'}">
+                    ${esc(t.status)}
+                  </span>
+                </td>
+                <td style="text-align:right;white-space:nowrap">
+                  <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${t.clientId})">Client Page →</button>
+                  <button class="${t.status === 'Completed' ? 'sec' : 'ok'}" style="padding:6px 12px;font-size:0.78rem" onclick="act.start(${t.appointmentId})">
+                    ${t.status === 'In Session' ? 'Resume Session →' : t.status === 'Completed' ? 'Review Note' : '▶ Start Session'}
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:18px">No sessions assigned for today.</p>'}
+  </div>
+
+  <!-- 2. MY CLIENTS & CLINICAL PROFILES (READY TO VIEW ON LOGIN) -->
   <div class="card">
     <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
       <div>
-        <h3 style="margin:0 0 2px">1. My Clients & Clinical Profiles — Ready to View</h3>
+        <h3 style="margin:0 0 2px">2. My Clients & Clinical Profiles — Ready to View</h3>
         <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Open Client Page →" or any section button below to jump straight into a child's 360 profile, skill goals, behavior graphs, or BIP.</p>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">

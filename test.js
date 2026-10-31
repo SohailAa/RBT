@@ -319,8 +319,9 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(oDash.owner.staffProductivity.every(s => Array.isArray(s.clients) && s.clients.length >= 1 && typeof s.clientNames === 'string'), 'Owner KPI clinician productivity includes assigned clients and per-client hours');
   ok(oDash.owner.caseloadCapacity && oDash.owner.caseloadCapacity.activeClients >= 2, 'Owner KPI tracks active caseload capacity & target utilization');
 
-  // 2. BCBA KPI Telemetry & Direct Client Profiles
+  // 2. BCBA KPI Telemetry, Assigned Sessions Today & Direct Client Profiles
   const bDash = (await b('GET', '/api/dashboard')).j;
+  ok(bDash.bcbaKpi && Array.isArray(bDash.bcbaKpi.todaySessions) && bDash.bcbaKpi.todaySessions.length >= 1, 'BCBA KPI includes assigned sessions today roster');
   ok(bDash.bcbaKpi && Array.isArray(bDash.bcbaKpi.clientProfiles) && bDash.bcbaKpi.clientProfiles.length >= 2 && bDash.bcbaKpi.clientProfiles.every(cp => cp.id && cp.name && cp.communication && Array.isArray(cp.topGoals)), 'BCBA KPI includes ready-to-view client profiles with vitals and active goals');
   ok(bDash.bcbaKpi && bDash.bcbaKpi.clientProgress && typeof bDash.bcbaKpi.clientProgress.activeProgramsCount === 'number', 'BCBA KPI tracks active skill programs count and mastery velocity');
   ok(Array.isArray(bDash.bcbaKpi.clientProgress.criteriaMetAlerts) && Array.isArray(bDash.bcbaKpi.clientProgress.stalledAlerts), 'BCBA KPI generates criteria-met and stalled clinical action alerts');
