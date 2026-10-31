@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EBA — Physical ABA Clinic & Sensory/Gross-Motor Gym Financial Model (36-Month Pro Forma)</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --primary: #3a2e7a;
+      --indigo: #4f46e5;
+      --teal: #0d9488;
+      --emerald: #059669;
+      --amber: #d97706;
+      --rose: #e11d48;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .container { max-width: 1360px; margin: 0 auto; }
+    .hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 55%, #0f766e 100%);
+      color: #fff;
+      padding: 26px 30px;
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(30, 27, 75, 0.18);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .hero h1 { margin: 0 0 6px 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; }
+    .hero p { margin: 0; color: #e0e7ff; font-size: 0.92rem; max-width: 780px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .btn-white { background: #fff; color: #1e1b4b; }
+    .btn-white:hover { background: #f1f5f9; }
+    .btn-teal { background: #14b8a6; color: #042f2e; }
+    .btn-teal:hover { background: #2dd4bf; }
+    .btn-outline { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+    .btn-outline:hover { background: rgba(255,255,255,0.22); }
+
+    .scenario-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .scenario-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+    .scenario-pill {
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #334155;
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .scenario-pill.active {
+      background: #312e81;
+      color: #fff;
+      border-color: #312e81;
+      box-shadow: 0 4px 12px rgba(49, 46, 129, 0.22);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+    .kpi-label {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .kpi-val { font-size: 1.45rem; font-weight: 900; color: var(--ink); }
+    .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: #eef2ff;
+      color: #312e81;
+      border-color: #c7d2fe;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    }
+    .card h3 {
+      margin: 0 0 12px 0;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .slider-group { margin-bottom: 12px; }
+    .slider-hdr {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 3px;
+      color: #334155;
+    }
+    .slider-hdr span:last-child { font-weight: 800; color: #312e81; }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #4f46e5;
+      cursor: pointer;
+    }
+    .section-tag {
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #6366f1;
+      margin: 14px 0 8px 0;
+      padding-top: 10px;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .space-bar {
+      display: flex;
+      height: 28px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 10px 0;
+      font-size: 0.73rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .space-legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 0.78rem;
+    }
+    .space-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: right;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 800;
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    tr.highlight-row { background: #f0fdf4; font-weight: 800; }
+    tr.subtotal-row { background: #f8fafc; font-weight: 700; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-indigo { background: #e0e7ff; color: #3730a3; }
+
+    @media print {
+      body { padding: 0; background: #fff; }
+      .no-print { display: none !important; }
+      .card { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div>
+        <div class="hero-badge">Effective Behavioral Approach (EBA) · Investor & SBA Lender Pro Forma</div>
+        <h1>🏗️ Physical ABA Clinic & Sensory/Gross-Motor Gym Financial Model</h1>
+        <p>Interactive 36-Month Buildout, Sensory Gym Equipment CapEx, SBA 7(a) Loan Amortization, CPT (97153/55/56/51/58) Unit Economics & Client Signup Cohort Simulator.</p>
+      </div>
+      <div class="toolbar no-print">
+        <button class="btn btn-teal" onclick="exportCsv()">📥 Download 36-Mo Excel CSV</button>
+        <button class="btn btn-white" onclick="window.print()">🖨️ Print / Save PDF</button>
+      </div>
+    </div>
+
+    <div class="scenario-bar no-print">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:0.8rem;font-weight:800;color:#475569;text-transform:uppercase">Facility Preset:</span>
+        <div class="scenario-pills" id="scenarioPills"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" style="background:#eef2ff;color:#312e81;border:1px solid #c7d2fe" onclick="syncFromSignups()">🔄 Sync Cohort Signups (<span id="committedCountLabel">8</span> M1 Committed)</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="tabs no-print">
+      <button class="tab-btn active" id="tabBtn-overview" onclick="setTab('overview')">📊 Interactive Pro Forma & Space Lab</button>
+      <button class="tab-btn" id="tabBtn-signups" onclick="setTab('signups')">🧒 Client Therapy Signups & Cohort Roster (12)</button>
+      <button class="tab-btn" id="tabBtn-capex" onclick="setTab('capex')">🔨 Clinic & Sensory Gym CapEx + SBA Loan</button>
+      <button class="tab-btn" id="tabBtn-pnl" onclick="setTab('pnl')">📑 3-Year / 36-Month P&L Statement</button>
+    </div>
+
+    <div id="tabContent"></div>
+  </div>
+
+  <script>
+    const SCENARIOS = [
+      {
+        id: 'base',
+        name: 'Base Case: 6,000 sq ft Center + Sensory & Motor Gym',
+        subtitle: '12 DTT Suites · 2,100 sq ft Suspended Rigging & Climbing Gym · 28-Client Capacity',
+        config: {
+          totalSqFt: 6000, gymSqFtPct: 35, dttRoomsPct: 30, groupRoomsPct: 15, calmingRoomsPct: 8,
+          dttRoomCount: 12, gymConcurrentCapacity: 10, groupRoomCapacity: 8,
+          tiCostPerSqFt: 85, landlordTiAllowancePerSqFt: 30,
+          gymCeilingRiggingCost: 38000, gymClimbingFoamPitCost: 45000, gymTrampolineObstacleCost: 28000, gymSensoryWallTactileCost: 19000,
+          dttRoomFurnishingPerRoom: 3200, calmingRoomSnoezelenCost: 22000, techSecurityAvCost: 26000, preOpeningLicensingCost: 35000,
+          workingCapitalReserve: 75000, useFinancing: true, downPaymentPct: 20, loanInterestRatePct: 7.5, loanTermYears: 10,
+          initialClientsMonth1: 8, monthlyNewClientSignups: 2.5, monthlyGraduationChurnPct: 2.0, maxClinicClientCapacity: 28,
+          compTierSharePct: 45, compWeeklyHours: 32, focusedTierSharePct: 40, focusedWeeklyHours: 18, groupGymTierSharePct: 15, groupGymWeeklyHours: 8,
+          rate97153Hr: 68, rate97155Hr: 125, rate97156Hr: 110, rate97151Hr: 140, rate97158Hr: 42,
+          bcbaSupervisionRatioPct: 12, familyGuidanceHrsPerClientMo: 2.0, assessmentHrsPerClientMo: 1.33, gymGroupHrsPerClientWk: 3.0,
+          attendanceRealizationPct: 89, enableAncillaryGym: true, gymMembershipsCount: 35, gymMembershipMonthlyFee: 145, otPtSubleaseMonthly: 3500,
+          rbtHourlyWage: 23.5, rbtNonBillablePct: 14, rbtWeeklyBillableTarget: 30, bcbaAnnualSalary: 92000, bcbaCaseloadLimit: 10, payrollTaxBenefitsPct: 18,
+          baseRentPerSqFtYr: 28, camUtilitiesPerSqFtYr: 7.5, adminDirectorMonthly: 10500, insuranceSanitationMonthly: 2800, sensorySuppliesPerClientMo: 95, marketingCrmMonthly: 1800
+        }
+      },
+      {
+        id: 'boutique',
+        name: 'Boutique Starter: 3,500 sq ft Clinic & Sensory Mini-Gym',
+        subtitle: '7 DTT Suites · 1,225 sq ft Vestibular & Crash Gym · Low CapEx Fast Break-Even',
+        config: {
+          totalSqFt: 3500, gymSqFtPct: 35, dttRoomsPct: 32, groupRoomsPct: 13, calmingRoomsPct: 8,
+          dttRoomCount: 7, gymConcurrentCapacity: 6, groupRoomCapacity: 5,
+          tiCostPerSqFt: 75, landlordTiAllowancePerSqFt: 25,
+          gymCeilingRiggingCost: 22000, gymClimbingFoamPitCost: 26000, gymTrampolineObstacleCost: 16000, gymSensoryWallTactileCost: 11000,
+          dttRoomFurnishingPerRoom: 3000, calmingRoomSnoezelenCost: 14000, techSecurityAvCost: 16000, preOpeningLicensingCost: 22000,
+          workingCapitalReserve: 45000, useFinancing: true, downPaymentPct: 20, loanInterestRatePct: 7.5, loanTermYears: 10,
+          initialClientsMonth1: 6, monthlyNewClientSignups: 1.8, monthlyGraduationChurnPct: 2.0, maxClinicClientCapacity: 16,
+          compTierSharePct: 45, compWeeklyHours: 30, focusedTierSharePct: 40, focusedWeeklyHours: 18, groupGymTierSharePct: 15, groupGymWeeklyHours: 8,
+          rate97153Hr: 68, rate97155Hr: 125, rate97156Hr: 110, rate97151Hr: 140, rate97158Hr: 42,
+          bcbaSupervisionRatioPct: 12, familyGuidanceHrsPerClientMo: 2.0, assessmentHrsPerClientMo: 1.33, gymGroupHrsPerClientWk: 2.5,
+          attendanceRealizationPct: 90, enableAncillaryGym: true, gymMembershipsCount: 20, gymMembershipMonthlyFee: 135, otPtSubleaseMonthly: 1800,
+          rbtHourlyWage: 23.0, rbtNonBillablePct: 12, rbtWeeklyBillableTarget: 30, bcbaAnnualSalary: 90000, bcbaCaseloadLimit: 10, payrollTaxBenefitsPct: 18,
+          baseRentPerSqFtYr: 26, camUtilitiesPerSqFtYr: 7.0, adminDirectorMonthly: 7500, insuranceSanitationMonthly: 1900, sensorySuppliesPerClientMo: 90, marketingCrmMonthly: 1200
+        }
+      },
+      {
+        id: 'flagship',
+        name: 'Flagship Campus: 10,500 sq ft Multidisciplinary ABA & Full Motor Gym',
+        subtitle: '20 DTT Suites · 3,885 sq ft Olympic Sensory/Motor Gym · OT/PT Co-Treatment Hub',
+        config: {
+          totalSqFt: 10500, gymSqFtPct: 37, dttRoomsPct: 29, groupRoomsPct: 15, calmingRoomsPct: 8,
+          dttRoomCount: 20, gymConcurrentCapacity: 18, groupRoomCapacity: 14,
+          tiCostPerSqFt: 92, landlordTiAllowancePerSqFt: 35,
+          gymCeilingRiggingCost: 64000, gymClimbingFoamPitCost: 78000, gymTrampolineObstacleCost: 48000, gymSensoryWallTactileCost: 32000,
+          dttRoomFurnishingPerRoom: 3400, calmingRoomSnoezelenCost: 38000, techSecurityAvCost: 42000, preOpeningLicensingCost: 55000,
+          workingCapitalReserve: 130000, useFinancing: true, downPaymentPct: 20, loanInterestRatePct: 7.25, loanTermYears: 10,
+          initialClientsMonth1: 12, monthlyNewClientSignups: 4.0, monthlyGraduationChurnPct: 2.0, maxClinicClientCapacity: 48,
+          compTierSharePct: 50, compWeeklyHours: 34, focusedTierSharePct: 35, focusedWeeklyHours: 18, groupGymTierSharePct: 15, groupGymWeeklyHours: 8,
+          rate97153Hr: 70, rate97155Hr: 128, rate97156Hr: 112, rate97151Hr: 142, rate97158Hr: 44,
+          bcbaSupervisionRatioPct: 12, familyGuidanceHrsPerClientMo: 2.0, assessmentHrsPerClientMo: 1.33, gymGroupHrsPerClientWk: 3.5,
+          attendanceRealizationPct: 90, enableAncillaryGym: true, gymMembershipsCount: 65, gymMembershipMonthlyFee: 155, otPtSubleaseMonthly: 6500,
+          rbtHourlyWage: 24.0, rbtNonBillablePct: 14, rbtWeeklyBillableTarget: 30, bcbaAnnualSalary: 94000, bcbaCaseloadLimit: 10, payrollTaxBenefitsPct: 18,
+          baseRentPerSqFtYr: 30, camUtilitiesPerSqFtYr: 8.0, adminDirectorMonthly: 15500, insuranceSanitationMonthly: 4200, sensorySuppliesPerClientMo: 105, marketingCrmMonthly: 2800
+        }
+      }
+    ];
+
+    const SIGNUPS = [
+      { child_name: 'Eleanor Carter', age: 8, diagnosis: 'ASD (F84.0)', tier: 'Focused', weekly_hours: 20, payer: 'Sample Commercial PPO #A123', cohort: 'Afternoon Cohort (1–5 PM)', gym_track: 'Sensory Gym NET + Climbing Wall Regulation', enrollment_status: 'committed', target_month: 1, notes: 'Transitioning from school/home to center-based DTT + sensory gym' },
+      { child_name: 'Leon Okafor', age: 8, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 32, payer: 'Sample Commercial PPO #B456', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Vestibular Swing Rig & Deep Pressure Circuit', enrollment_status: 'committed', target_month: 1, notes: 'High vestibular/proprioceptive seeker; 480 units authorized' },
+      { child_name: 'Maya Lin', age: 4, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 35, payer: 'Aetna Behavioral Health (Synthetic)', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Early Intensive Gross-Motor & Crash Pit Track', enrollment_status: 'committed', target_month: 1, notes: 'Signed intake packet; 97151 assessment completed' },
+      { child_name: 'Liam Navarro', age: 6, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 30, payer: 'BlueCross Pediatric ABA (Synthetic)', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Climbing Wall, Trampoline & FCT Transitions', enrollment_status: 'committed', target_month: 1, notes: 'Parent requested center + gym for peer generalization' },
+      { child_name: 'Sophia Rossi', age: 5, diagnosis: 'ASD (F84.0)', tier: 'Focused', weekly_hours: 18, payer: 'United Optum Behavioral (Synthetic)', cohort: 'Afternoon Cohort (1–5 PM)', gym_track: 'Tactile Sensory Wall & Balance Beam Circuit', enrollment_status: 'committed', target_month: 1, notes: 'Authorized for 18 hrs/wk 97153 + 2 hrs/wk 97158 gym group' },
+      { child_name: 'Noah Washington', age: 7, diagnosis: 'ASD (F84.0)', tier: 'Focused', weekly_hours: 20, payer: 'Cigna Evernorth (Synthetic)', cohort: 'Afternoon Cohort (1–5 PM)', gym_track: 'Proprioceptive Heavy-Work & Peer Cooperative Play', enrollment_status: 'committed', target_month: 1, notes: 'Transferring from home-only provider for gym facility access' },
+      { child_name: 'Ethan Brooks', age: 4, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 32, payer: 'Anthem Commercial (Synthetic)', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Full Vestibular & Snoezelen Regulation Track', enrollment_status: 'committed', target_month: 1, notes: 'Early learner cohort; starting Day 1 of clinic opening' },
+      { child_name: 'Chloe Kim', age: 9, diagnosis: 'ASD (F84.0)', tier: 'Gym Group', weekly_hours: 8, payer: 'Commercial PPO + Gym Membership (Synthetic)', cohort: 'After-School Gym Group (3:30–5:30 PM)', gym_track: 'Social Motor Club & Cooperative Obstacle Course', enrollment_status: 'committed', target_month: 1, notes: 'CPT 97158 social skills group + sensory gym circuit' },
+      { child_name: 'Lucas Patel', age: 5, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 30, payer: 'BlueCross Pediatric ABA (Synthetic)', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Vestibular Swing & Motor Planning Track', enrollment_status: 'waitlist', target_month: 2, notes: 'Prior auth submitted; scheduled for Month 2 cohort' },
+      { child_name: 'Aria Mendoza', age: 6, diagnosis: 'ASD (F84.0)', tier: 'Focused', weekly_hours: 18, payer: 'Aetna Behavioral Health (Synthetic)', cohort: 'Afternoon Cohort (1–5 PM)', gym_track: 'Climbing Wall & Sensory Integration', enrollment_status: 'waitlist', target_month: 2, notes: '97151 intake scheduled next week' },
+      { child_name: 'Caleb Foster', age: 10, diagnosis: 'ASD (F84.0)', tier: 'Gym Group', weekly_hours: 8, payer: 'United Optum Behavioral (Synthetic)', cohort: 'After-School Gym Group (3:30–5:30 PM)', gym_track: 'Peer Fitness & Executive Functioning Circuit', enrollment_status: 'waitlist', target_month: 2, notes: 'Joining after-school sensory gym group cohort' },
+      { child_name: 'Amara Diallo', age: 3, diagnosis: 'ASD (F84.0)', tier: 'Comprehensive', weekly_hours: 35, payer: 'Medicaid EPSDT Pediatric ABA (Synthetic)', cohort: 'Morning Cohort (8:30 AM–12:30 PM)', gym_track: 'Early Intervention Sensory-Motor & Manding', enrollment_status: 'waitlist', target_month: 3, notes: 'Early intensive learner; Month 3 ramp cohort' }
+    ];
+
+    let activeScenarioId = 'base';
+    let cfg = Object.assign({}, SCENARIOS[0].config);
+    let currentTab = 'overview';
+    let pnlMode = 'annual';
+
+    const fmt$ = (n) => (n < 0 ? '-$' : '$') + Math.round(Math.abs(n || 0)).toLocaleString();
+
+    function calculateModel(c) {
+      const totalSqFt = Math.max(1500, Number(c.totalSqFt) || 6000);
+      const gymSqFtPct = Math.min(60, Math.max(15, Number(c.gymSqFtPct) || 35));
+      const dttRoomsPct = Math.min(50, Math.max(15, Number(c.dttRoomsPct) || 30));
+      const groupRoomsPct = Math.min(35, Math.max(5, Number(c.groupRoomsPct) || 15));
+      const calmingRoomsPct = Math.min(20, Math.max(4, Number(c.calmingRoomsPct) || 8));
+      const adminLobbyPct = Math.max(5, 100 - gymSqFtPct - dttRoomsPct - groupRoomsPct - calmingRoomsPct);
+
+      const gymSqFt = Math.round(totalSqFt * (gymSqFtPct / 100));
+      const dttSqFt = Math.round(totalSqFt * (dttRoomsPct / 100));
+      const groupSqFt = Math.round(totalSqFt * (groupRoomsPct / 100));
+      const calmingSqFt = Math.round(totalSqFt * (calmingRoomsPct / 100));
+      const adminLobbySqFt = Math.max(0, totalSqFt - gymSqFt - dttSqFt - groupSqFt - calmingSqFt);
+
+      const dttRooms = Math.max(2, Math.round(dttSqFt / 150));
+      const gymConcurrentCap = Math.max(2, Math.round(gymSqFt / 200));
+      const groupConcurrentCap = Math.max(2, Math.round(groupSqFt / 110));
+      const morningCohortCap = dttRooms + Math.round(gymConcurrentCap * 0.5);
+      const afternoonCohortCap = dttRooms + Math.round(gymConcurrentCap * 0.5);
+      const maxClinicClientCapacity = Math.max(4, Number(c.maxClinicClientCapacity) || (morningCohortCap + Math.round(afternoonCohortCap * 0.65)));
+
+      const tiCostPerSqFt = Math.max(0, Number(c.tiCostPerSqFt) ?? 85);
+      const landlordTiAllowancePerSqFt = Math.max(0, Number(c.landlordTiAllowancePerSqFt) ?? 30);
+      const grossTiConstruction = Math.round(totalSqFt * tiCostPerSqFt);
+      const landlordTiCredit = Math.round(totalSqFt * landlordTiAllowancePerSqFt);
+      const netTiConstruction = Math.max(0, grossTiConstruction - landlordTiCredit);
+
+      const gymEquipmentItems = [
+        { label: 'Structural Steel Overhead Swing Rigging & Vestibular System', cost: Number(c.gymCeilingRiggingCost) || 38000, note: 'Engineered I-beam ceiling mounts, platform, bolster, Lycra cuddle & rotational swings' },
+        { label: 'Therapeutic Rock Climbing Wall, Cargo Net & Recessed Foam Pit', cost: Number(c.gymClimbingFoamPitCost) || 45000, note: 'Custom angled pediatric climbing wall, dual crash pit with medical-grade vinyl cubes' },
+        { label: 'Commercial Safety Trampoline, Balance Beams & Proprioceptive Rig', cost: Number(c.gymTrampolineObstacleCost) || 28000, note: 'Deck-level trampoline, monkey bars, heavy-work resistance sleds, crash mats & bolsters' },
+        { label: 'Interactive LED Sensory Walls, Tactile Motor Path & NET Play Kits', cost: Number(c.gymSensoryWallTactileCost) || 19000, note: 'Acoustic tactile panels, scooter boards, weighted vests, fine/gross motor circuit kits' }
+      ];
+      const totalGymEquipment = gymEquipmentItems.reduce((s, x) => s + x.cost, 0);
+
+      const dttFurnishingTotal = Math.round(dttRooms * (Number(c.dttRoomFurnishingPerRoom) || 3200));
+      const clinicalTechItems = [
+        { label: `1:1 DTT Therapy Suites Furnishing (${dttRooms} Suites)`, cost: dttFurnishingTotal, note: 'Adjustable pediatric tables, ergonomic RBT stools, locked stimulus cabinets & visual boards' },
+        { label: 'Snoezelen Multi-Sensory De-Escalation & Crisis Safety Suite', cost: Number(c.calmingRoomSnoezelenCost) || 22000, note: 'Impact-padded wall panels, LED bubble tubes, fiber-optic cascade & dimmable lighting' },
+        { label: 'RBT iPads, Badge Access Control & HIPAA Observation AV', cost: Number(c.techSecurityAvCost) || 26000, note: 'Fleet tablets with rugged cases, magnetic door locks, observation cameras & Wi-Fi 6E' },
+        { label: 'Architectural/MEP Blueprints, Permits, Licensing & Lease Deposit', cost: Number(c.preOpeningLicensingCost) || 35000, note: 'Architect stamping, city building permits, fire marshal inspection & credentialing' }
+      ];
+      const totalClinicalTechPreOpen = clinicalTechItems.reduce((s, x) => s + x.cost, 0);
+
+      const grossBuildoutCapEx = grossTiConstruction + totalGymEquipment + totalClinicalTechPreOpen;
+      const netBuildoutCapEx = netTiConstruction + totalGymEquipment + totalClinicalTechPreOpen;
+      const workingCapitalReserve = Math.max(0, Number(c.workingCapitalReserve) ?? 75000);
+      const totalCapitalRequired = netBuildoutCapEx + workingCapitalReserve;
+
+      const downPaymentPct = Math.min(100, Math.max(5, Number(c.downPaymentPct) ?? 20));
+      const loanInterestRatePct = Math.max(0, Number(c.loanInterestRatePct) ?? 7.5);
+      const loanTermYears = Math.max(1, Number(c.loanTermYears) ?? 10);
+      const loanPrincipal = Math.round(totalCapitalRequired * (1 - downPaymentPct / 100));
+      const upfrontEquityCash = totalCapitalRequired - loanPrincipal;
+      const r = (loanInterestRatePct / 100) / 12;
+      const n = loanTermYears * 12;
+      const monthlyDebtService = loanPrincipal > 0 ? Math.round((loanPrincipal * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1)) : 0;
+
+      const shareSum = Math.max(1, (c.compTierSharePct || 45) + (c.focusedTierSharePct || 40) + (c.groupGymTierSharePct || 15));
+      const compShare = (c.compTierSharePct || 45) / shareSum;
+      const focShare = (c.focusedTierSharePct || 40) / shareSum;
+      const grpShare = (c.groupGymTierSharePct || 15) / shareSum;
+      const weightedWeeklyHoursPerClient = +(compShare * (c.compWeeklyHours || 32) + focShare * (c.focusedWeeklyHours || 18) + grpShare * (c.groupGymWeeklyHours || 8)).toFixed(1);
+
+      const WEEKS_PER_MO = 4.333;
+      const gymGroupHrsWk = Number(c.gymGroupHrsPerClientWk) ?? 3.0;
+      const direct1on1HrsWk = Math.max(2, weightedWeeklyHoursPerClient - gymGroupHrsWk);
+      const realization = (Number(c.attendanceRealizationPct) || 89) / 100;
+      const bcbaSupRatio = (Number(c.bcbaSupervisionRatioPct) || 12) / 100;
+
+      const clientMoHrs97153 = direct1on1HrsWk * WEEKS_PER_MO;
+      const clientMoHrs97158 = gymGroupHrsWk * WEEKS_PER_MO;
+      const clientMoHrs97155 = clientMoHrs97153 * bcbaSupRatio;
+
+      const rev97153PerClient = clientMoHrs97153 * (c.rate97153Hr || 68);
+      const rev97158PerClient = clientMoHrs97158 * (c.rate97158Hr || 42);
+      const rev97155PerClient = clientMoHrs97155 * (c.rate97155Hr || 125);
+      const rev97156PerClient = (c.familyGuidanceHrsPerClientMo || 2) * (c.rate97156Hr || 110);
+      const rev97151PerClient = (c.assessmentHrsPerClientMo || 1.33) * (c.rate97151Hr || 140);
+
+      const monthlyGrossRevPerClient = Math.round(rev97153PerClient + rev97158PerClient + rev97155PerClient + rev97156PerClient + rev97151PerClient);
+      const monthlyNetRevPerClient = Math.round(monthlyGrossRevPerClient * realization);
+
+      const rbtHourlyWage = Number(c.rbtHourlyWage) || 23.5;
+      const rbtNonBillablePct = (Number(c.rbtNonBillablePct) ?? 14) / 100;
+      const payrollTaxBenefitsPct = (Number(c.payrollTaxBenefitsPct) ?? 18) / 100;
+      const bcbaAnnualSalary = Number(c.bcbaAnnualSalary) || 92000;
+      const bcbaCaseloadLimit = Number(c.bcbaCaseloadLimit) || 10;
+      const sensorySuppliesPerClientMo = Number(c.sensorySuppliesPerClientMo) ?? 95;
+
+      const deliveredRbtHrsPerClientMo = (clientMoHrs97153 + clientMoHrs97158 * 0.5) * realization;
+      const rbtPaidHrsPerClientMo = deliveredRbtHrsPerClientMo * (1 + rbtNonBillablePct);
+      const rbtCostPerClientMo = rbtPaidHrsPerClientMo * rbtHourlyWage * (1 + payrollTaxBenefitsPct);
+      const bcbaLoadedMonthly = (bcbaAnnualSalary / 12) * (1 + payrollTaxBenefitsPct);
+      const bcbaCostPerClientMo = bcbaLoadedMonthly / bcbaCaseloadLimit;
+      const monthlyDirectLaborPerClient = Math.round(rbtCostPerClientMo + bcbaCostPerClientMo);
+      const monthlyContributionPerClient = Math.round(monthlyNetRevPerClient - monthlyDirectLaborPerClient - sensorySuppliesPerClientMo);
+      const contributionMarginPct = Math.round((monthlyContributionPerClient / Math.max(1, monthlyNetRevPerClient)) * 100);
+
+      const baseRentMonthly = Math.round((totalSqFt * (Number(c.baseRentPerSqFtYr) ?? 28)) / 12);
+      const camUtilitiesMonthly = Math.round((totalSqFt * (Number(c.camUtilitiesPerSqFtYr) ?? 7.5)) / 12);
+      const rentAndCamMonthly = baseRentMonthly + camUtilitiesMonthly;
+      const adminDirectorMonthly = Math.round(Number(c.adminDirectorMonthly) ?? 10500);
+      const insuranceSanitationMonthly = Math.round(Number(c.insuranceSanitationMonthly) ?? 2800);
+      const marketingCrmMonthly = Math.round(Number(c.marketingCrmMonthly) ?? 1800);
+      const fixedFacilityOverheadMo = rentAndCamMonthly + adminDirectorMonthly + insuranceSanitationMonthly + marketingCrmMonthly;
+
+      const months = [];
+      let exactClients = Math.min(maxClinicClientCapacity, Math.max(1, Number(c.initialClientsMonth1) || 8));
+      let cumCash = -upfrontEquityCash;
+      for (let m = 1; m <= 36; m++) {
+        if (m > 1) {
+          const churned = exactClients * ((Number(c.monthlyGraduationChurnPct) ?? 2.0) / 100);
+          exactClients = Math.min(maxClinicClientCapacity, Math.max(1, exactClients + (Number(c.monthlyNewClientSignups) ?? 2.5) - churned));
+        }
+        const activeClients = Math.round(exactClients * 10) / 10;
+        const utilizationPct = Math.min(100, Math.round((activeClients / maxClinicClientCapacity) * 100));
+        const cpt97153Rev = Math.round(activeClients * rev97153PerClient * realization);
+        const cpt97155Rev = Math.round(activeClients * rev97155PerClient * realization);
+        const cpt97156Rev = Math.round(activeClients * rev97156PerClient * realization);
+        const cpt97151Rev = Math.round(activeClients * rev97151PerClient * realization);
+        const cpt97158Rev = Math.round(activeClients * rev97158PerClient * realization);
+        const netAbaRevenue = cpt97153Rev + cpt97155Rev + cpt97156Rev + cpt97151Rev + cpt97158Rev;
+        const gymRamp = Math.min(1, 0.35 + (m - 1) * 0.13);
+        const ancillaryGymRevenue = Math.round(Math.round((c.gymMembershipsCount || 35) * gymRamp) * (c.gymMembershipMonthlyFee || 145) + (c.otPtSubleaseMonthly || 3500) * (m >= 2 ? 1 : 0.5));
+        const totalRevenue = netAbaRevenue + ancillaryGymRevenue;
+
+        const totalRbtBillableWk = activeClients * (direct1on1HrsWk + gymGroupHrsWk * 0.5) * realization;
+        const rbtHeadcount = Math.max(2, Math.ceil(totalRbtBillableWk / (c.rbtWeeklyBillableTarget || 30)));
+        const bcbaHeadcount = Math.max(1, Math.ceil(activeClients / bcbaCaseloadLimit));
+        const rbtLaborCost = Math.round(activeClients * rbtCostPerClientMo);
+        const bcbaLaborCost = Math.round(bcbaHeadcount * bcbaLoadedMonthly);
+        const totalClinicalLabor = rbtLaborCost + bcbaLaborCost;
+        const grossProfit = totalRevenue - totalClinicalLabor;
+        const sensorySupplies = Math.round(activeClients * sensorySuppliesPerClientMo);
+        const totalFacilityOpEx = fixedFacilityOverheadMo + sensorySupplies;
+        const ebitda = grossProfit - totalFacilityOpEx;
+        const ebitdaMarginPct = totalRevenue > 0 ? Math.round((ebitda / totalRevenue) * 100) : 0;
+        const netCashFlow = ebitda - monthlyDebtService;
+        cumCash += netCashFlow;
+
+        months.push({
+          month: m, year: Math.ceil(m / 12), activeClients, utilizationPct,
+          cpt97153Rev, cpt97155Rev, cpt97156Rev, cpt97151Rev, cpt97158Rev, netAbaRevenue, ancillaryGymRevenue, totalRevenue,
+          rbtHeadcount, bcbaHeadcount, rbtLaborCost, bcbaLaborCost, totalClinicalLabor, grossProfit,
+          rentAndCam: rentAndCamMonthly, adminPayroll: adminDirectorMonthly, insuranceAndOps: insuranceSanitationMonthly + marketingCrmMonthly, sensorySupplies, totalFacilityOpEx,
+          ebitda, ebitdaMarginPct, debtService: monthlyDebtService, netCashFlow, cumulativeCashFlow: Math.round(cumCash)
+        });
+      }
+
+      const years = [1, 2, 3].map((yr) => {
+        const sl = months.filter((x) => x.year === yr);
+        const sum = (k) => sl.reduce((a, b) => a + (b[k] || 0), 0);
+        const last = sl[sl.length - 1];
+        const totalRevenue = sum('totalRevenue');
+        const ebitda = sum('ebitda');
+        return {
+          year: yr, startClients: sl[0].activeClients, endClients: last.activeClients, endUtilizationPct: last.utilizationPct,
+          endRbtHeadcount: last.rbtHeadcount, endBcbaHeadcount: last.bcbaHeadcount,
+          netAbaRevenue: sum('netAbaRevenue'), ancillaryGymRevenue: sum('ancillaryGymRevenue'), totalRevenue,
+          totalClinicalLabor: sum('totalClinicalLabor'), grossProfit: sum('grossProfit'),
+          rentAndCam: sum('rentAndCam'), adminPayroll: sum('adminPayroll'), insuranceAndOps: sum('insuranceAndOps'), sensorySupplies: sum('sensorySupplies'),
+          totalFacilityOpEx: sum('totalFacilityOpEx'), ebitda, ebitdaMarginPct: Math.round((ebitda / Math.max(1, totalRevenue)) * 100),
+          debtService: sum('debtService'), netIncome: sum('netCashFlow'), endingCumulativeCash: last.cumulativeCashFlow
+        };
+      });
+
+      const steadyAncillary = Math.round((c.gymMembershipsCount || 35) * (c.gymMembershipMonthlyFee || 145) + (c.otPtSubleaseMonthly || 3500));
+      const netClientVarMargin = Math.max(500, monthlyNetRevPerClient - Math.round(rbtCostPerClientMo) - sensorySuppliesPerClientMo);
+      const netFixedLoadOp = Math.max(0, fixedFacilityOverheadMo + Math.round(bcbaLoadedMonthly) - steadyAncillary);
+      const breakEvenClientsCashFlow = Math.max(1, Math.ceil((netFixedLoadOp + monthlyDebtService) / netClientVarMargin));
+      const paybackMo = months.find((m) => m.cumulativeCashFlow >= 0);
+      const m36 = months[35];
+      const threeYearNetProfitAfterDebt = months.reduce((s, m) => s + m.netCashFlow, 0);
+
+      return {
+        space: { totalSqFt, gymSqFtPct, dttRoomsPct, groupRoomsPct, calmingRoomsPct, adminLobbyPct, gymSqFt, dttSqFt, groupSqFt, calmingSqFt, adminLobbySqFt, dttRooms, gymConcurrentCap, groupConcurrentCap, morningCohortCap, afternoonCohortCap, maxClinicClientCapacity },
+        capex: { tiCostPerSqFt, landlordTiAllowancePerSqFt, grossTiConstruction, landlordTiCredit, netTiConstruction, gymEquipmentItems, totalGymEquipment, clinicalTechItems, totalClinicalTechPreOpen, grossBuildoutCapEx, netBuildoutCapEx, workingCapitalReserve, totalCapitalRequired, downPaymentPct, loanInterestRatePct, loanTermYears, loanPrincipal, upfrontEquityCash, monthlyDebtService },
+        unitEconomics: { weightedWeeklyHoursPerClient, monthlyGrossRevPerClient, monthlyNetRevPerClient, monthlyDirectLaborPerClient, sensorySuppliesPerClientMo, monthlyContributionPerClient, contributionMarginPct },
+        months, years,
+        kpis: {
+          breakEvenClientsCashFlow,
+          breakEvenUtilizationPct: Math.min(100, Math.round((breakEvenClientsCashFlow / maxClinicClientCapacity) * 100)),
+          paybackMonth: paybackMo ? paybackMo.month : null,
+          steadyStateAnnualRev: m36.totalRevenue * 12,
+          steadyStateAnnualEbitda: m36.ebitda * 12,
+          steadyStateEbitdaMarginPct: m36.ebitdaMarginPct,
+          threeYearCumulativeNetCash: m36.cumulativeCashFlow,
+          cashOnCashReturnPct: Math.round((threeYearNetProfitAfterDebt / Math.max(1, upfrontEquityCash)) * 100)
+        }
+      };
+    }
+
+    function renderJCurveSvg(months, paybackMonth) {
+      const w = 720, h = 230, padL = 62, padR = 20, padT = 24, padB = 34;
+      const vals = months.map(m => m.cumulativeCashFlow);
+      const minV = Math.min(-50000, ...vals);
+      const maxV = Math.max(100000, ...vals);
+      const range = Math.max(1, maxV - minV);
+      const x = (i) => padL + (i / 35) * (w - padL - padR);
+      const y = (v) => padT + (1 - (v - minV) / range) * (h - padT - padB);
+      const zeroY = y(0);
+      const pts = months.map((m, i) => `${x(i).toFixed(1)},${y(m.cumulativeCashFlow).toFixed(1)}`).join(' ');
+      const areaPts = `${x(0).toFixed(1)},${zeroY.toFixed(1)} ${pts} ${x(35).toFixed(1)},${zeroY.toFixed(1)}`;
+      const pbX = paybackMonth ? x(paybackMonth - 1) : null;
+      return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block">
+        <line x1="${padL}" y1="${zeroY}" x2="${w - padR}" y2="${zeroY}" stroke="#94a3b8" stroke-dasharray="4 4" stroke-width="1.5"/>
+        <polygon points="${areaPts}" fill="rgba(79,70,229,0.10)"/>
+        <polyline fill="none" stroke="#4f46e5" stroke-width="3" points="${pts}"/>
+        ${pbX ? `<line x1="${pbX}" y1="${padT}" x2="${pbX}" y2="${h - padB}" stroke="#059669" stroke-width="2" stroke-dasharray="3 3"/>
+        <circle cx="${pbX}" cy="${zeroY}" r="5" fill="#059669"/>
+        <text x="${Math.min(w - 130, pbX + 6)}" y="${padT + 12}" fill="#059669" font-size="11" font-weight="800">Payback: Month ${paybackMonth}</text>` : ''}
+        <text x="${padL - 6}" y="${padT + 8}" text-anchor="end" font-size="10" fill="#64748b">${fmt$(maxV)}</text>
+        <text x="${padL - 6}" y="${zeroY + 4}" text-anchor="end" font-size="10" font-weight="700" fill="#334155">$0</text>
+        <text x="${padL - 6}" y="${h - padB}" text-anchor="end" font-size="10" fill="#ef4444">${fmt$(minV)}</text>
+        <text x="${x(0)}" y="${h - 10}" font-size="10" fill="#64748b">M1</text>
+        <text x="${x(11)}" y="${h - 10}" font-size="10" fill="#64748b">M12 (Yr 1)</text>
+        <text x="${x(23)}" y="${h - 10}" font-size="10" fill="#64748b">M24 (Yr 2)</text>
+        <text x="${x(35) - 24}" y="${h - 10}" font-size="10" fill="#64748b">M36 (Yr 3)</text>
+      </svg>`;
+    }
+
+    function selectScenario(id) {
+      activeScenarioId = id;
+      const found = SCENARIOS.find(s => s.id === id) || SCENARIOS[0];
+      cfg = Object.assign({}, found.config);
+      render();
+    }
+
+    function setTab(t) {
+      currentTab = t;
+      ['overview', 'signups', 'capex', 'pnl'].forEach(k => {
+        const el = document.getElementById('tabBtn-' + k);
+        if (el) el.className = 'tab-btn' + (k === t ? ' active' : '');
+      });
+      render();
+    }
+
+    function updateSlider(key, val) {
+      cfg[key] = Number(val);
+      render();
+    }
+
+    function syncFromSignups() {
+      const committed = SIGNUPS.filter(s => s.enrollment_status === 'committed' && s.target_month <= 1).length;
+      const waitlist = SIGNUPS.length - committed;
+      cfg.initialClientsMonth1 = committed;
+      cfg.monthlyNewClientSignups = Math.max(1.5, +(waitlist / 2).toFixed(1));
+      render();
+    }
+
+    function exportCsv() {
+      const pf = calculateModel(cfg);
+      const rows = [
+        ['EBA PHYSICAL CLINIC & SENSORY GYM 36-MONTH FINANCIAL MODEL'],
+        ['Scenario', SCENARIOS.find(s => s.id === activeScenarioId)?.name || 'Custom'],
+        ['Total Sq Ft', pf.space.totalSqFt, 'Sensory Gym Sq Ft', pf.space.gymSqFt, 'Max Client Capacity', pf.space.maxClinicClientCapacity],
+        ['Gross Buildout CapEx', pf.capex.grossBuildoutCapEx, 'Landlord TI Credit', pf.capex.landlordTiCredit, 'Upfront Equity Cash (20%)', pf.capex.upfrontEquityCash],
+        ['Break-Even Census (Clients)', pf.kpis.breakEvenClientsCashFlow, 'CapEx Payback Month', pf.kpis.paybackMonth || 'N/A', 'Yr 3 Annual Run-Rate Revenue', pf.kpis.steadyStateAnnualRev],
+        [],
+        ['Month', 'Year', 'Active Clients', 'Utilization %', 'ABA Net Revenue ($)', 'Ancillary Gym Revenue ($)', 'Total Revenue ($)', 'RBT Headcount', 'BCBA Headcount', 'Total Clinical Labor ($)', 'Gross Profit ($)', 'Facility Rent & OpEx ($)', 'EBITDA ($)', 'EBITDA Margin %', 'SBA Debt Service ($)', 'Net Cash Flow ($)', 'Cumulative Cash Flow ($)']
+      ];
+      pf.months.forEach(m => {
+        rows.push([m.month, m.year, m.activeClients, m.utilizationPct + '%', m.netAbaRevenue, m.ancillaryGymRevenue, m.totalRevenue, m.rbtHeadcount, m.bcbaHeadcount, m.totalClinicalLabor, m.grossProfit, m.totalFacilityOpEx, m.ebitda, m.ebitdaMarginPct + '%', m.debtService, m.netCashFlow, m.cumulativeCashFlow]);
+      });
+      const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'EBA_Clinic_Sensory_Gym_Financial_Model_36Mo.csv';
+      a.click();
+    }
+
+    function render() {
+      const pf = calculateModel(cfg);
+      const sp = pf.space, cx = pf.capex, ue = pf.unitEconomics, kp = pf.kpis;
+
+      document.getElementById('scenarioPills').innerHTML = SCENARIOS.map(s =>
+        `<button class="scenario-pill ${s.id === activeScenarioId ? 'active' : ''}" onclick="selectScenario('${s.id}')">${s.name.split(':')[0]}</button>`
+      ).join('');
+
+      document.getElementById('kpiGrid').innerHTML = `
+        <div class="kpi-card">
+          <div class="kpi-label">Upfront Equity Cash</div>
+          <div class="kpi-val" style="color:#312e81">${fmt$(cx.upfrontEquityCash)}</div>
+          <div class="kpi-sub">Total Net CapEx + WC: ${fmt$(cx.totalCapitalRequired)} (${cx.downPaymentPct}% down)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Gross Buildout & Gym</div>
+          <div class="kpi-val">${fmt$(cx.grossBuildoutCapEx)}</div>
+          <div class="kpi-sub">Less ${fmt$(cx.landlordTiCredit)} Landlord TI Credit</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Break-Even Census</div>
+          <div class="kpi-val" style="color:#0d9488">${kp.breakEvenClientsCashFlow} Clients</div>
+          <div class="kpi-sub">${kp.breakEvenUtilizationPct}% of ${sp.maxClinicClientCapacity}-client dual-cohort cap</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Full Equity Payback</div>
+          <div class="kpi-val" style="color:#059669">${kp.paybackMonth ? 'Month ' + kp.paybackMonth : '>36 Mos'}</div>
+          <div class="kpi-sub">SBA Debt Service: ${fmt$(cx.monthlyDebtService)}/mo</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Steady-State Revenue</div>
+          <div class="kpi-val">${fmt$(kp.steadyStateAnnualRev)}<span style="font-size:0.8rem">/yr</span></div>
+          <div class="kpi-sub">Per Client Net Rev: ${fmt$(ue.monthlyNetRevPerClient)}/mo</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Steady-State EBITDA</div>
+          <div class="kpi-val" style="color:#059669">${fmt$(kp.steadyStateAnnualEbitda)}<span style="font-size:0.8rem">/yr</span></div>
+          <div class="kpi-sub">${kp.steadyStateEbitdaMarginPct}% Margin · ${kp.cashOnCashReturnPct}% 3-Yr Cash-on-Cash</div>
+        </div>
+      `;
+
+      const box = document.getElementById('tabContent');
+      if (currentTab === 'overview') {
+        box.innerHTML = `
+          <div class="grid-2">
+            <div class="card no-print">
+              <h3>🎛️ Model Drivers & Sliders</h3>
+              <div class="section-tag" style="margin-top:0;border:none;padding-top:0">1. Footprint & Lease</div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Total Clinic + Gym Sq Ft</span><span>${sp.totalSqFt.toLocaleString()} sq ft</span></div>
+                <input type="range" min="2500" max="15000" step="250" value="${cfg.totalSqFt}" oninput="updateSlider('totalSqFt', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Sensory & Motor Gym Share</span><span>${sp.gymSqFtPct}% (${sp.gymSqFt.toLocaleString()} sq ft)</span></div>
+                <input type="range" min="20" max="50" step="1" value="${cfg.gymSqFtPct}" oninput="updateSlider('gymSqFtPct', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Base NNN Rent / Sq Ft / Yr</span><span>$${cfg.baseRentPerSqFtYr}/sq ft</span></div>
+                <input type="range" min="16" max="50" step="1" value="${cfg.baseRentPerSqFtYr}" oninput="updateSlider('baseRentPerSqFtYr', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>TI Buildout Cost / Sq Ft</span><span>$${cfg.tiCostPerSqFt}/sq ft</span></div>
+                <input type="range" min="45" max="140" step="5" value="${cfg.tiCostPerSqFt}" oninput="updateSlider('tiCostPerSqFt', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Landlord TI Allowance / Sq Ft</span><span>$${cfg.landlordTiAllowancePerSqFt}/sq ft</span></div>
+                <input type="range" min="0" max="65" step="5" value="${cfg.landlordTiAllowancePerSqFt}" oninput="updateSlider('landlordTiAllowancePerSqFt', this.value)"/>
+              </div>
+
+              <div class="section-tag">2. Client Therapy Signup Ramp</div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Committed Month-1 Clients</span><span>${cfg.initialClientsMonth1} clients</span></div>
+                <input type="range" min="2" max="24" step="1" value="${cfg.initialClientsMonth1}" oninput="updateSlider('initialClientsMonth1', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>New Client Signups / Month</span><span>+${cfg.monthlyNewClientSignups}/mo</span></div>
+                <input type="range" min="0.5" max="6" step="0.5" value="${cfg.monthlyNewClientSignups}" oninput="updateSlider('monthlyNewClientSignups', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>Max Dual-Cohort Capacity</span><span>${cfg.maxClinicClientCapacity} clients</span></div>
+                <input type="range" min="10" max="60" step="2" value="${cfg.maxClinicClientCapacity}" oninput="updateSlider('maxClinicClientCapacity', this.value)"/>
+              </div>
+
+              <div class="section-tag">3. CPT Reimbursement & Staffing</div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>CPT 97153 (1:1 ABA) Rate / Hr</span><span>$${cfg.rate97153Hr}/hr</span></div>
+                <input type="range" min="50" max="95" step="2" value="${cfg.rate97153Hr}" oninput="updateSlider('rate97153Hr', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>RBT Direct Hourly Wage</span><span>$${cfg.rbtHourlyWage}/hr</span></div>
+                <input type="range" min="18" max="32" step="0.5" value="${cfg.rbtHourlyWage}" oninput="updateSlider('rbtHourlyWage', this.value)"/>
+              </div>
+              <div class="slider-group">
+                <div class="slider-hdr"><span>BCBA Annual Base Salary</span><span>${fmt$(cfg.bcbaAnnualSalary)}/yr</span></div>
+                <input type="range" min="75000" max="120000" step="2000" value="${cfg.bcbaAnnualSalary}" oninput="updateSlider('bcbaAnnualSalary', this.value)"/>
+              </div>
+            </div>
+
+            <div>
+              <div class="card">
+                <h3><span>📐 Architectural Space Allocation & Sensory Gym Zones</span><span>${sp.totalSqFt.toLocaleString()} sq ft Total</span></h3>
+                <div class="space-bar">
+                  <div style="width:${sp.gymSqFtPct}%;background:#0d9488;display:flex;align-items:center;justify-content:center">Gym ${sp.gymSqFtPct}%</div>
+                  <div style="width:${sp.dttRoomsPct}%;background:#4f46e5;display:flex;align-items:center;justify-content:center">DTT ${sp.dttRoomsPct}%</div>
+                  <div style="width:${sp.groupRoomsPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center">Group ${sp.groupRoomsPct}%</div>
+                  <div style="width:${sp.calmingRoomsPct}%;background:#7c3aed;display:flex;align-items:center;justify-content:center">Calm ${sp.calmingRoomsPct}%</div>
+                  <div style="width:${sp.adminLobbyPct}%;background:#64748b;display:flex;align-items:center;justify-content:center">Lobby</div>
+                </div>
+                <div class="space-legend">
+                  <div class="space-item"><strong>🤸 Sensory & Motor Gym:</strong> ${sp.gymSqFt.toLocaleString()} sq ft (${sp.gymConcurrentCap} kids concurrent)</div>
+                  <div class="space-item"><strong>🧩 1:1 DTT Therapy Suites:</strong> ${sp.dttSqFt.toLocaleString()} sq ft (${sp.dttRooms} private rooms)</div>
+                  <div class="space-item"><strong>🤝 Social Skills / NET Group:</strong> ${sp.groupSqFt.toLocaleString()} sq ft (${sp.groupConcurrentCap} kids cap)</div>
+                  <div class="space-item"><strong>🌊 Snoezelen Calming Suite:</strong> ${sp.calmingSqFt.toLocaleString()} sq ft (padded regulation)</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3><span>📈 36-Month Cumulative Cash Flow J-Curve & Equity Payback</span><span class="badge badge-green">${kp.paybackMonth ? 'Payback in Month ' + kp.paybackMonth : 'Longer Payback'}</span></h3>
+                ${renderJCurveSvg(pf.months, kp.paybackMonth)}
+              </div>
+
+              <div class="card">
+                <h3><span>💳 Per-Client Monthly Unit Economics (${ue.weightedWeeklyHoursPerClient} hrs/wk weighted avg)</span><span class="badge badge-indigo">${ue.contributionMarginPct}% Contribution Margin</span></h3>
+                <table>
+                  <thead>
+                    <tr><th>Unit Metric</th><th>Monthly / Client</th><th>Annualized / Client</th><th>Clinical & Billing Basis</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Gross Billed ABA Revenue</td><td>${fmt$(ue.monthlyGrossRevPerClient)}</td><td>${fmt$(ue.monthlyGrossRevPerClient * 12)}</td><td>CPT 97153 + 97155 (12% sup) + 97156 + 97151 + 97158</td></tr>
+                    <tr><td>Net Realized Revenue (${cfg.attendanceRealizationPct}%)</td><td><strong>${fmt$(ue.monthlyNetRevPerClient)}</strong></td><td><strong>${fmt$(ue.monthlyNetRevPerClient * 12)}</strong></td><td>After client attendance & payer realization</td></tr>
+                    <tr><td>Direct RBT + BCBA Loaded Labor</td><td style="color:#dc2626">-${fmt$(ue.monthlyDirectLaborPerClient)}</td><td style="color:#dc2626">-${fmt$(ue.monthlyDirectLaborPerClient * 12)}</td><td>Includes ${cfg.rbtNonBillablePct}% RBT non-billable + ${cfg.payrollTaxBenefitsPct}% tax/benefits</td></tr>
+                    <tr><td>Sensory Gym & Program Supplies</td><td style="color:#dc2626">-${fmt$(ue.sensorySuppliesPerClientMo)}</td><td style="color:#dc2626">-${fmt$(ue.sensorySuppliesPerClientMo * 12)}</td><td>Reinforcers, laminated PECS, gym mat sanitation</td></tr>
+                    <tr class="highlight-row"><td>Net Contribution Margin / Client</td><td style="color:#059669">${fmt$(ue.monthlyContributionPerClient)}</td><td style="color:#059669">${fmt$(ue.monthlyContributionPerClient * 12)}</td><td>${ue.contributionMarginPct}% margin towards facility rent, admin & SBA loan</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (currentTab === 'signups') {
+        box.innerHTML = `
+          <div class="card">
+            <h3><span>🧒 Client Therapy Signup Pipeline (${SIGNUPS.length} Enrolled & Waitlisted Clients)</span><span class="badge badge-green">8 Committed for Day-1 Opening</span></h3>
+            <table>
+              <thead>
+                <tr><th>Client (Synthetic)</th><th>Age</th><th>Program Tier</th><th>Weekly Hrs</th><th>Assigned Cohort</th><th>Sensory & Motor Gym Track</th><th>Status</th><th>Target Start</th></tr>
+              </thead>
+              <tbody>
+                ${SIGNUPS.map(s => `
+                  <tr>
+                    <td><strong>${s.child_name}</strong><div style="font-size:0.72rem;color:#64748b">${s.payer}</div></td>
+                    <td>${s.age} yrs</td>
+                    <td><span class="badge badge-indigo">${s.tier}</span></td>
+                    <td><strong>${s.weekly_hours} hrs/wk</strong></td>
+                    <td style="text-align:left">${s.cohort}</td>
+                    <td style="text-align:left">${s.gym_track}</td>
+                    <td><span class="badge ${s.enrollment_status === 'committed' ? 'badge-green' : 'badge-amber'}">${s.enrollment_status.toUpperCase()}</span></td>
+                    <td>Month ${s.target_month}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } else if (currentTab === 'capex') {
+        box.innerHTML = `
+          <div class="card">
+            <h3><span>🔨 Itemized Clinic Construction, Sensory Gym Equipment & SBA 7(a) Financing</span><span>Upfront Cash: ${fmt$(cx.upfrontEquityCash)}</span></h3>
+            <table>
+              <thead>
+                <tr><th>Buildout & Equipment Line Item</th><th>Cost ($)</th><th>Architectural & Clinical Specification</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>Gross Tenant Improvement (TI) Construction (${sp.totalSqFt.toLocaleString()} sq ft @ $${cx.tiCostPerSqFt}/sq ft)</strong></td><td>${fmt$(cx.grossTiConstruction)}</td><td style="text-align:left">ADA restrooms, acoustic drywall, observation windows, HVAC zoning, impact flooring</td></tr>
+                <tr><td style="color:#059669"><strong>Less: Landlord TI Allowance Credit ($${cx.landlordTiAllowancePerSqFt}/sq ft)</strong></td><td style="color:#059669">-${fmt$(cx.landlordTiCredit)}</td><td style="text-align:left">Turnkey landlord buildout credit negotiated in 7–10 yr NNN commercial lease</td></tr>
+                <tr class="subtotal-row"><td>Net Out-of-Pocket TI Construction</td><td>${fmt$(cx.netTiConstruction)}</td><td style="text-align:left">Net leasehold improvement after landlord credit</td></tr>
+                ${cx.gymEquipmentItems.map(i => `<tr><td>🤸 ${i.label}</td><td>${fmt$(i.cost)}</td><td style="text-align:left">${i.note}</td></tr>`).join('')}
+                <tr class="subtotal-row"><td>Total Sensory & Gross-Motor Gym Apparatus</td><td>${fmt$(cx.totalGymEquipment)}</td><td style="text-align:left">Commercial pediatric OT/ABA sensory gym installation</td></tr>
+                ${cx.clinicalTechItems.map(i => `<tr><td>🧩 ${i.label}</td><td>${fmt$(i.cost)}</td><td style="text-align:left">${i.note}</td></tr>`).join('')}
+                <tr><td>🛡️ Pre-Opening Working Capital & Payroll Reserve</td><td>${fmt$(cx.workingCapitalReserve)}</td><td style="text-align:left">60-day initial insurance credentialing & first-cycle payer clearinghouse buffer</td></tr>
+                <tr class="highlight-row"><td>Total Project Capital Required (Net Buildout + Working Capital)</td><td>${fmt$(cx.totalCapitalRequired)}</td><td style="text-align:left">Financed via ${cx.downPaymentPct}% Owner Equity (${fmt$(cx.upfrontEquityCash)}) + SBA 7(a) Loan (${fmt$(cx.loanPrincipal)} @ ${cx.loanInterestRatePct}% for ${cx.loanTermYears} yrs = ${fmt$(cx.monthlyDebtService)}/mo)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        `;
+      } else if (currentTab === 'pnl') {
+        box.innerHTML = `
+          <div class="card">
+            <h3>
+              <span>📑 3-Year Annual Summary & 36-Month Pro-Forma Income Statement</span>
+              <span class="no-print">
+                <button class="scenario-pill ${pnlMode === 'annual' ? 'active' : ''}" onclick="pnlMode='annual';render()">3-Year Annual Rollup</button>
+                <button class="scenario-pill ${pnlMode === 'monthly' ? 'active' : ''}" onclick="pnlMode='monthly';render()">All 36 Months</button>
+              </span>
+            </h3>
+            ${pnlMode === 'annual' ? `
+              <table>
+                <thead>
+                  <tr><th>Pro-Forma Line Item</th><th>Year 1 (M1–M12)</th><th>Year 2 (M13–M24)</th><th>Year 3 (M25–M36)</th><th>3-Year Total</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Ending Active Client Census (Utilization %)</td><td>${pf.years[0].endClients} (${pf.years[0].endUtilizationPct}%)</td><td>${pf.years[1].endClients} (${pf.years[1].endUtilizationPct}%)</td><td>${pf.years[2].endClients} (${pf.years[2].endUtilizationPct}%)</td><td>—</td></tr>
+                  <tr><td>Ending Clinical Headcount (RBTs / BCBAs)</td><td>${pf.years[0].endRbtHeadcount} RBTs / ${pf.years[0].endBcbaHeadcount} BCBAs</td><td>${pf.years[1].endRbtHeadcount} RBTs / ${pf.years[1].endBcbaHeadcount} BCBAs</td><td>${pf.years[2].endRbtHeadcount} RBTs / ${pf.years[2].endBcbaHeadcount} BCBAs</td><td>—</td></tr>
+                  <tr><td>Net ABA Therapy Revenue (CPT 97153/55/56/51/58)</td><td>${fmt$(pf.years[0].netAbaRevenue)}</td><td>${fmt$(pf.years[1].netAbaRevenue)}</td><td>${fmt$(pf.years[2].netAbaRevenue)}</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.netAbaRevenue,0))}</td></tr>
+                  <tr><td>Ancillary Sensory Gym Memberships & OT/PT Sublease</td><td>${fmt$(pf.years[0].ancillaryGymRevenue)}</td><td>${fmt$(pf.years[1].ancillaryGymRevenue)}</td><td>${fmt$(pf.years[2].ancillaryGymRevenue)}</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.ancillaryGymRevenue,0))}</td></tr>
+                  <tr class="subtotal-row"><td>Total Operating Revenue</td><td>${fmt$(pf.years[0].totalRevenue)}</td><td>${fmt$(pf.years[1].totalRevenue)}</td><td>${fmt$(pf.years[2].totalRevenue)}</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.totalRevenue,0))}</td></tr>
+                  <tr><td>Total Clinical Direct Labor (RBT + BCBA Loaded)</td><td style="color:#dc2626">-${fmt$(pf.years[0].totalClinicalLabor)}</td><td style="color:#dc2626">-${fmt$(pf.years[1].totalClinicalLabor)}</td><td style="color:#dc2626">-${fmt$(pf.years[2].totalClinicalLabor)}</td><td style="color:#dc2626">-${fmt$(pf.years.reduce((s,y)=>s+y.totalClinicalLabor,0))}</td></tr>
+                  <tr class="subtotal-row"><td>Gross Profit</td><td>${fmt$(pf.years[0].grossProfit)}</td><td>${fmt$(pf.years[1].grossProfit)}</td><td>${fmt$(pf.years[2].grossProfit)}</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.grossProfit,0))}</td></tr>
+                  <tr><td>Facility NNN Rent, CAM, Admin, Insurance & Gym Supplies</td><td style="color:#dc2626">-${fmt$(pf.years[0].totalFacilityOpEx)}</td><td style="color:#dc2626">-${fmt$(pf.years[1].totalFacilityOpEx)}</td><td style="color:#dc2626">-${fmt$(pf.years[2].totalFacilityOpEx)}</td><td style="color:#dc2626">-${fmt$(pf.years.reduce((s,y)=>s+y.totalFacilityOpEx,0))}</td></tr>
+                  <tr class="highlight-row"><td>EBITDA (Operating Cash Flow)</td><td>${fmt$(pf.years[0].ebitda)} (${pf.years[0].ebitdaMarginPct}%)</td><td>${fmt$(pf.years[1].ebitda)} (${pf.years[1].ebitdaMarginPct}%)</td><td>${fmt$(pf.years[2].ebitda)} (${pf.years[2].ebitdaMarginPct}%)</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.ebitda,0))}</td></tr>
+                  <tr><td>SBA 7(a) Loan Debt Service (P&I)</td><td style="color:#dc2626">-${fmt$(pf.years[0].debtService)}</td><td style="color:#dc2626">-${fmt$(pf.years[1].debtService)}</td><td style="color:#dc2626">-${fmt$(pf.years[2].debtService)}</td><td style="color:#dc2626">-${fmt$(pf.years.reduce((s,y)=>s+y.debtService,0))}</td></tr>
+                  <tr class="highlight-row"><td>Net Cash Flow After Debt Service</td><td>${fmt$(pf.years[0].netIncome)}</td><td>${fmt$(pf.years[1].netIncome)}</td><td>${fmt$(pf.years[2].netIncome)}</td><td>${fmt$(pf.years.reduce((s,y)=>s+y.netIncome,0))}</td></tr>
+                  <tr><td>Ending Cumulative Net Cash Position</td><td><strong>${fmt$(pf.years[0].endingCumulativeCash)}</strong></td><td><strong>${fmt$(pf.years[1].endingCumulativeCash)}</strong></td><td><strong>${fmt$(pf.years[2].endingCumulativeCash)}</strong></td><td><strong>${fmt$(pf.years[2].endingCumulativeCash)}</strong></td></tr>
+                </tbody>
+              </table>
+            ` : `
+              <div style="overflow-x:auto">
+                <table>
+                  <thead>
+                    <tr><th>Mo</th><th>Clients</th><th>Util %</th><th>ABA Rev</th><th>Gym Rev</th><th>Total Rev</th><th>RBTs/BCBAs</th><th>Clinical Labor</th><th>Facility OpEx</th><th>EBITDA</th><th>Debt Svc</th><th>Net Cash</th><th>Cumulative Cash</th></tr>
+                  </thead>
+                  <tbody>
+                    ${pf.months.map(m => `
+                      <tr>
+                        <td><strong>M${m.month}</strong></td>
+                        <td>${m.activeClients}</td>
+                        <td>${m.utilizationPct}%</td>
+                        <td>${fmt$(m.netAbaRevenue)}</td>
+                        <td>${fmt$(m.ancillaryGymRevenue)}</td>
+                        <td><strong>${fmt$(m.totalRevenue)}</strong></td>
+                        <td>${m.rbtHeadcount} / ${m.bcbaHeadcount}</td>
+                        <td>-${fmt$(m.totalClinicalLabor)}</td>
+                        <td>-${fmt$(m.totalFacilityOpEx)}</td>
+                        <td style="color:${m.ebitda >= 0 ? '#059669' : '#dc2626'};font-weight:700">${fmt$(m.ebitda)}</td>
+                        <td>-${fmt$(m.debtService)}</td>
+                        <td style="color:${m.netCashFlow >= 0 ? '#059669' : '#dc2626'}">${fmt$(m.netCashFlow)}</td>
+                        <td style="color:${m.cumulativeCashFlow >= 0 ? '#059669' : '#dc2626'};font-weight:800">${fmt$(m.cumulativeCashFlow)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+        `;
+      }
+    }
+
+    function renderAllForPdf() {
+      const pf = calculateModel(cfg);
+      const sp = pf.space, cx = pf.capex, ue = pf.unitEconomics, kp = pf.kpis;
+      document.querySelector('.scenario-bar').style.display = 'none';
+      document.querySelector('.tabs').style.display = 'none';
+      currentTab = 'overview';
+      render();
+      const overviewRightCol = `
+        <div class="card">
+          <h3><span>1. Architectural Space Allocation & Sensory Gym Zones</span><span>${sp.totalSqFt.toLocaleString()} sq ft Total (${sp.maxClinicClientCapacity}-Client Capacity)</span></h3>
+          <div class="space-bar">
+            <div style="width:${sp.gymSqFtPct}%;background:#0d9488;display:flex;align-items:center;justify-content:center">Gym ${sp.gymSqFtPct}% (${sp.gymSqFt.toLocaleString()} sf)</div>
+            <div style="width:${sp.dttRoomsPct}%;background:#4f46e5;display:flex;align-items:center;justify-content:center">DTT ${sp.dttRoomsPct}% (${sp.dttSqFt.toLocaleString()} sf)</div>
+            <div style="width:${sp.groupRoomsPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center">Group ${sp.groupRoomsPct}%</div>
+            <div style="width:${sp.calmingRoomsPct}%;background:#7c3aed;display:flex;align-items:center;justify-content:center">Calm ${sp.calmingRoomsPct}%</div>
+            <div style="width:${sp.adminLobbyPct}%;background:#64748b;display:flex;align-items:center;justify-content:center">Lobby</div>
+          </div>
+          <div class="space-legend">
+            <div class="space-item"><strong>🤸 Sensory & Motor Gym:</strong> ${sp.gymSqFt.toLocaleString()} sq ft (${sp.gymConcurrentCap} kids concurrent)</div>
+            <div class="space-item"><strong>🧩 1:1 DTT Therapy Suites:</strong> ${sp.dttSqFt.toLocaleString()} sq ft (${sp.dttRooms} private rooms)</div>
+            <div class="space-item"><strong>🤝 Social Skills / NET Group:</strong> ${sp.groupSqFt.toLocaleString()} sq ft (${sp.groupConcurrentCap} kids cap)</div>
+            <div class="space-item"><strong>🌊 Snoezelen Calming Suite:</strong> ${sp.calmingSqFt.toLocaleString()} sq ft (padded regulation)</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span>2. 36-Month Cumulative Cash Flow J-Curve & Equity Payback</span><span class="badge badge-green">Full Equity Payback: Month ${kp.paybackMonth}</span></h3>
+          ${renderJCurveSvg(pf.months, kp.paybackMonth)}
+        </div>
+        <div class="card">
+          <h3><span>3. Per-Client Monthly Unit Economics (${ue.weightedWeeklyHoursPerClient} hrs/wk weighted avg)</span><span class="badge badge-indigo">${ue.contributionMarginPct}% Contribution Margin</span></h3>
+          <table>
+            <thead>
+              <tr><th>Unit Metric</th><th>Monthly / Client</th><th>Annualized / Client</th><th>Clinical & Billing Basis</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Gross Billed ABA Revenue</td><td>${fmt$(ue.monthlyGrossRevPerClient)}</td><td>${fmt$(ue.monthlyGrossRevPerClient * 12)}</td><td>CPT 97153 + 97155 (12% sup) + 97156 + 97151 + 97158</td></tr>
+              <tr><td>Net Realized Revenue (${cfg.attendanceRealizationPct}%)</td><td><strong>${fmt$(ue.monthlyNetRevPerClient)}</strong></td><td><strong>${fmt$(ue.monthlyNetRevPerClient * 12)}</strong></td><td>After client attendance & payer realization</td></tr>
+              <tr><td>Direct RBT + BCBA Loaded Labor</td><td style="color:#dc2626">-${fmt$(ue.monthlyDirectLaborPerClient)}</td><td style="color:#dc2626">-${fmt$(ue.monthlyDirectLaborPerClient * 12)}</td><td>Includes ${cfg.rbtNonBillablePct}% RBT non-billable + ${cfg.payrollTaxBenefitsPct}% tax/benefits</td></tr>
+              <tr><td>Sensory Gym & Program Supplies</td><td style="color:#dc2626">-${fmt$(ue.sensorySuppliesPerClientMo)}</td><td style="color:#dc2626">-${fmt$(ue.sensorySuppliesPerClientMo * 12)}</td><td>Reinforcers, laminated PECS, gym mat sanitation</td></tr>
+              <tr class="highlight-row"><td>Net Contribution Margin / Client</td><td style="color:#059669">${fmt$(ue.monthlyContributionPerClient)}</td><td style="color:#059669">${fmt$(ue.monthlyContributionPerClient * 12)}</td><td>${ue.contributionMarginPct}% margin towards facility rent, admin & SBA loan</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+      currentTab = 'capex'; render();
+      const capexHtml = document.getElementById('tabContent').innerHTML;
+      currentTab = 'pnl'; pnlMode = 'annual'; render();
+      const pnlHtml = document.getElementById('tabContent').innerHTML;
+      currentTab = 'signups'; render();
+      const signupsHtml = document.getElementById('tabContent').innerHTML;
+      document.getElementById('tabContent').innerHTML = overviewRightCol + capexHtml + pnlHtml + signupsHtml;
+    }
+
+    if (location.search.includes('pdf=1')) {
+      renderAllForPdf();
+    } else {
+      render();
+    }
+  </script>
+</body>
+</html>

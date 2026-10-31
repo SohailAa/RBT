@@ -23,6 +23,12 @@ let fbaFilterBehavior = 'ALL';
 let fbaFilterFunction = 'ALL';
 let fbaFilterHour = null;
 let kpiPersona = null;
+let facilityData = null;
+let activeFacilityModelId = 1;
+let facilityCfg = null;
+let facilitySubTab = 'overview';
+let facilityPnlViewMode = 'annual';
+let showAddSignupForm = false;
 
 const KID_THEMES = {
   space: {
@@ -324,57 +330,56 @@ const NAV_ICONS = {
   schedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
   notes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
   supervision: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
+  facility: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></svg>`,
   presentation: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`
 };
 
 const NAV = {
   OWNER: [
-    ['dashboard', NAV_ICONS.dashboard, 'Executive Practice Ledger', 'Revenue, CPT & Productivity'],
-    ['leads', NAV_ICONS.clients, 'Inbound Growth CRM', 'MeasurePM Switches & Leads'],
-    ['clients', NAV_ICONS.clients, 'Clients 360°', 'Vitals, DTT, FBA & BIPs'],
-    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & Units'],
-    ['notes', NAV_ICONS.notes, 'Billing & Notes', 'SOAP, Claims & Dual-Sign'],
-    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Mandatory 5% Audit Radar'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
-    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+    ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Business Performance & Revenue'],
+    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, Goals & Behavior'],
+    ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
+    ['notes', NAV_ICONS.notes, 'Session Notes', 'SOAP Notes & Billing Sign-Off'],
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
+    ['leads', NAV_ICONS.clients, 'Website Leads CRM', 'Demo Requests & Prospects'],
+    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
+    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
   ],
   BCBA: [
-    ['dashboard', NAV_ICONS.dashboard, 'Practice Ledger', 'Live EVV, Roster & Burn-Down'],
-    ['clients', NAV_ICONS.clients, 'Clients 360°', 'Vitals, DTT, FBA & BIPs'],
-    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & Units'],
-    ['notes', NAV_ICONS.notes, 'Notes & Dual-Sign', 'SOAP & 21 CFR Co-Sign'],
-    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Mandatory 5% Audit Radar'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
-    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+    ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Client Progress & Behavior'],
+    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, Goals & Behavior'],
+    ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
+    ['notes', NAV_ICONS.notes, 'Session Notes', 'Review & Co-Sign Notes'],
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
+    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
+    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
   ],
   RBT: [
-    ['dashboard', NAV_ICONS.dashboard, 'My Clinical Day', 'Assigned Shift & Tasks'],
-    ['schedule', NAV_ICONS.schedule, 'Session Schedule', '1-Tap Start Session'],
-    ['clients', NAV_ICONS.clients, 'My Clients 360°', 'Vitals, DTT & ABC Logs'],
-    ['notes', NAV_ICONS.notes, 'Session Notes', 'Auto-SOAP Drafts'],
-    ['supervision', NAV_ICONS.supervision, 'My Supervision', 'BCBA Feedback & 5% Track'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
-    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+    ['dashboard', NAV_ICONS.dashboard, 'My Daily Dashboard', 'Tasks, Data Quotas & Training'],
+    ['schedule', NAV_ICONS.schedule, 'Schedule', '1-Tap Start Session'],
+    ['clients', NAV_ICONS.clients, 'My Clients', 'Goals, Trials & ABC Logs'],
+    ['notes', NAV_ICONS.notes, 'Session Notes', 'Draft Session Notes'],
+    ['supervision', NAV_ICONS.supervision, 'My Supervision', '5% Progress & Feedback'],
+    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
   ],
   ADMIN: [
-    ['dashboard', NAV_ICONS.dashboard, 'Operations & Billing Radar', 'Missing Notes, Audits & Claims'],
-    ['leads', NAV_ICONS.clients, 'Inbound Growth CRM', 'MeasurePM Switches & Leads'],
-    ['schedule', NAV_ICONS.schedule, 'Clinical Schedule', 'Session Dispatch & EVV'],
-    ['notes', NAV_ICONS.notes, 'Documentation & Claims', 'Delinquent Notes & Billing Batches'],
-    ['clients', NAV_ICONS.clients, 'Client Roster', 'Vitals, Coverage & Auths'],
-    ['supervision', NAV_ICONS.supervision, 'BACB Supervision', 'Compliance & Audits'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
-    ['website', NAV_ICONS.presentation, 'Public Website & ROI', 'MeasurePM Matrix & Sales']
+    ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Missing Notes, Sessions & Billing'],
+    ['notes', NAV_ICONS.notes, 'Notes & Billing', 'Missing Notes & Ready Claims'],
+    ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Attendance'],
+    ['clients', NAV_ICONS.clients, 'Clients', 'Profiles & Insurance Auths'],
+    ['leads', NAV_ICONS.clients, 'Website Leads CRM', 'Demo Requests & Prospects'],
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Compliance'],
+    ['facility', NAV_ICONS.facility, 'Clinic Financial Model', 'Facility & Sensory Gym Budget'],
+    ['website', NAV_ICONS.presentation, 'Public Sales Website', 'Compare vs. MeasurePM']
   ],
   PARENT: [
-    ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Approved Stories'],
-    ['presentation', NAV_ICONS.presentation, 'Founder Pitch Deck', '10-Slide Interactive Tour'],
+    ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Social Stories'],
     ['website', NAV_ICONS.presentation, 'Public Website', 'Practice Overview']
   ]
 };
 
 const brandEmblem = (cls = '') => `
-  <div class="brand-icon ${cls}" title="Effective Behavioral Approach — Unified Behavioral Health Record">
+  <div class="brand-icon ${cls}" title="Effective Behavioral Approach">
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="6" y="6" width="52" height="52" rx="11" stroke="#6ee7b7" stroke-width="1.8" opacity="0.7"/>
       <path d="M16 33C20 21 26 16 32 16C38 16 44 21 48 33C44 45 38 50 32 50C26 50 20 45 16 33Z" stroke="#38bdf8" stroke-width="2" opacity="0.55"/>
@@ -385,13 +390,12 @@ const brandEmblem = (cls = '') => `
 
 function shell(content, route) {
   const userInitials = getInitials(me.name);
-  const activeClientId = location.hash.startsWith('#client/') ? (+location.hash.split('/')[1] || 1) : 1;
   const isParent = me.role === 'PARENT';
   const floatBar = (pitchTourActive && route !== 'presentation') ? `
     <div class="pitch-float-bar">
-      <span style="font-family:var(--font-mono);font-size:0.76rem;font-weight:600;color:#6ee7b7">GUIDED TOUR · SLIDE ${pitchSlide + 1}/10</span>
+      <span style="font-family:var(--font-mono);font-size:0.76rem;font-weight:600;color:#6ee7b7">TOUR · SLIDE ${pitchSlide + 1}/10</span>
       <button class="ok" style="padding:5px 12px;font-size:0.78rem" onclick="go('presentation')">↩ Back to Deck</button>
-      ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide (${pitchSlide + 2}/10) →</button>` : ''}
+      ${pitchSlide < 9 ? `<button class="sec" style="padding:5px 12px;font-size:0.78rem" onclick="act.setPitchSlide(${pitchSlide + 1});go('presentation')">Next Slide →</button>` : ''}
       <button style="background:transparent;border:none;color:#99f6e4;padding:2px 6px;font-size:0.78rem;box-shadow:none" title="Dismiss tour bar" onclick="act.endPitchTour()">✕</button>
     </div>
   ` : '';
@@ -399,73 +403,30 @@ function shell(content, route) {
   const caseloadWidget = !isParent ? `
     <div>
       <div class="sidebar-section-label">
-        <span>Active Caseload Pinboard</span>
-        <span style="color:#38bdf8">1-Tap Jump</span>
+        <span>Quick Client Access</span>
       </div>
       <div class="sidebar-widget">
-        <div class="sidebar-client-list">
-          <div class="sidebar-client-row" onclick="go('client', 1)" title="Open Eleanor Carter 360° Record">
+        <div class="sidebar-client-list" style="margin-top:0">
+          <div class="sidebar-client-row" onclick="go('client', 1)">
             <div class="sidebar-client-avatar">EC</div>
             <div class="sidebar-client-info">
               <div class="sidebar-client-name">Eleanor Carter</div>
-              <div class="sidebar-client-meta">ASD · AAC + Vocal · 97153</div>
+              <div class="sidebar-client-meta">Open Profile / Goals</div>
             </div>
-            <button class="sidebar-mini-btn" onclick="event.stopPropagation();act.start(1)" title="Start / Resume Session">▶ Session</button>
+            <button class="sidebar-mini-btn" onclick="event.stopPropagation();act.start(1)">▶ Start</button>
           </div>
-          <div class="sidebar-client-row" onclick="go('client', 2)" title="Open Leon Patel 360° Record">
+          <div class="sidebar-client-row" onclick="go('client', 2)">
             <div class="sidebar-client-avatar" style="background:linear-gradient(135deg,#0284c7,#0f766e)">LP</div>
             <div class="sidebar-client-info">
               <div class="sidebar-client-name">Leon Patel</div>
-              <div class="sidebar-client-meta">ASD · PECS Phase IV · 97153</div>
+              <div class="sidebar-client-meta">Open Profile / Goals</div>
             </div>
-            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 2)" title="Open 360° Record">360° →</button>
+            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 2)">Open →</button>
           </div>
         </div>
-
-        <div class="sidebar-pillar-chips">
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'overview')">01 Overview</button>
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'skills')">02 DTT Goals</button>
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'behavior_abc')">03 FBA & ABC</button>
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'plans')">04 BIP Plans</button>
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(${activeClientId}, 'stories')">05 Stories</button>
-          <button class="sidebar-pillar-chip" style="background:linear-gradient(135deg,rgba(16,185,129,0.35),rgba(2,132,199,0.35))!important;color:#fff!important" onclick="act.openAbcModal(${activeClientId})">+ Log ABC</button>
-        </div>
       </div>
     </div>
-
-    <div>
-      <div class="sidebar-section-label">
-        <span>Clinic Compliance Radar</span>
-        <span style="color:#6ee7b7">≥5% BACB</span>
-      </div>
-      <div class="sidebar-widget" style="cursor:pointer" onclick="go('supervision')" title="Click to open BACB Monthly Supervision Tracker">
-        <div class="flex-between" style="font-size:0.74rem;font-weight:700;color:#ecfeff">
-          <span>BACB RBT Supervision</span>
-          <span style="font-family:var(--font-mono);color:#6ee7b7">COMPLIANT</span>
-        </div>
-        <div class="sidebar-radar-bar">
-          <div class="sidebar-radar-fill" style="width:78%"></div>
-        </div>
-        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.63rem;color:#99f6e4;margin-top:4px">
-          <span>CMS 8-Min Rule: ON</span>
-          <span>CPT 97153 / 97155</span>
-        </div>
-      </div>
-    </div>
-  ` : `
-    <div>
-      <div class="sidebar-section-label">
-        <span>Family Quick Access</span>
-        <span style="color:#6ee7b7">Guarded View</span>
-      </div>
-      <div class="sidebar-widget">
-        <div class="sidebar-pillar-chips" style="grid-template-columns:1fr 1fr;margin-top:0;padding-top:0;border-top:none">
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(1, 'goals')">Skill Goals</button>
-          <button class="sidebar-pillar-chip" onclick="act.quickPillar(1, 'stories')">Social Stories</button>
-        </div>
-      </div>
-    </div>
-  `;
+  ` : '';
 
   return `
   <div class="layout">
@@ -475,29 +436,23 @@ function shell(content, route) {
           ${brandEmblem()}
           <div>
             <div class="brand-title">Effective Behavioral</div>
-            <div class="brand-sub">Ocean & Emerald Clinical OS</div>
+            <div class="brand-sub">ABA Practice & Data Tracker</div>
           </div>
-        </div>
-        <div class="sidebar-telemetry-pill">
-          <span><span class="pulse-dot"></span>EVV & FBA SYNCED</span>
-          <span style="color:#38bdf8;font-weight:700">UBHR v3.4</span>
         </div>
       </div>
 
       <div>
         <div class="sidebar-section-label">
-          <span>Clinical Command Modules</span>
-          <span>01–0${NAV[me.role].length}</span>
+          <span>Main Menu</span>
         </div>
         <div class="nav-links">
-          ${NAV[me.role].map(([r, ic, l, sub], idx) => `
+          ${NAV[me.role].map(([r, ic, l, sub]) => `
             <a class="${route === r ? 'on' : ''}" onclick="go('${r}')">
               <span class="nav-ic-emblem">${ic}</span>
               <div class="nav-item-text">
                 <div class="nav-item-title">${l}</div>
                 <div class="nav-item-sub">${sub || ''}</div>
               </div>
-              <span class="nav-item-badge">0${idx + 1}</span>
             </a>
           `).join('')}
         </div>
@@ -513,14 +468,14 @@ function shell(content, route) {
             <span class="user-role-badge">${esc(me.role)}</span>
           </div>
         </div>
-        <div style="font-family:var(--font-mono);font-size:0.6rem;color:#99f6e4;text-transform:uppercase;letter-spacing:0.06em;margin-top:2px">1-Tap Instant Role Switch:</div>
+        <div style="font-size:0.68rem;color:#99f6e4;font-weight:600;margin-top:2px">Switch Role (1-Click):</div>
         <div class="sidebar-role-switcher" style="grid-template-columns: repeat(4, 1fr); gap: 4px;">
           <button class="role-switch-btn ${me.role === 'OWNER' ? 'active' : ''}" onclick="act.demoLogin('owner@eba.test')">Owner</button>
           <button class="role-switch-btn ${me.role === 'BCBA' ? 'active' : ''}" onclick="act.demoLogin('bcba@eba.test')">BCBA</button>
           <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
           <button class="role-switch-btn ${me.role === 'ADMIN' ? 'active' : ''}" onclick="act.demoLogin('admin@eba.test')">Admin</button>
         </div>
-        <a class="nav-logout" onclick="act.logout()">Sign Out of Workspace</a>
+        <a class="nav-logout" onclick="act.logout()">Sign Out</a>
       </div>
     </nav>
     <main>
@@ -542,56 +497,32 @@ function loginView(err) {
       <div class="login-brand">
         ${brandEmblem('lg')}
         <div>
-          <span class="badge p" style="margin-bottom:4px;font-size:0.68rem">PEDIATRIC ABA CLINICAL LEDGER</span>
-          <h2 style="margin:0;font-size:1.45rem;font-weight:600;color:var(--slate-900)">Effective Behavioral Approach</h2>
-          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--slate-500);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:3px">Unified Clinical Practice & Field Record</div>
+          <span class="badge p" style="margin-bottom:4px">ABA PRACTICE & CLINICAL PLATFORM</span>
+          <h2 style="margin:0;font-size:1.45rem;font-weight:700;color:var(--slate-900)">Effective Behavioral Approach</h2>
+          <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">All-in-One Data Collection, Progress Tracking & Practice Management</div>
         </div>
       </div>
-      
-      <p style="font-size:0.9rem;color:var(--slate-600);margin:12px 0 16px">
-        Sign in to access real-time session tracking, unified FBA & ABC behavioral records, and dual-signature clinical documentation.
-      </p>
 
-      <div onclick="window.location.href='/website.html'" style="cursor:pointer;background:linear-gradient(135deg,#d4f2ea 0%,#c7ebf6 100%);border:1.5px solid #4fb3ad;border-left:4px solid var(--primary);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-sm);transition:transform 0.14s ease" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-        <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
-          <div class="role-emblem" style="background:#042e39;color:#fff;border-color:#2dd4bf;width:40px;height:40px;font-size:1.05rem;flex-shrink:0">🌐</div>
+      <!-- Public Sales Website Banner -->
+      <div onclick="window.location.href='/website.html'" style="cursor:pointer;background:#f0fdfa;border:1.5px solid #2dd4bf;border-left:4px solid #059669;border-radius:var(--radius-lg);padding:12px 14px;margin:14px 0 18px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <div class="role-emblem" style="background:#059669;color:#fff;width:38px;height:38px;font-size:1rem;flex-shrink:0">🌐</div>
           <div style="min-width:0">
-            <div style="font-family:var(--font-mono);font-size:0.64rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:0.06em">Public Product Website & B2B Sales</div>
-            <div style="font-family:var(--font-serif);font-size:0.88rem;font-weight:700;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">MeasurePM Matrix & ROI Calculator</div>
+            <div style="font-size:0.72rem;font-weight:700;color:#047857;text-transform:uppercase">Public Sales Website</div>
+            <div style="font-size:0.88rem;font-weight:700;color:var(--slate-900)">Compare vs. MeasurePM & ROI Calculator</div>
           </div>
         </div>
-        <button class="ok" style="padding:8px 13px;font-size:0.78rem;white-space:nowrap;flex-shrink:0" onclick="event.stopPropagation();window.location.href='/website.html'">Visit Website →</button>
+        <button class="ok" style="padding:8px 13px;font-size:0.8rem;white-space:nowrap" onclick="event.stopPropagation();window.location.href='/website.html'">Open Website →</button>
       </div>
 
-      <div onclick="go('presentation')" style="cursor:pointer;background:var(--slate-50);border:1.5px solid var(--slate-300);border-left:4px solid var(--accent-clay);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:var(--shadow-sm);transition:transform 0.14s ease" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
-        <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
-          <div class="role-emblem" style="background:var(--primary);color:#F7F4EC;border-color:#D4A359;width:40px;height:40px;font-size:0.88rem;font-family:var(--font-mono);flex-shrink:0">EBA</div>
-          <div style="min-width:0">
-            <div style="font-family:var(--font-mono);font-size:0.64rem;font-weight:700;color:var(--accent-clay);text-transform:uppercase;letter-spacing:0.06em">Founder & Clinical Monograph</div>
-            <div style="font-family:var(--font-serif);font-size:0.88rem;font-weight:700;color:var(--slate-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Interactive Competitive Deck & Live Tour</div>
-          </div>
-        </div>
-        <button class="sec" style="padding:8px 13px;font-size:0.78rem;white-space:nowrap;flex-shrink:0" onclick="event.stopPropagation();go('presentation')">Open Pitch Deck →</button>
-      </div>
-
-      <label>Clinician / Guardian Email</label>
-      <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
-      
-      <label>Secure Password</label>
-      <input id="pw" type="password" value="password" autocomplete="current-password">
-      
-      <button style="width:100%;padding:12px;font-size:0.96rem;margin-top:6px" onclick="act.login()">Enter Clinical Workspace</button>
-      
-      ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
-
-      <div class="demo-pills">
-        <div style="font-family:var(--font-mono);font-size:0.68rem;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">1-Tap Clinical Role Credentials:</div>
+      <div class="demo-pills" style="margin-top:0;margin-bottom:16px">
+        <div style="font-size:0.78rem;font-weight:700;color:var(--slate-700);margin-bottom:6px">Choose a Role to Log In (1-Click Demo):</div>
         <div class="demo-pill" onclick="act.demoLogin('owner@eba.test')">
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem" style="background:#0b5d5e;color:#fff">SJ</span>
             <div>
-              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Sarah Jenkins</div>
-              <div style="font-size:0.75rem;color:var(--slate-500)">Practice Owner & CEO</div>
+              <div style="font-weight:700;color:var(--slate-900)">Practice Owner (Sarah Jenkins)</div>
+              <div style="font-size:0.76rem;color:var(--slate-500)">See overall business performance and revenue</div>
             </div>
           </div>
           <span class="badge p">Owner</span>
@@ -600,8 +531,8 @@ function loginView(err) {
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem">DR</span>
             <div>
-              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Dr. Dana Rivera, BCBA</div>
-              <div style="font-size:0.75rem;color:var(--slate-500)">Supervising Clinical Director</div>
+              <div style="font-weight:700;color:var(--slate-900)">BCBA Supervisor (Dr. Dana Rivera)</div>
+              <div style="font-size:0.76rem;color:var(--slate-500)">Monitor client progress and identify patterns in behavior</div>
             </div>
           </div>
           <span class="badge sen">BCBA</span>
@@ -610,8 +541,8 @@ function loginView(err) {
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem">SL</span>
             <div>
-              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Sam Lee, RBT</div>
-              <div style="font-size:0.75rem;color:var(--slate-500)">Registered Behavior Technician</div>
+              <div style="font-weight:700;color:var(--slate-900)">RBT Therapist (Sam Lee)</div>
+              <div style="font-size:0.76rem;color:var(--slate-500)">See assigned tasks, data collection requirements & training</div>
             </div>
           </div>
           <span class="badge tan">RBT</span>
@@ -620,8 +551,8 @@ function loginView(err) {
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem" style="background:#0284c7;color:#fff">MV</span>
             <div>
-              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Marcus Vance</div>
-              <div style="font-size:0.75rem;color:var(--slate-500)">Operations & Billing Lead</div>
+              <div style="font-weight:700;color:var(--slate-900)">Administrator (Marcus Vance)</div>
+              <div style="font-size:0.76rem;color:var(--slate-500)">Identify missing notes, incomplete sessions & billing issues</div>
             </div>
           </div>
           <span class="badge esc">Admin</span>
@@ -630,17 +561,26 @@ function loginView(err) {
           <div style="display:flex;align-items:center;gap:12px">
             <span class="role-emblem">MC</span>
             <div>
-              <div style="font-family:var(--font-serif);font-weight:600;color:var(--slate-900)">Mrs. Carter</div>
-              <div style="font-size:0.75rem;color:var(--slate-500)">Eleanor's Parent / Guardian</div>
+              <div style="font-weight:700;color:var(--slate-900)">Parent / Family (Mrs. Carter)</div>
+              <div style="font-size:0.76rem;color:var(--slate-500)">View child goals and approved social stories</div>
             </div>
           </div>
           <span class="badge att">Parent</span>
         </div>
       </div>
-      
-      <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--slate-500);text-align:center;margin-top:20px;font-weight:500">
-        HIPAA & 21 CFR PART 11 ISOLATION · ZERO-PHI SYNTHETIC CLINICAL SANDBOX
-      </div>
+
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:var(--slate-500)">Or sign in with email & password</summary>
+        <div style="margin-top:10px">
+          <label>Email</label>
+          <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
+          <label>Password</label>
+          <input id="pw" type="password" value="password" autocomplete="current-password">
+          <button style="width:100%;padding:10px;margin-top:8px" onclick="act.login()">Sign In</button>
+        </div>
+      </details>
+
+      ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
     </div>
   </div>`;
 }
@@ -654,195 +594,152 @@ function renderOwnerKpi(d) {
   const inb = o.inboundPipeline || { totalLeads: 0, newLeadsCount: 0, measurePmProspectsCount: 0, demoScheduledCount: 0 };
 
   return `
-  <!-- Executive Financial & Practice Health Cards -->
-  <div class="grid">
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Gross Revenue MTD</div>
-        <span class="badge p">FINANCIAL</span>
+  <!-- Clear Role Focus Bar -->
+  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:#f0fdfa;border-top:none;border-left:4px solid #059669">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:#047857;text-transform:uppercase">Owner View</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Overall Business Performance & Monthly Revenue</div>
       </div>
-      <div class="stat" style="color:var(--primary)">$${(o.totalRevenueMtd || 0).toLocaleString()}</div>
-      <div class="stat-sub">Projected: <b>$${(o.projectedMonthlyRevenue || 0).toLocaleString()}</b>/mo · Avg $${(o.avgRevenuePerClient || 0).toLocaleString()}/client</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Delivered Billable Hours</div>
-        <span class="badge sen">CPT UNITS</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('facility')">🏗️ Clinic & Gym Budget Model</button>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('leads')">📈 Website Leads (${inb.totalLeads})</button>
       </div>
-      <div class="stat" style="color:var(--sensory)">${o.totalBillableHours || 0} <span style="font-size:1.1rem;font-weight:600">hrs</span></div>
-      <div class="stat-sub">${o.totalBillableUnits || 0} CMS 15-min Units logged this month</div>
-    </div>
-    <div class="stat-card ok">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Claim Realization Rate</div>
-        <span class="badge tan">BILLING</span>
-      </div>
-      <div class="stat" style="color:var(--ok)">${o.realizationRate ?? 100}%</div>
-      <div class="stat-sub">${(d.adminKpi?.billingAndClaims?.claimsReadyCount) || 0} signed notes ready for 837P clearinghouse</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Caseload Capacity</div>
-        <span class="badge">CAPACITY</span>
-      </div>
-      <div class="stat">${cap.activeClients} <span style="font-size:1.1rem;font-weight:600">/ ${cap.targetCaseload}</span></div>
-      <div class="stat-sub">${cap.utilizationPct}% clinic capacity · Payer burn ${pipe.overallBurnPct}%</div>
-    </div>
-    <div class="stat-card ${inb.newLeadsCount > 0 ? 'warn' : 'ok'}" onclick="location.hash='#leads'" style="cursor:pointer" title="Click to open Inbound Growth CRM">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Inbound Practice Leads</div>
-        <span class="badge ${inb.newLeadsCount > 0 ? 'bad' : 'ok'}">${inb.newLeadsCount > 0 ? `${inb.newLeadsCount} NEW` : 'CRM ACTIVE'}</span>
-      </div>
-      <div class="stat" style="color:var(--primary)">${inb.totalLeads} <span style="font-size:1rem;color:var(--slate-500)">leads</span></div>
-      <div class="stat-sub"><b>${inb.measurePmProspectsCount}</b> switching from MeasurePM · <b>${inb.demoScheduledCount}</b> demos scheduled →</div>
     </div>
   </div>
 
-  <!-- CPT Fee Schedule Breakdown Table -->
+  <!-- 4 Simple Summary Cards -->
+  <div class="grid">
+    <div class="stat-card ok">
+      <div class="stat-label">Monthly Revenue (MTD)</div>
+      <div class="stat" style="color:var(--ok)">$${(o.totalRevenueMtd || 0).toLocaleString()}</div>
+      <div class="stat-sub">Projected full month: <b>$${(o.projectedMonthlyRevenue || 0).toLocaleString()}</b></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Billable Hours Delivered</div>
+      <div class="stat" style="color:var(--primary)">${o.totalBillableHours || 0} <span style="font-size:1rem">hrs</span></div>
+      <div class="stat-sub">${o.totalBillableUnits || 0} billing units (15-min)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Clients</div>
+      <div class="stat">${cap.activeClients} <span style="font-size:1rem;color:var(--slate-400)">/ ${cap.targetCaseload}</span></div>
+      <div class="stat-sub">${cap.utilizationPct}% clinic capacity filled</div>
+    </div>
+    <div class="stat-card" onclick="go('leads')" style="cursor:pointer">
+      <div class="stat-label">New Clinic Leads</div>
+      <div class="stat" style="color:var(--accent)">${inb.totalLeads}</div>
+      <div class="stat-sub"><b>${inb.measurePmProspectsCount}</b> switching from MeasurePM →</div>
+    </div>
+  </div>
+
+  <!-- 1. Revenue by Service Code -->
   <div class="card">
-    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
       <div>
-        <h3 style="margin:0 0 4px">CPT Fee Schedule & Revenue Contribution Ledger</h3>
-        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Current month-to-date delivered services by ABA billing code.</p>
+        <h3 style="margin:0 0 2px">1. Revenue Breakdown by Service Code (CPT)</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">How much revenue each ABA therapy service generated this month.</p>
       </div>
-      <span class="badge p">CMS 8-Minute Compliant</span>
+      <span class="badge ok">Avg $${(o.avgRevenuePerClient || 0).toLocaleString()} / client</span>
     </div>
     <div class="table-responsive">
       <table>
         <thead>
           <tr>
             <th>CPT Code</th>
-            <th>Service Description</th>
-            <th style="text-align:right">Delivered Units</th>
-            <th style="text-align:right">Delivered Hours</th>
-            <th style="text-align:right">Fee Schedule</th>
-            <th style="text-align:right">Revenue MTD</th>
-            <th style="text-align:right">Revenue Share</th>
+            <th>Service</th>
+            <th style="text-align:right">Hours</th>
+            <th style="text-align:right">Units (15m)</th>
+            <th style="text-align:right">Hourly Rate</th>
+            <th style="text-align:right">Revenue</th>
           </tr>
         </thead>
         <tbody>
           ${['cpt97153', 'cpt97155', 'cpt97156', 'cpt97151'].map(key => {
             const item = cpt[key] || { code: key.replace('cpt', ''), units: 0, hours: 0, hrRate: 0, total: 0, label: '' };
-            const share = o.totalRevenueMtd > 0 ? Math.round((item.total / o.totalRevenueMtd) * 100) : 0;
             return `
               <tr>
-                <td><b style="font-family:var(--font-mono);font-size:0.92rem;color:var(--primary)">${esc(item.code)}</b></td>
-                <td><span style="font-weight:600">${esc(item.label)}</span></td>
-                <td style="text-align:right;font-family:var(--font-mono)">${item.units} units</td>
-                <td style="text-align:right;font-family:var(--font-mono)">${item.hours} hrs</td>
-                <td style="text-align:right;font-family:var(--font-mono)">$${item.hrRate}/hr <span style="font-size:0.75rem;color:var(--slate-500)">($${(item.hrRate/4).toFixed(2)}/u)</span></td>
-                <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--slate-900)">$${(item.total || 0).toLocaleString()}</td>
-                <td style="text-align:right"><span class="badge ${share > 40 ? 'p' : 'sec'}">${share}%</span></td>
+                <td><b>${esc(item.code)}</b></td>
+                <td>${esc(item.label)}</td>
+                <td style="text-align:right">${item.hours} hrs</td>
+                <td style="text-align:right">${item.units}</td>
+                <td style="text-align:right">$${item.hrRate}/hr</td>
+                <td style="text-align:right;font-weight:700">$${(item.total || 0).toLocaleString()}</td>
               </tr>
             `;
           }).join('')}
         </tbody>
         <tfoot>
-          <tr style="background:var(--slate-50);font-weight:700">
-            <td colspan="2"><b>Practice Total (MTD)</b></td>
-            <td style="text-align:right;font-family:var(--font-mono)">${o.totalBillableUnits || 0} units</td>
-            <td style="text-align:right;font-family:var(--font-mono)">${o.totalBillableHours || 0} hrs</td>
-            <td style="text-align:right;font-family:var(--font-mono)">Blended Yield</td>
-            <td style="text-align:right;font-family:var(--font-mono);color:var(--primary);font-size:1.05rem">$${(o.totalRevenueMtd || 0).toLocaleString()}</td>
-            <td style="text-align:right"><span class="badge ok">100%</span></td>
+          <tr style="font-weight:700">
+            <td colspan="2" style="background:#f0f8f8"><b>Total This Month</b></td>
+            <td style="text-align:right;background:#f0f8f8">${o.totalBillableHours || 0} hrs</td>
+            <td style="text-align:right;background:#f0f8f8">${o.totalBillableUnits || 0}</td>
+            <td style="text-align:right;background:#f0f8f8">—</td>
+            <td style="text-align:right;background:#f0f8f8;color:var(--ok);font-size:1.02rem">$${(o.totalRevenueMtd || 0).toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>
     </div>
   </div>
 
+  <!-- 2. Staff Utilization & Insurance Hours -->
   <div class="row">
-    <!-- Clinician Productivity Table -->
-    <div class="card" style="flex:1.4">
-      <div class="flex-between" style="margin-bottom:6px">
-        <div>
-          <h3 style="margin:0 0 4px">Clinician Billable Productivity</h3>
-          <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Monthly billable target utilization vs direct therapy hours delivered.</p>
-        </div>
-        <span class="badge tan">Staff Utilization</span>
-      </div>
+    <div class="card" style="flex:1.3">
+      <h3 style="margin:0 0 2px">2. Staff Billable Hours</h3>
+      <p style="margin:0 0 10px;font-size:0.84rem;color:var(--slate-500)">Hours logged by each therapist compared to their monthly goal.</p>
       <table>
         <thead>
           <tr>
-            <th>Clinician</th>
+            <th>Staff Member</th>
             <th>Role</th>
             <th>Hours Logged</th>
-            <th>Target Progress</th>
-            <th>Status</th>
+            <th>Goal Progress</th>
           </tr>
         </thead>
         <tbody>
-          ${prod.map(p => {
-            const isHigh = p.utilizationPct >= 70;
-            const isPacing = p.utilizationPct >= 30;
-            return `
-              <tr>
-                <td>
-                  <div style="display:flex;align-items:center;gap:10px">
-                    <div class="user-avatar" style="width:34px;height:34px;font-size:0.8rem">${getInitials(p.name)}</div>
-                    <div>
-                      <b style="font-family:var(--font-serif)">${esc(p.name)}</b>
-                    </div>
-                  </div>
-                </td>
-                <td><span class="badge ${p.role === 'BCBA' ? 'sen' : 'tan'}">${esc(p.role)}</span></td>
-                <td><span style="font-family:var(--font-mono);font-weight:600">${p.billableHours} hrs</span> <span style="font-size:0.75rem;color:var(--slate-500)">(${p.billableUnits} u)</span></td>
-                <td style="min-width:140px">
-                  <div class="flex-between" style="font-size:0.75rem;font-family:var(--font-mono);margin-bottom:3px">
-                    <span>${p.utilizationPct}%</span>
-                    <span>${p.targetHours}h goal</span>
-                  </div>
-                  <div class="bar" style="height:6px"><div style="width:${p.utilizationPct}%;background:${isHigh ? 'var(--ok)' : isPacing ? 'var(--accent)' : 'var(--warn)'}"></div></div>
-                </td>
-                <td><span class="tag ${isHigh ? 'approved' : 'draft'}">${isHigh ? 'High Yield' : isPacing ? 'On Track' : 'Pacing'}</span></td>
-              </tr>
-            `;
-          }).join('')}
+          ${prod.map(p => `
+            <tr>
+              <td><b>${esc(p.name)}</b></td>
+              <td><span class="badge ${p.role === 'BCBA' ? 'sen' : 'tan'}">${esc(p.role)}</span></td>
+              <td><b>${p.billableHours} hrs</b> / ${p.targetHours}h</td>
+              <td style="min-width:120px">
+                <div style="font-size:0.75rem;font-weight:600;margin-bottom:3px">${p.utilizationPct}%</div>
+                <div class="bar" style="height:6px"><div style="width:${p.utilizationPct}%;background:var(--ok)"></div></div>
+              </td>
+            </tr>
+          `).join('')}
         </tbody>
       </table>
     </div>
 
-    <!-- Payer Pipeline & Authorization Burn -->
     <div class="card" style="flex:1">
-      <div class="flex-between" style="margin-bottom:6px">
+      <div class="flex-between" style="margin-bottom:8px">
         <div>
-          <h3 style="margin:0 0 4px">Payer Authorizations</h3>
-          <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Insurance units authorized vs consumed.</p>
+          <h3 style="margin:0 0 2px">3. Insurance Authorizations</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Approved insurance units used vs. remaining.</p>
         </div>
-        <span class="badge ${pipe.atRiskCount > 0 ? 'bad' : 'ok'}">${pipe.atRiskCount} At Risk</span>
+        <span class="badge ${pipe.atRiskCount > 0 ? 'bad' : 'ok'}">${pipe.atRiskCount} Near Limit</span>
       </div>
 
-      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+      <div style="background:var(--slate-50);padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
         <div class="flex-between" style="font-size:0.85rem;margin-bottom:6px">
-          <span>Overall Pipeline Burn Rate</span>
-          <b style="font-family:var(--font-mono)">${pipe.overallBurnPct}% Burned</b>
+          <span>Total Units Used</span>
+          <b>${pipe.overallBurnPct}% (${pipe.totalUsedUnits} / ${pipe.totalAuthorizedUnits} units)</b>
         </div>
-        <div class="bar" style="height:10px"><div style="width:${pipe.overallBurnPct}%;background:${pipe.overallBurnPct >= 80 ? 'var(--bad)' : 'var(--primary)'}"></div></div>
-        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin-top:8px">
-          <span>Used: <b>${pipe.totalUsedUnits}</b> u</span>
-          <span>Remaining: <b>${pipe.remainingUnits}</b> u</span>
-          <span>Authorized: <b>${pipe.totalAuthorizedUnits}</b> u</span>
+        <div class="bar" style="height:8px"><div style="width:${pipe.overallBurnPct}%;background:${pipe.overallBurnPct >= 80 ? 'var(--bad)' : 'var(--primary)'}"></div></div>
+        <div style="font-size:0.78rem;color:var(--slate-500);margin-top:6px">
+          <b>${pipe.remainingUnits}</b> authorized units remaining across all clients.
         </div>
       </div>
 
-      ${(d.auths && d.auths.length) ? `
-        <div style="font-size:0.78rem;font-weight:700;color:var(--slate-600);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Authorizations Nearing Expiration (≥80%):</div>
-        ${d.auths.slice(0, 3).map(a => {
-          const pct = Math.round((a.used / a.authorized) * 100);
-          return `
-            <div style="padding:8px 10px;background:#fff;border-radius:var(--radius-sm);border:1px solid var(--slate-200);margin-bottom:8px">
-              <div class="flex-between" style="font-size:0.85rem">
-                <b>${esc(a.client)}</b>
-                <span class="badge ${pct >= 90 ? 'bad' : 'tan'}">${pct}% Used</span>
-              </div>
-              <div class="flex-between" style="font-size:0.75rem;color:var(--slate-500);margin-top:2px">
-                <span>CPT ${esc(a.code)}</span>
-                <span style="font-family:var(--font-mono)">${a.used}/${a.authorized} units</span>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:12px">All authorizations have healthy capacity (&lt;80% burned).</p>'}
+      ${(d.auths && d.auths.length) ? d.auths.slice(0, 3).map(a => {
+        const pct = Math.round((a.used / a.authorized) * 100);
+        return `
+          <div style="padding:8px 10px;background:var(--slate-50);border-radius:var(--radius-sm);border:1px solid var(--slate-200);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;font-size:0.84rem">
+            <span><b>${esc(a.client)}</b> (CPT ${esc(a.code)})</span>
+            <span class="badge ${pct >= 90 ? 'bad' : 'tan'}">${pct}% used (${a.used}/${a.authorized})</span>
+          </div>
+        `;
+      }).join('') : '<p style="color:var(--slate-500);font-size:0.84rem">All client authorizations have plenty of units remaining.</p>'}
     </div>
   </div>
   `;
@@ -861,151 +758,120 @@ function renderBcbaKpi(d) {
   const peak = beh.peakDisruptionWindow || { label: '10:00 AM', count: 2, primaryAntecedent: 'Transition from preferred activity' };
 
   return `
-  <!-- Clinical Velocity & Progress Overview -->
-  <div class="grid">
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Active Program Targets</div>
-        <span class="badge p">SKILL ACQ</span>
+  <!-- Clear Role Focus Bar -->
+  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:#f0fdfa;border-top:none;border-left:4px solid #0d9488">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:#0f766e;text-transform:uppercase">BCBA View</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Monitor Client Progress & Identify Patterns in Behavior</div>
       </div>
-      <div class="stat" style="color:var(--primary)">${prog.activeProgramsCount || 0}</div>
-      <div class="stat-sub"><b>${prog.masteredCount || 0}</b> targets mastered MTD · Velocity: High</div>
-    </div>
-    <div class="stat-card ok">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Caseload Maladaptive Trend</div>
-        <span class="badge tan">FBA METRICS</span>
-      </div>
-      <div class="stat" style="color:var(--ok)">${beh.pctChange || -25}%</div>
-      <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> vs baseline (${beh.totalMaladaptiveEvents || 0} incidents)</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Treatment Integrity Fidelity</div>
-        <span class="badge sen">COMPLIANCE</span>
-      </div>
-      <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
-      <div class="stat-sub">100% Procedural protocol fidelity on RBT observation</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Trial-by-Trial IOA</div>
-        <span class="badge">RELIABILITY</span>
-      </div>
-      <div class="stat">${beh.averageIoaAgreement || 92}%</div>
-      <div class="stat-sub">Interobserver agreement verified (&gt;80% standard)</div>
+      <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">Open Client Profiles →</button>
     </div>
   </div>
 
-  <!-- Clinical Action Radar: Mastery Met, Target Stalled, Regression Watchlist -->
+  <!-- 4 Simple Summary Cards -->
+  <div class="grid">
+    <div class="stat-card">
+      <div class="stat-label">Active Skill Goals</div>
+      <div class="stat" style="color:var(--primary)">${prog.activeProgramsCount || 0}</div>
+      <div class="stat-sub"><b>${prog.masteredCount || 0}</b> goals mastered this month</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="stat-label">Behavior Trend</div>
+      <div class="stat" style="color:var(--ok)">${beh.pctChange || -25}%</div>
+      <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> (${beh.totalMaladaptiveEvents || 0} total incidents)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Treatment Fidelity</div>
+      <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
+      <div class="stat-sub">RBT adherence to program steps</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Observer Agreement (IOA)</div>
+      <div class="stat">${beh.averageIoaAgreement || 92}%</div>
+      <div class="stat-sub">Data reliability across therapists</div>
+    </div>
+  </div>
+
+  <!-- 1. Client Progress: Ready to Master vs Stalled -->
   <div class="row">
-    <!-- Mastery Criteria Met Queue -->
-    <div class="card" style="flex:1;border-top:4px solid var(--ok)">
-      <div class="flex-between" style="margin-bottom:6px">
+    <div class="card" style="flex:1;border-top:3px solid var(--ok)">
+      <div class="flex-between" style="margin-bottom:8px">
         <div>
-          <h3 style="margin:0 0 2px">🎯 Mastery Criteria Met</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Learners achieved ≥80% across 3 consecutive sessions.</p>
+          <h3 style="margin:0 0 2px">1A. Goals Ready to Master</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Clients who scored ≥80% across 3 sessions in a row.</p>
         </div>
         <span class="tag approved">${(prog.criteriaMetAlerts || []).length} Ready</span>
       </div>
-      ${(prog.criteriaMetAlerts && prog.criteriaMetAlerts.length) ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-          ${prog.criteriaMetAlerts.map(a => `
-            <div style="background:#fff;padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:12px">
-              <div>
-                <b style="font-family:var(--font-serif);color:var(--slate-900)">${esc(a.clientName)}</b>
-                <div style="font-size:0.82rem;color:var(--primary);font-weight:600;margin-top:2px">${esc(a.title)}</div>
-                <div style="font-size:0.75rem;color:var(--slate-500);font-family:var(--font-mono)">Score: <b>${esc(a.numDenom)}</b> (${a.avgPct}%)</div>
-              </div>
-              <button class="ok" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="act.quickMasterGoal(${a.goalId})">✓ Master & Maintenance</button>
-            </div>
-          `).join('')}
+      ${(prog.criteriaMetAlerts && prog.criteriaMetAlerts.length) ? prog.criteriaMetAlerts.map(a => `
+        <div style="background:var(--slate-50);padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
+          <div>
+            <b>${esc(a.clientName)}</b> — <span style="color:var(--primary);font-weight:600">${esc(a.title)}</span>
+            <div style="font-size:0.78rem;color:var(--slate-500)">Independent Score: <b>${a.avgPct}%</b> (${esc(a.numDenom)})</div>
+          </div>
+          <button class="ok" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="act.quickMasterGoal(${a.goalId})">✓ Mark Mastered</button>
         </div>
-      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">No programs currently pending mastery advancement.</p>'}
+      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0;margin:0">No goals waiting for mastery review right now.</p>'}
     </div>
 
-    <!-- Target Stalled Alert Queue -->
-    <div class="card" style="flex:1;border-top:4px solid var(--warn)">
-      <div class="flex-between" style="margin-bottom:6px">
+    <div class="card" style="flex:1;border-top:3px solid var(--warn)">
+      <div class="flex-between" style="margin-bottom:8px">
         <div>
-          <h3 style="margin:0 0 2px">⚠️ Target Stalled Radar</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Programs with ≥5 sessions without clinical acceleration.</p>
+          <h3 style="margin:0 0 2px">1B. Stalled Goals (Needs Review)</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Goals with 5+ sessions and little progress.</p>
         </div>
         <span class="tag draft">${(prog.stalledAlerts || []).length} Stalled</span>
       </div>
-      ${(prog.stalledAlerts && prog.stalledAlerts.length) ? `
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
-          ${prog.stalledAlerts.map(a => `
-            <div style="background:#fff;padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:12px">
-              <div>
-                <b style="font-family:var(--font-serif);color:var(--slate-900)">${esc(a.clientName)}</b>
-                <div style="font-size:0.82rem;color:var(--warn);font-weight:600;margin-top:2px">${esc(a.title)}</div>
-                <div style="font-size:0.75rem;color:var(--slate-500);font-family:var(--font-mono)">Current: <b>${a.currentPct}%</b> (Baseline: ${a.baselinePct}%)</div>
-              </div>
-              <button class="sec" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="go('client', ${a.clientId})">Review Prompt Hierarchy →</button>
-            </div>
-          `).join('')}
+      ${(prog.stalledAlerts && prog.stalledAlerts.length) ? prog.stalledAlerts.map(a => `
+        <div style="background:var(--slate-50);padding:11px 13px;border-radius:var(--radius-md);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px">
+          <div>
+            <b>${esc(a.clientName)}</b> — <span style="color:var(--warn);font-weight:600">${esc(a.title)}</span>
+            <div style="font-size:0.78rem;color:var(--slate-500)">Current: <b>${a.currentPct}%</b> (Started at ${a.baselinePct}%)</div>
+          </div>
+          <button class="sec" style="padding:6px 12px;font-size:0.78rem;white-space:nowrap" onclick="go('client', ${a.clientId})">Open Goal →</button>
         </div>
-      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">Zero stalled targets across active caseload.</p>'}
+      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0;margin:0">All active goals are progressing well.</p>'}
     </div>
   </div>
 
-  <!-- Behavior Patterns: 4-Function Distribution & Peak Disruption Window -->
+  <!-- 2. Behavior Patterns -->
   <div class="card">
-    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
       <div>
-        <h3 style="margin:0 0 4px">Caseload Behavior Patterns & 4-Function Analysis</h3>
-        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Aggregated ABC incident telemetry across all active client behavior intervention plans.</p>
+        <h3 style="margin:0 0 2px">2. Patterns in Behavior (Why & When Behaviors Happen)</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Summary of ABC behavior logs across your caseload.</p>
       </div>
-      <div style="display:flex;gap:8px">
-        <span class="badge esc">Dominant: ${esc(beh.dominantFunction || 'Escape')}</span>
-        <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="go('client', 1)">Open FBA Scatterplot →</button>
-      </div>
-    </div>
-
-    <!-- 4-Function Visual Segmented Bar -->
-    <div style="background:var(--slate-100);padding:14px;border-radius:var(--radius-md);margin-bottom:16px">
-      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Caseload 4-Function Distribution (% of Incidents):</div>
-      <div style="display:flex;height:24px;border-radius:var(--radius-sm);overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.1)">
-        <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Escape / Avoidance: ${escPct}%">${escPct > 10 ? `Escape ${escPct}%` : ''}</div>
-        <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Attention: ${attPct}%">${attPct > 10 ? `Attention ${attPct}%` : ''}</div>
-        <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Tangible: ${tanPct}%">${tanPct > 10 ? `Tangible ${tanPct}%` : ''}</div>
-        <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700" title="Sensory / Automatic: ${senPct}%">${senPct > 10 ? `Sensory ${senPct}%` : ''}</div>
-      </div>
-      <div class="row" style="margin-top:12px;margin-bottom:0">
-        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
-          <span style="width:10px;height:10px;border-radius:2px;background:#be123c;display:inline-block"></span>
-          <b>Escape:</b> ${fDist.Escape || 0} incidents (${escPct}%)
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
-          <span style="width:10px;height:10px;border-radius:2px;background:#0284c7;display:inline-block"></span>
-          <b>Attention:</b> ${fDist.Attention || 0} incidents (${attPct}%)
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
-          <span style="width:10px;height:10px;border-radius:2px;background:#d97706;display:inline-block"></span>
-          <b>Tangible:</b> ${fDist.Tangible || 0} incidents (${tanPct}%)
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:0.82rem">
-          <span style="width:10px;height:10px;border-radius:2px;background:#0f766e;display:inline-block"></span>
-          <b>Sensory:</b> ${fDist.Sensory || 0} incidents (${senPct}%)
-        </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="badge esc">Main Reason: ${esc(beh.dominantFunction || 'Escape')}</span>
+        <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="act.quickPillar(1, 'behavior_abc')">View Full Behavior Graphs →</button>
       </div>
     </div>
 
-    <!-- Peak Disruption Window Card -->
-    <div style="background:#fff;border-left:4px solid var(--accent);border-radius:var(--radius-md);padding:14px 16px;border:1px solid var(--slate-200);border-left-width:4px">
+    <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);margin-bottom:8px">Why Behaviors Occur (4 Functions of Behavior):</div>
+      <div style="display:flex;height:22px;border-radius:6px;overflow:hidden">
+        <div style="width:${escPct}%;background:#be123c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${escPct > 10 ? `Escape ${escPct}%` : ''}</div>
+        <div style="width:${attPct}%;background:#0284c7;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${attPct > 10 ? `Attention ${attPct}%` : ''}</div>
+        <div style="width:${tanPct}%;background:#d97706;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${tanPct > 10 ? `Tangible ${tanPct}%` : ''}</div>
+        <div style="width:${senPct}%;background:#0f766e;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.74rem;font-weight:700">${senPct > 10 ? `Sensory ${senPct}%` : ''}</div>
+      </div>
+      <div class="row" style="margin-top:10px;margin-bottom:0;font-size:0.82rem">
+        <div><span style="color:#be123c">●</span> <b>Escape:</b> ${fDist.Escape || 0} (${escPct}%)</div>
+        <div><span style="color:#0284c7">●</span> <b>Attention:</b> ${fDist.Attention || 0} (${attPct}%)</div>
+        <div><span style="color:#d97706">●</span> <b>Tangible:</b> ${fDist.Tangible || 0} (${tanPct}%)</div>
+        <div><span style="color:#0f766e">●</span> <b>Sensory:</b> ${fDist.Sensory || 0} (${senPct}%)</div>
+      </div>
+    </div>
+
+    <div style="background:#f8fcff;border:1px solid #bae6fd;border-left:4px solid var(--accent);border-radius:var(--radius-md);padding:12px 16px">
       <div class="flex-between">
         <div>
-          <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:0.06em">Ecological Trigger & Cluster Radar</span>
-          <h4 style="margin:4px 0 2px;font-size:1.02rem;color:var(--slate-900)">Peak Disruption Window: <b>${esc(peak.label)}</b></h4>
+          <b style="color:var(--slate-900)">Peak Behavior Time: ${esc(peak.label)}</b>
+          <div style="font-size:0.84rem;color:var(--slate-600);margin-top:2px">
+            Most Common Trigger: <b>${esc(peak.primaryAntecedent)}</b>
+          </div>
         </div>
-        <span class="badge att">${peak.count || 2} Clustered Events</span>
-      </div>
-      <p style="margin:4px 0 8px;font-size:0.86rem;color:var(--slate-700)">
-        Primary Antecedent: <b>${esc(peak.primaryAntecedent)}</b>. Client data demonstrates heightened escalation prior to transitions.
-      </p>
-      <div style="font-size:0.8rem;color:var(--slate-600);background:var(--slate-50);padding:8px 12px;border-radius:var(--radius-sm)">
-        <b>Recommended Proactive Protocol:</b> Deliver 2-minute visual countdown timer and offer FCT break-card opportunity prior to transition command.
+        <span class="badge att">${peak.count || 2} Incidents</span>
       </div>
     </div>
   </div>
@@ -1019,158 +885,126 @@ function renderRbtKpi(d) {
   const train = rbt.trainingAndSupervision || {};
 
   return `
-  <!-- Field Telemetry Cards -->
-  <div class="grid">
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Today's Assigned Shift</div>
-        <span class="badge tan">ROSTER</span>
+  <!-- Clear Role Focus Bar -->
+  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:#f0fdfa;border-top:none;border-left:4px solid #059669">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:#047857;text-transform:uppercase">RBT View</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Assigned Tasks, Data Collection Requirements & Training Progress</div>
       </div>
-      <div class="stat" style="color:var(--primary)">${tasks.length} <span style="font-size:1.1rem;font-weight:600">Appts</span></div>
-      <div class="stat-sub">${tasks.filter(t => t.status === 'Completed').length} Completed · ${tasks.filter(t => t.status === 'In Session').length} In Session</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Daily Trial Quota</div>
-        <span class="badge p">DATA QUOTA</span>
-      </div>
-      <div class="stat" style="color:var(--primary)">${reqs.completedTrialsToday || 0} <span style="font-size:1.1rem;font-weight:600">/ ${reqs.requiredTrialsPerSession * Math.max(1, tasks.length)}</span></div>
-      <div class="stat-sub">${reqs.pendingTargetCount || 0} active learning targets pending trials today</div>
-    </div>
-    <div class="stat-card ${train.compliant ? 'ok' : 'warn'}">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">BACB 5% Supervision</div>
-        <span class="badge">${train.compliant ? 'COMPLIANT' : 'ACTION'}</span>
-      </div>
-      <div class="stat" style="color:${train.compliant ? 'var(--ok)' : 'var(--warn)'}">${train.personalSupPct || 0}%</div>
-      <div class="stat-sub">${train.compliant ? '<span class="tag approved">✓ Compliant ≥5% Met</span>' : `<span class="tag draft">⚠ Needs ${train.hoursNeededFor5Pct}h more</span>`}</div>
-    </div>
-    <div class="stat-card ok">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Treatment Fidelity</div>
-        <span class="badge sen">OBSERVATION</span>
-      </div>
-      <div class="stat" style="color:var(--sensory)">${train.latestFidelityScore || 100}%</div>
-      <div class="stat-sub">High prompt hierarchy adherence verified</div>
+      <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">Open Full Schedule →</button>
     </div>
   </div>
 
-  <!-- Today's Session Dispatch & 1-Tap Cockpit Launcher -->
+  <!-- 4 Simple Summary Cards -->
+  <div class="grid">
+    <div class="stat-card">
+      <div class="stat-label">1. Assigned Sessions Today</div>
+      <div class="stat" style="color:var(--primary)">${tasks.length}</div>
+      <div class="stat-sub">${tasks.filter(t => t.status === 'Completed').length} completed · ${tasks.filter(t => t.status === 'In Session').length} in progress</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">2. Daily Trial Goal</div>
+      <div class="stat" style="color:var(--primary)">${reqs.completedTrialsToday || 0} <span style="font-size:1rem;color:var(--slate-400)">/ ${reqs.requiredTrialsPerSession * Math.max(1, tasks.length)}</span></div>
+      <div class="stat-sub">${reqs.pendingTargetCount || 0} active skill goals to score</div>
+    </div>
+    <div class="stat-card ${train.compliant ? 'ok' : 'warn'}">
+      <div class="stat-label">3. 5% Supervision Status</div>
+      <div class="stat" style="color:${train.compliant ? 'var(--ok)' : 'var(--warn)'}">${train.personalSupPct || 0}%</div>
+      <div class="stat-sub">${train.compliant ? '✓ Meets BACB 5% requirement' : `Needs ${train.hoursNeededFor5Pct}h more supervision`}</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="stat-label">Training Fidelity Score</div>
+      <div class="stat" style="color:var(--ok)">${train.latestFidelityScore || 100}%</div>
+      <div class="stat-sub">Latest BCBA observation score</div>
+    </div>
+  </div>
+
+  <!-- 1. Assigned Tasks Today -->
   <div class="card">
-    <div class="flex-between" style="margin-bottom:6px">
+    <div class="flex-between" style="margin-bottom:8px">
       <div>
-        <h3 style="margin:0 0 2px">Today's Assigned Clinical Appointments</h3>
-        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">1-Tap direct session entry, trial recording, and EVV timestamping.</p>
+        <h3 style="margin:0 0 2px">1. Assigned Tasks & Sessions Today</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Start Session" to open the live data collection screen.</p>
       </div>
-      <span class="badge p">${tasks.length} Sessions Scheduled</span>
+      <span class="badge p">${tasks.length} Scheduled</span>
     </div>
     ${tasks.length ? `
       <table>
         <thead>
           <tr>
-            <th>Time Window</th>
-            <th>Client Name</th>
-            <th>Setting & CPT</th>
-            <th>Session Status</th>
+            <th>Time</th>
+            <th>Client</th>
+            <th>Setting</th>
+            <th>Status</th>
             <th style="text-align:right">Action</th>
           </tr>
         </thead>
         <tbody>
           ${tasks.map(t => `
             <tr>
-              <td><span style="font-family:var(--font-mono);font-weight:700">${esc(t.timeWindow)}</span></td>
-              <td>
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div class="user-avatar" style="width:34px;height:34px;font-size:0.82rem">${getInitials(t.clientName)}</div>
-                  <b style="font-family:var(--font-serif);font-size:0.96rem">${esc(t.clientName)}</b>
-                </div>
-              </td>
-              <td>
-                <span class="badge">${esc(t.setting)}</span>
-                <span class="badge p">CPT 97153 (1:1 Direct)</span>
-              </td>
+              <td><b>${esc(t.timeWindow)}</b></td>
+              <td><b>${esc(t.clientName)}</b></td>
+              <td><span class="badge">${esc(t.setting)}</span></td>
               <td>
                 <span class="tag ${t.status === 'Completed' ? 'approved' : t.status === 'In Session' ? 'att' : 'draft'}">
-                  ${t.status === 'In Session' ? '● In Session' : t.status === 'Completed' ? '✓ Completed' : 'Scheduled'}
+                  ${t.status}
                 </span>
               </td>
               <td style="text-align:right">
-                <button class="${t.status === 'In Session' ? 'ok' : t.status === 'Completed' ? 'sec' : 'ok'}" onclick="act.start(${t.appointmentId})">
-                  ${t.status === 'In Session' ? 'Resume Cockpit →' : t.status === 'Completed' ? 'Review Session' : '▶ Start Session'}
+                <button class="${t.status === 'Completed' ? 'sec' : 'ok'}" onclick="act.start(${t.appointmentId})">
+                  ${t.status === 'In Session' ? 'Resume Session →' : t.status === 'Completed' ? 'Review Note' : '▶ Start Session'}
                 </button>
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    ` : '<p style="color:var(--slate-500);text-align:center;padding:24px">No direct therapy appointments assigned for today.</p>'}
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:18px">No sessions assigned for today.</p>'}
   </div>
 
+  <!-- 2. Data Requirements & 3. Training Progress -->
   <div class="row">
-    <!-- Data Collection Quotas & Programs -->
-    <div class="card" style="flex:1.2">
-      <div class="flex-between" style="margin-bottom:6px">
-        <div>
-          <h3 style="margin:0 0 2px">Data Collection Requirements</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Active trial targets and Task Analysis routines needing logs today.</p>
-        </div>
-        <span class="badge tan">Field Quotas</span>
-      </div>
+    <div class="card" style="flex:1">
+      <h3 style="margin:0 0 2px">2. Data Collection Requirements</h3>
+      <p style="margin:0 0 12px;font-size:0.84rem;color:var(--slate-500)">Trials and step-by-step routines required during today's sessions.</p>
 
-      <div style="background:var(--slate-50);padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
+      <div style="background:var(--slate-50);padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
         <div class="flex-between" style="font-size:0.85rem;margin-bottom:6px">
-          <span>Target Trial Quota (Min. 25/session)</span>
-          <b style="font-family:var(--font-mono)">${reqs.completedTrialsToday || 0} Logged</b>
+          <span>Trial Goal (25 trials per session)</span>
+          <b>${reqs.completedTrialsToday || 0} / ${reqs.requiredTrialsPerSession * Math.max(1, tasks.length)} logged</b>
         </div>
         <div class="bar" style="height:8px">
           <div style="width:${Math.min(100, Math.round(((reqs.completedTrialsToday || 0) / (reqs.requiredTrialsPerSession * Math.max(1, tasks.length))) * 100))}%;background:var(--primary)"></div>
         </div>
       </div>
 
-      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">Scheduled Task Analysis Sequences:</div>
-      ${(reqs.taskAnalyses && reqs.taskAnalyses.length) ? `
-        <div style="display:flex;flex-direction:column;gap:6px">
-          ${reqs.taskAnalyses.map(ta => `
-            <div style="padding:10px 12px;background:#fff;border-radius:var(--radius-sm);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center">
-              <div>
-                <b>${esc(ta.title)}</b>
-                <div style="font-size:0.75rem;color:var(--slate-500)">Client: ${esc(ta.clientName)}</div>
-              </div>
-              <span class="tag approved">Forward Chaining</span>
-            </div>
-          `).join('')}
+      <div style="font-size:0.8rem;font-weight:700;color:var(--slate-700);margin-bottom:6px">Task Analysis Routines to Score:</div>
+      ${(reqs.taskAnalyses && reqs.taskAnalyses.length) ? reqs.taskAnalyses.map(ta => `
+        <div style="padding:9px 12px;background:var(--slate-50);border-radius:var(--radius-sm);border:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:0.85rem">
+          <span><b>${esc(ta.title)}</b> (${esc(ta.clientName)})</span>
+          <span class="badge ok">Active</span>
         </div>
-      ` : '<p style="color:var(--slate-500);font-size:0.82rem">No specific task analyses scheduled for today.</p>'}
+      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem">No task analysis routines pending.</p>'}
     </div>
 
-    <!-- Personal BACB Supervision Progress & Feedback -->
     <div class="card" style="flex:1">
-      <div class="flex-between" style="margin-bottom:6px">
-        <div>
-          <h3 style="margin:0 0 2px">BACB 5% Supervision Cockpit</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Personal compliance with monthly RBT supervision standard.</p>
-        </div>
-        <span class="badge ${train.compliant ? 'ok' : 'tan'}">${train.personalSupPct}% Rate</span>
-      </div>
+      <h3 style="margin:0 0 2px">3. Training & Supervision Progress</h3>
+      <p style="margin:0 0 12px;font-size:0.84rem;color:var(--slate-500)">Your monthly BACB 5% supervision hours and supervisor feedback.</p>
 
-      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
-        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.82rem;margin-bottom:6px">
-          <span>Direct Therapy: <b>${train.directHours || 0} hrs</b></span>
-          <span>Supervised: <b>${train.supervisionHours || 0} hrs</b></span>
+      <div style="background:var(--slate-50);padding:12px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
+        <div class="flex-between" style="font-size:0.85rem;margin-bottom:6px">
+          <span>Direct Hours: <b>${train.directHours || 0}h</b></span>
+          <span>Supervised: <b>${train.supervisionHours || 0}h (${train.personalSupPct || 0}%)</b></span>
         </div>
-        <div class="bar" style="height:10px">
+        <div class="bar" style="height:8px">
           <div style="width:${Math.min(100, Math.round(((train.personalSupPct || 0) / 5) * 100))}%;background:${train.compliant ? 'var(--ok)' : 'var(--warn)'}"></div>
         </div>
-        <div style="font-size:0.78rem;color:var(--slate-600);margin-top:8px">
-          ${train.compliant 
-            ? '✓ You have met the BACB 5% monthly supervision requirement.' 
-            : `⚠ Need <b>${train.hoursNeededFor5Pct || 0}</b> additional hours of BCBA supervision this month.`}
-        </div>
       </div>
 
-      <div style="background:#fff;border-left:4px solid var(--sensory);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--slate-200);border-left-width:4px">
-        <div style="font-size:0.72rem;font-weight:700;color:var(--sensory);text-transform:uppercase;letter-spacing:0.06em">Latest Supervisor Observation Feedback</div>
-        <p style="margin:4px 0 0;font-size:0.82rem;color:var(--slate-800);font-style:italic">
+      <div style="background:#f8fcff;border:1px solid #bae6fd;border-left:4px solid var(--sensory);border-radius:var(--radius-sm);padding:10px 12px">
+        <div style="font-size:0.74rem;font-weight:700;color:var(--sensory);text-transform:uppercase">Latest BCBA Supervisor Feedback</div>
+        <p style="margin:4px 0 0;font-size:0.85rem;color:var(--slate-800)">
           "${esc(train.latestFeedback || 'Great fidelity adherence during trial runs.')}"
         </p>
       </div>
@@ -1189,148 +1023,136 @@ function renderAdminKpi(d) {
   const authsAtRisk = bill.authorizationsAtRisk || [];
 
   return `
-  <!-- Operational & Billing Highlights -->
-  <div class="grid">
-    <div class="stat-card ${delinq.missingNotesCount > 0 ? 'warn' : 'ok'}">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Missing / Delinquent Notes</div>
-        <span class="badge ${delinq.missingNotesCount > 0 ? 'bad' : 'ok'}">${delinq.missingNotesCount > 0 ? 'ACTION' : 'CLEAR'}</span>
+  <!-- Clear Role Focus Bar -->
+  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:#f0fdfa;border-top:none;border-left:4px solid #0284c7">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:0.75rem;font-weight:700;color:#0369a1;text-transform:uppercase">Administrator View</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Identify Missing Notes, Incomplete Sessions & Billing Issues</div>
       </div>
-      <div class="stat" style="color:${delinq.missingNotesCount > 0 ? 'var(--bad)' : 'var(--ok)'}">${delinq.missingNotesCount || 0}</div>
-      <div class="stat-sub"><b>${missing.filter(n => n.isDelinquent).length}</b> delinquent (&gt;24h elapsed)</div>
-    </div>
-    <div class="stat-card">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Pending BCBA Co-Signs</div>
-        <span class="badge esc">21 CFR DUAL-SIGN</span>
-      </div>
-      <div class="stat" style="color:var(--warn)">${delinq.pendingBcbaSignCount || 0}</div>
-      <div class="stat-sub">Submitted notes awaiting supervisor signature</div>
-    </div>
-    <div class="stat-card ok">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Claims Ready to Bill</div>
-        <span class="badge p">837P BATCH</span>
-      </div>
-      <div class="stat" style="color:var(--ok)">$${(bill.claimsReadyRevenue || 0).toLocaleString()}</div>
-      <div class="stat-sub">${bill.claimsReadyUnits || 0} CMS Units · ${bill.claimsReadyCount || 0} Clean Claims</div>
-    </div>
-    <div class="stat-card ${authsAtRisk.length > 0 ? 'warn' : 'ok'}">
-      <div class="flex-between" style="align-items:flex-start;margin-bottom:8px">
-        <div class="stat-label" style="margin:0">Authorizations at Risk</div>
-        <span class="badge ${authsAtRisk.length > 0 ? 'bad' : 'ok'}">≥80% BURN</span>
-      </div>
-      <div class="stat" style="color:${authsAtRisk.length > 0 ? 'var(--bad)' : 'var(--ok)'}">${authsAtRisk.length}</div>
-      <div class="stat-sub">Clients approaching insurance unit exhaustion</div>
+      <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('notes')">Open Notes & Claims →</button>
     </div>
   </div>
 
-  <!-- Documentation Delinquency Tracker -->
+  <!-- 4 Simple Summary Cards -->
+  <div class="grid">
+    <div class="stat-card ${delinq.missingNotesCount > 0 ? 'bad' : 'ok'}">
+      <div class="stat-label">1. Missing Session Notes</div>
+      <div class="stat" style="color:${delinq.missingNotesCount > 0 ? 'var(--bad)' : 'var(--ok)'}">${delinq.missingNotesCount || 0}</div>
+      <div class="stat-sub"><b>${missing.filter(n => n.isDelinquent).length}</b> overdue (&gt;24 hours)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">2. Incomplete Sessions</div>
+      <div class="stat" style="color:${unstarted.length > 0 ? 'var(--warn)' : 'var(--ok)'}">${unstarted.length}</div>
+      <div class="stat-sub">Scheduled sessions not started/finished</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Awaiting BCBA Sign-Off</div>
+      <div class="stat" style="color:var(--warn)">${delinq.pendingBcbaSignCount || 0}</div>
+      <div class="stat-sub">Notes waiting for supervisor signature</div>
+    </div>
+    <div class="stat-card ok">
+      <div class="stat-label">3. Claims Ready to Bill</div>
+      <div class="stat" style="color:var(--ok)">$${(bill.claimsReadyRevenue || 0).toLocaleString()}</div>
+      <div class="stat-sub">${bill.claimsReadyCount || 0} signed notes (${bill.claimsReadyUnits || 0} units)</div>
+    </div>
+  </div>
+
+  <!-- 1. Missing Notes Table -->
   <div class="card">
-    <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:6px">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
       <div>
-        <h3 style="margin:0 0 2px">Documentation Delinquency Tracker (Missing SOAP Notes)</h3>
-        <p style="margin:0;font-size:0.85rem;color:var(--slate-500)">Sessions completed without submitted clinical documentation.</p>
+        <h3 style="margin:0 0 2px">1. Missing Session Notes</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Completed therapy sessions that still need a submitted SOAP note.</p>
       </div>
-      <div style="font-family:var(--font-mono);font-size:0.8rem;background:var(--slate-100);padding:6px 12px;border-radius:var(--radius-sm)">
-        Avg Turnaround: <b>${delinq.avgTurnaroundHours || 2.4} hrs</b> (Target &lt; 24 hrs)
-      </div>
+      <span class="badge">Avg Note Turnaround: ${delinq.avgTurnaroundHours || 2.4} hrs</span>
     </div>
     ${missing.length ? `
       <table>
         <thead>
           <tr>
             <th>Session</th>
-            <th>Client Name</th>
-            <th>Clinician (Author)</th>
-            <th>Date of Service</th>
-            <th>Units</th>
-            <th>Elapsed Time</th>
-            <th>Compliance Status</th>
+            <th>Client</th>
+            <th>Therapist</th>
+            <th>Date</th>
+            <th>Time Elapsed</th>
+            <th>Status</th>
             <th style="text-align:right">Action</th>
           </tr>
         </thead>
         <tbody>
           ${missing.map(m => `
             <tr>
-              <td><b style="font-family:var(--font-mono)">#${m.sessionId}</b></td>
-              <td><b style="font-family:var(--font-serif)">${esc(m.clientName)}</b></td>
+              <td><b>#${m.sessionId}</b></td>
+              <td><b>${esc(m.clientName)}</b></td>
               <td>${esc(m.staffName)}</td>
-              <td><span style="font-family:var(--font-mono)">${esc(m.date)}</span></td>
-              <td><span style="font-family:var(--font-mono)">${m.units} u</span></td>
-              <td><span style="font-family:var(--font-mono);font-weight:600;color:${m.isDelinquent ? 'var(--bad)' : 'var(--slate-700)'}">${m.elapsedHours} hrs</span></td>
+              <td>${esc(m.date)}</td>
+              <td style="font-weight:600;color:${m.isDelinquent ? 'var(--bad)' : 'var(--slate-700)'}">${m.elapsedHours} hrs ago</td>
               <td>
-                <span class="tag ${m.isDelinquent ? 'draft' : 'approved'}">
-                  ${m.isDelinquent ? '⚠️ &gt;24h Delinquent' : 'Within 24h Window'}
+                <span class="tag ${m.isDelinquent ? 'bad' : 'draft'}">
+                  ${m.isDelinquent ? 'Overdue (>24h)' : 'Due Soon'}
                 </span>
               </td>
               <td style="text-align:right">
-                <button class="sec" style="padding:6px 10px;font-size:0.75rem" onclick="act.sendClinicianReminder('${esc(m.staffName)}', ${m.sessionId})">Send Reminder</button>
+                <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.sendClinicianReminder('${esc(m.staffName)}', ${m.sessionId})">Send Reminder</button>
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-    ` : '<p style="color:var(--slate-500);text-align:center;padding:20px">✓ Zero missing clinical notes. All completed sessions have submitted documentation!</p>'}
+    ` : '<p style="color:var(--slate-500);text-align:center;padding:18px">✓ No missing session notes! Every completed session has a note.</p>'}
   </div>
 
+  <!-- 2. Incomplete Sessions & 3. Billing Issues -->
   <div class="row">
-    <!-- Claims Ready for Billing Batch -->
-    <div class="card" style="flex:1.3">
-      <div class="flex-between" style="margin-bottom:6px">
+    <div class="card" style="flex:1">
+      <div class="flex-between" style="margin-bottom:8px">
         <div>
-          <h3 style="margin:0 0 2px">Claims Ready for Clearinghouse (837P)</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Dual-signed notes with CMS 8-minute rule compliant unit calculations.</p>
+          <h3 style="margin:0 0 2px">2. Incomplete or Unstarted Sessions</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Scheduled appointments missing start or end times.</p>
         </div>
-        <span class="badge ok">Ready to Bill</span>
+        <span class="badge ${unstarted.length > 0 ? 'bad' : 'ok'}">${unstarted.length} Flagged</span>
       </div>
 
-      <div style="background:var(--slate-50);padding:14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px">
-        <div class="flex-between" style="margin-bottom:6px">
-          <div>
-            <div style="font-size:0.75rem;color:var(--slate-500);text-transform:uppercase;font-weight:700">Total Billed Value Ready</div>
-            <div style="font-size:1.45rem;font-weight:700;color:var(--primary);font-family:var(--font-serif)">$${(bill.claimsReadyRevenue || 0).toLocaleString()}</div>
+      ${unstarted.length ? unstarted.map(u => `
+        <div style="background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);border-left:3px solid var(--bad);margin-bottom:8px">
+          <div class="flex-between">
+            <b>${esc(u.clientName)}</b>
+            <span class="badge bad">Not Started</span>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:0.75rem;color:var(--slate-500);text-transform:uppercase;font-weight:700">Validated Units</div>
-            <div style="font-size:1.45rem;font-weight:700;color:var(--slate-900);font-family:var(--font-mono)">${bill.claimsReadyUnits || 0} u</div>
+          <div style="font-size:0.8rem;color:var(--slate-600);margin-top:3px">
+            Therapist: ${esc(u.staffName)} · Scheduled: ${esc(u.scheduledTime)}
           </div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:12px">
-          <button class="ok" style="flex:1;padding:10px;font-size:0.84rem" onclick="act.exportClaimsBatch()">Export 837P Clean Claims Batch</button>
-          <button class="sec" style="padding:10px;font-size:0.84rem" onclick="go('notes')">Review Notes Ledger</button>
-        </div>
-      </div>
-      <div style="font-size:0.78rem;color:var(--slate-500)">
-        🔒 HIPAA & CMS Rule: Only dual-signed notes with verified EVV timestamps and author credentials are released for billing.
-      </div>
+      `).join('') : '<p style="color:var(--slate-500);font-size:0.84rem;padding:12px 0">✓ All scheduled sessions are properly logged.</p>'}
     </div>
 
-    <!-- EVV & Session Discrepancy Radar -->
-    <div class="card" style="flex:1">
-      <div class="flex-between" style="margin-bottom:6px">
+    <div class="card" style="flex:1.2">
+      <div class="flex-between" style="margin-bottom:8px">
         <div>
-          <h3 style="margin:0 0 2px">EVV & Session Discrepancies</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-500)">Unstarted appointments past scheduled time.</p>
+          <h3 style="margin:0 0 2px">3. Billing & Insurance Issues</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Ready claims batch and insurance authorizations running low.</p>
         </div>
-        <span class="badge ${unstarted.length > 0 ? 'bad' : 'ok'}">${unstarted.length} Exceptions</span>
+        <span class="badge ok">${bill.claimsReadyCount || 0} Clean Claims</span>
       </div>
 
-      ${unstarted.length ? `
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${unstarted.map(u => `
-            <div style="background:#fff;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);border-left:3px solid var(--bad)">
-              <div class="flex-between">
-                <b>${esc(u.clientName)}</b>
-                <span class="badge bad">Unstarted</span>
-              </div>
-              <div style="font-size:0.75rem;color:var(--slate-600);margin-top:3px">
-                Staff: ${esc(u.staffName)} · Time: ${esc(u.scheduledTime)}
-              </div>
-            </div>
-          `).join('')}
+      <div style="background:var(--slate-50);padding:12px 14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:12px">
+        <div class="flex-between">
+          <div>
+            <div style="font-size:0.75rem;color:var(--slate-500);font-weight:700;text-transform:uppercase">Ready to Bill</div>
+            <div style="font-size:1.35rem;font-weight:700;color:var(--ok)">$${(bill.claimsReadyRevenue || 0).toLocaleString()} <span style="font-size:0.85rem;color:var(--slate-500);font-weight:500">(${bill.claimsReadyUnits || 0} units)</span></div>
+          </div>
+          <button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="act.exportClaimsBatch()">Export Billing Batch</button>
         </div>
-      ` : '<p style="color:var(--slate-500);font-size:0.85rem;text-align:center;padding:18px">✓ Zero EVV scheduling discrepancies today.</p>'}
+      </div>
+
+      <div style="font-size:0.78rem;font-weight:700;color:var(--slate-700);margin-bottom:6px">Authorizations Near Limit (≥80% Used):</div>
+      ${authsAtRisk.length ? authsAtRisk.map(a => `
+        <div style="padding:8px 10px;background:#fff8f9;border:1px solid var(--bad-border);border-radius:var(--radius-sm);display:flex;justify-content:space-between;align-items:center;font-size:0.83rem;margin-bottom:6px">
+          <span><b>${esc(a.client)}</b> — CPT ${esc(a.code)}</span>
+          <span class="badge bad">${a.used}/${a.authorized} units used</span>
+        </div>
+      `).join('') : '<p style="color:var(--slate-500);font-size:0.83rem;margin:0">No insurance authorizations are near their limit.</p>'}
     </div>
   </div>
   `;
@@ -1338,24 +1160,24 @@ function renderAdminKpi(d) {
 
 async function dashboardView() {
   const d = await api('GET', '/api/dashboard');
-  const todayStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const todayStr = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
   if (!kpiPersona) {
     kpiPersona = (['OWNER', 'BCBA', 'RBT', 'ADMIN'].includes(me.role) ? me.role : 'OWNER');
   }
 
   const personaTitles = {
-    OWNER: 'Executive Practice Ledger & Revenue',
-    BCBA: 'Supervising BCBA Clinical Progress & Behavior Radar',
-    RBT: 'Field RBT Shift Tasks, Quotas & Supervision',
-    ADMIN: 'Practice Operations, Documentation Delinquency & Billing'
+    OWNER: 'Owner KPI Dashboard',
+    BCBA: 'BCBA Clinical Dashboard',
+    RBT: 'RBT Daily Dashboard',
+    ADMIN: 'Administrator Operations & Billing Dashboard'
   };
 
   const personaSubtitles = {
-    OWNER: 'Practice P&L, CPT Fee Schedule Breakdown, Caseload Capacity & Staff Productivity',
-    BCBA: 'Learning Target Velocity, Criteria Met Alerts, 4-Function Distribution & Peak Windows',
-    RBT: 'Today\'s Assigned Shift Roster, Trial Data Quotas & Personal BACB 5% Tracker',
-    ADMIN: 'Missing Notes Radar, EVV Discrepancies, 837P Claims Release & Authorization Burn'
+    OWNER: 'For the Owner: See overall business performance and revenue.',
+    BCBA: 'For the BCBA: Monitor client progress and identify patterns in behavior.',
+    RBT: 'For the RBT: See assigned tasks, data collection requirements, and training progress.',
+    ADMIN: 'For the Administrator: Identify missing notes, incomplete sessions, and billing issues.'
   };
 
   let deckHtml = '';
@@ -1367,53 +1189,45 @@ async function dashboardView() {
 
   return `
   <div class="page-header">
-    <div style="display:flex;align-items:center;gap:16px">
-      ${brandEmblem('lg')}
-      <div>
-        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">01 / CLINICAL & PRACTICE COMMAND DECK</div>
-        <h1>${personaTitles[kpiPersona] || 'Clinical Command Ledger'}</h1>
-        <p class="page-sub">${todayStr} · ${personaSubtitles[kpiPersona] || ''}</p>
-      </div>
+    <div>
+      <h1>${personaTitles[kpiPersona] || 'KPI Dashboard'}</h1>
+      <p class="page-sub">${personaSubtitles[kpiPersona] || ''} (${todayStr})</p>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="ok" style="padding:10px 16px" onclick="go('presentation')">Founder Pitch & Monograph →</button>
-      <button class="sec" style="padding:10px 16px" onclick="go('schedule')">Full Schedule</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="sec" onclick="window.location.href='/website.html'">🌐 Public Sales Website</button>
+      <button class="ok" onclick="go('schedule')">📅 Schedule</button>
     </div>
   </div>
 
-  <!-- Multi-Persona Interactive Switcher Banner -->
+  <!-- Simple 4-Role KPI Switcher -->
   <div class="kpi-persona-switcher">
     <button class="kpi-persona-tab ${kpiPersona === 'OWNER' ? 'active' : ''}" onclick="act.setKpiPersona('OWNER')">
       <div class="kpi-tab-icon">🏢</div>
       <div class="kpi-tab-text">
-        <div class="kpi-tab-title">Practice Owner</div>
-        <div class="kpi-tab-sub">Revenue & Business</div>
+        <div class="kpi-tab-title">For the Owner</div>
+        <div class="kpi-tab-sub">Performance & Revenue</div>
       </div>
-      <span class="badge ${kpiPersona === 'OWNER' ? 'p' : 'sec'}">P&L</span>
     </button>
     <button class="kpi-persona-tab ${kpiPersona === 'BCBA' ? 'active' : ''}" onclick="act.setKpiPersona('BCBA')">
       <div class="kpi-tab-icon">👩‍⚕️</div>
       <div class="kpi-tab-text">
-        <div class="kpi-tab-title">Supervising BCBA</div>
+        <div class="kpi-tab-title">For the BCBA</div>
         <div class="kpi-tab-sub">Progress & Behavior</div>
       </div>
-      <span class="badge ${kpiPersona === 'BCBA' ? 'sen' : 'sec'}">Clinical</span>
     </button>
     <button class="kpi-persona-tab ${kpiPersona === 'RBT' ? 'active' : ''}" onclick="act.setKpiPersona('RBT')">
       <div class="kpi-tab-icon">👨‍⚕️</div>
       <div class="kpi-tab-text">
-        <div class="kpi-tab-title">Field RBT</div>
-        <div class="kpi-tab-sub">Shift, Quota & 5%</div>
+        <div class="kpi-tab-title">For the RBT</div>
+        <div class="kpi-tab-sub">Tasks, Data & Training</div>
       </div>
-      <span class="badge ${kpiPersona === 'RBT' ? 'tan' : 'sec'}">Field</span>
     </button>
     <button class="kpi-persona-tab ${kpiPersona === 'ADMIN' ? 'active' : ''}" onclick="act.setKpiPersona('ADMIN')">
       <div class="kpi-tab-icon">📋</div>
       <div class="kpi-tab-text">
-        <div class="kpi-tab-title">Administrator</div>
-        <div class="kpi-tab-sub">Notes, EVV & Claims</div>
+        <div class="kpi-tab-title">For the Administrator</div>
+        <div class="kpi-tab-sub">Missing Notes & Billing</div>
       </div>
-      <span class="badge ${kpiPersona === 'ADMIN' ? 'esc' : 'sec'}">Ops</span>
     </button>
   </div>
 
@@ -1433,17 +1247,13 @@ async function clientsView() {
 
   return `
   <div class="page-header">
-    <div style="display:flex;align-items:center;gap:16px">
-      ${brandEmblem('lg')}
-      <div>
-        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">02 / UNIFIED CLINICAL RECORDS</div>
-        <h1>Children & Client 360 Registry</h1>
-        <p class="page-sub">Consolidated Behavioral Health Records · Skill Acquisition, FBA & BIP Portals</p>
-      </div>
+    <div>
+      <h1>Clients</h1>
+      <p class="page-sub">Select a client to view skill goals, behavior tracking, BIPs, and session data.</p>
     </div>
     ${me.role === 'BCBA' ? `
       <div>
-        <button class="ok" style="padding:10px 18px" onclick="document.getElementById('intake_card').style.display='block'">+ Intake New Client</button>
+        <button class="ok" onclick="document.getElementById('intake_card').style.display='block'">+ Add New Client</button>
       </div>
     ` : ''}
   </div>
@@ -1677,14 +1487,14 @@ async function clientView(id) {
     taskAnalyses = [], fidelityIoaLogs = [], auditLogs = []
   } = data;
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
-  const tabs = P ? [['goals', '01 · Skill Goals'], ['stories', '02 · Social Stories']] : [
-    ['overview', '01 · 360 Overview'],
-    ['skills', '02 · Skills, DTT & Task Analysis'],
-    ['behavior_abc', '03 · Behavior Reduction & FBA'],
-    ['plans', '04 · Behavior Plans (BIP)'],
-    ['stories', '05 · Social Stories'],
-    ['profile', '06 · Clinical Vitals'],
-    ['services', '07 · Authorizations & Audit']
+  const tabs = P ? [['goals', 'Skill Goals'], ['stories', 'Social Stories']] : [
+    ['overview', 'Overview'],
+    ['skills', 'Skill Goals (DTT)'],
+    ['behavior_abc', 'Behavior & ABC'],
+    ['plans', 'Behavior Plan (BIP)'],
+    ['stories', 'Social Stories'],
+    ['profile', 'Client Info'],
+    ['services', 'Insurance & Supervision']
   ];
   if (P && !['goals', 'stories'].includes(tab)) tab = 'goals';
   if (!P && !tabs.map(t=>t[0]).includes(tab)) tab = 'overview';
@@ -1693,11 +1503,10 @@ async function clientView(id) {
   const vitalsBanner = `
   <div class="vitals-banner">
     <div class="vitals-header">
-      <div style="display:flex;align-items:center;gap:16px">
+      <div style="display:flex;align-items:center;gap:14px">
         <div class="user-avatar xl">${getInitials(c.name)}</div>
         <div>
-          <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--accent-clay);font-weight:600;letter-spacing:0.08em;text-transform:uppercase">UNIFIED BEHAVIORAL HEALTH RECORD · #00${c.id}</div>
-          <h2 style="margin:2px 0 5px;font-size:1.7rem;font-weight:600;color:var(--slate-900)">${esc(c.name)}</h2>
+          <h2 style="margin:0 0 4px;font-size:1.5rem;font-weight:700;color:var(--slate-900)">${esc(c.name)}</h2>
           <div style="font-size:0.82rem;color:var(--slate-500);display:flex;gap:6px;flex-wrap:wrap">
             <span class="badge p">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
             ${c.dob ? `<span class="badge">DOB: ${esc(c.dob)}</span>` : ''}
@@ -1707,44 +1516,42 @@ async function clientView(id) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${!P ? `
-          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Trials CSV</button>
-          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=behaviors','_blank')">📥 Behavior CSV</button>
-          <button class="sec" style="padding:8px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Trail (${auditLogs.length})</button>
+          <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials</button>
+          <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Log (${auditLogs.length})</button>
         ` : ''}
-        ${B ? `<button class="sec" style="padding:9px 15px;font-size:0.84rem" onclick="act.openReauthReportModal(${c.id})">6-Month Re-Auth Dossier</button>` : ''}
-        ${auths.length ? auths.map(a => `<span class="badge ${a.used/a.authorized >= 0.8 ? 'att' : 'tan'}">CPT ${esc(a.code)}: ${a.authorized - a.used}u rem</span>`).join(' ') : ''}
-        <button class="bad" style="padding:9px 15px;font-size:0.84rem" onclick="act.toggleCrisis()">
-          ${showCrisis ? 'Hide Crisis Protocol' : 'Crisis / Safety Protocol'}
+        ${B ? `<button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>` : ''}
+        <button class="bad" style="padding:7px 12px;font-size:0.8rem" onclick="act.toggleCrisis()">
+          ${showCrisis ? 'Hide Safety Plan' : '⚠️ Safety / Crisis Plan'}
         </button>
       </div>
     </div>
     
     <div class="vitals-grid">
       <div class="vital-item">
-        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--primary)">COM</div>
+        <div class="vital-emblem">💬</div>
         <div>
-          <div class="vital-label">Communication Modality</div>
+          <div class="vital-label">Communication</div>
           <b>${esc(c.communication || 'Verbal (full sentences)')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--sensory);background:var(--sensory-light);border-color:var(--sensory-border)">SEN</div>
+        <div class="vital-emblem">🎧</div>
         <div>
-          <div class="vital-label">Sensory Profile</div>
+          <div class="vital-label">Sensory Needs</div>
           <b>${esc(c.sensory || 'Sensory sensitive (avoids loud sirens)')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--warn);background:var(--warn-light);border-color:var(--warn-border)">ANT</div>
+        <div class="vital-emblem">⚡</div>
         <div>
-          <div class="vital-label">Known Antecedent Triggers</div>
+          <div class="vital-label">Common Triggers</div>
           <b>${esc(c.triggers || 'Difficult task transitions, peer proximity')}</b>
         </div>
       </div>
       <div class="vital-item">
-        <div class="vital-emblem" style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:var(--ok);background:var(--ok-light);border-color:var(--ok-border)">SR+</div>
+        <div class="vital-emblem">⭐</div>
         <div>
-          <div class="vital-label">Reinforcer Hierarchy</div>
+          <div class="vital-label">Favorite Rewards</div>
           <b>${esc(c.reinforcers || 'LEGO, bubbles, sensory swing')}</b>
         </div>
       </div>
@@ -1753,11 +1560,11 @@ async function clientView(id) {
     ${showCrisis ? `
     <div class="crisis-box">
       <div class="flex-between">
-        <h4 style="margin:0;color:#7D1F18">Immediate De-Escalation & Safety Crisis Protocol</h4>
+        <h4 style="margin:0;color:#7D1F18">Safety & Crisis Plan</h4>
         <button class="bad" style="padding:2px 8px;font-size:0.75rem" onclick="act.toggleCrisis()">✕ Close</button>
       </div>
-      <div style="white-space:pre-wrap;margin-top:8px;font-size:0.92rem;line-height:1.5">${esc(c.crisis_plan || '1. Offer quiet sensory space.\n2. Use calm, low-tone language.\n3. Do not block items or use physical restraint.\n4. Provide replacement communication card.')}</div>
-      <div style="margin-top:10px;font-size:0.82rem;font-weight:600">Emergency Contact: ${esc(c.emergency || 'Guardian')}</div>
+      <div style="white-space:pre-wrap;margin-top:8px;font-size:0.9rem;line-height:1.5">${esc(c.crisis_plan || '1. Offer quiet sensory space.\n2. Use calm, low-tone language.\n3. Do not block items or use physical restraint.\n4. Provide replacement communication card.')}</div>
+      <div style="margin-top:8px;font-size:0.82rem;font-weight:600">Emergency Contact: ${esc(c.emergency || 'Guardian')}</div>
     </div>` : ''}
   </div>`;
 
@@ -3708,6 +3515,1484 @@ async function leadsView() {
   `;
 }
 
+function computeClientFacilityModel(rawCfg = {}) {
+  const c = {
+    totalSqFt: 6000,
+    gymSqFtPct: 35,
+    dttRoomsPct: 30,
+    groupRoomsPct: 15,
+    calmingRoomsPct: 8,
+    dttRoomCount: 12,
+    gymConcurrentCapacity: 10,
+    groupRoomCapacity: 8,
+    tiCostPerSqFt: 85,
+    landlordTiAllowancePerSqFt: 30,
+    gymCeilingRiggingCost: 38000,
+    gymClimbingFoamPitCost: 45000,
+    gymTrampolineObstacleCost: 28000,
+    gymSensoryWallTactileCost: 19000,
+    dttRoomFurnishingPerRoom: 3200,
+    calmingRoomSnoezelenCost: 22000,
+    techSecurityAvCost: 26000,
+    preOpeningLicensingCost: 35000,
+    workingCapitalReserve: 75000,
+    useFinancing: true,
+    downPaymentPct: 20,
+    loanInterestRatePct: 7.5,
+    loanTermYears: 10,
+    initialClientsMonth1: 8,
+    monthlyNewClientSignups: 2.5,
+    monthlyGraduationChurnPct: 2.0,
+    maxClinicClientCapacity: 28,
+    compTierSharePct: 45,
+    compWeeklyHours: 32,
+    focusedTierSharePct: 40,
+    focusedWeeklyHours: 18,
+    groupGymTierSharePct: 15,
+    groupGymWeeklyHours: 8,
+    rate97153Hr: 68,
+    rate97155Hr: 125,
+    rate97156Hr: 110,
+    rate97151Hr: 140,
+    rate97158Hr: 42,
+    bcbaSupervisionRatioPct: 12,
+    familyGuidanceHrsPerClientMo: 2.0,
+    assessmentHrsPerClientMo: 1.33,
+    gymGroupHrsPerClientWk: 3.0,
+    attendanceRealizationPct: 89,
+    enableAncillaryGym: true,
+    gymMembershipsCount: 35,
+    gymMembershipMonthlyFee: 145,
+    otPtSubleaseMonthly: 3500,
+    rbtHourlyWage: 23.5,
+    rbtNonBillablePct: 14,
+    rbtWeeklyBillableTarget: 30,
+    bcbaAnnualSalary: 92000,
+    bcbaCaseloadLimit: 10,
+    payrollTaxBenefitsPct: 18,
+    baseRentPerSqFtYr: 28,
+    camUtilitiesPerSqFtYr: 7.5,
+    adminDirectorMonthly: 10500,
+    insuranceSanitationMonthly: 2800,
+    sensorySuppliesPerClientMo: 95,
+    marketingCrmMonthly: 1800,
+    ...(rawCfg || {})
+  };
+
+  const totalSqFt = Math.max(1500, Number(c.totalSqFt) || 6000);
+  const gymSqFtPct = Math.min(60, Math.max(15, Number(c.gymSqFtPct) || 35));
+  const dttRoomsPct = Math.min(55, Math.max(15, Number(c.dttRoomsPct) || 30));
+  const groupRoomsPct = Math.min(35, Math.max(5, Number(c.groupRoomsPct) || 15));
+  const calmingRoomsPct = Math.min(20, Math.max(4, Number(c.calmingRoomsPct) || 8));
+  const adminLobbyPct = Math.max(5, 100 - gymSqFtPct - dttRoomsPct - groupRoomsPct - calmingRoomsPct);
+
+  const gymSqFt = Math.round(totalSqFt * (gymSqFtPct / 100));
+  const dttSqFt = Math.round(totalSqFt * (dttRoomsPct / 100));
+  const groupSqFt = Math.round(totalSqFt * (groupRoomsPct / 100));
+  const calmingSqFt = Math.round(totalSqFt * (calmingRoomsPct / 100));
+  const adminLobbySqFt = Math.max(0, totalSqFt - gymSqFt - dttSqFt - groupSqFt - calmingSqFt);
+
+  const dttRooms = Math.max(2, Number(c.dttRoomCount) || Math.round(dttSqFt / 150));
+  const gymConcurrentCap = Math.max(2, Number(c.gymConcurrentCapacity) || Math.round(gymSqFt / 200));
+  const groupConcurrentCap = Math.max(2, Number(c.groupRoomCapacity) || Math.round(groupSqFt / 110));
+
+  const morningCohortCap = dttRooms + Math.round(gymConcurrentCap * 0.5);
+  const afternoonCohortCap = dttRooms + Math.round(gymConcurrentCap * 0.5);
+  const afterSchoolGroupCap = groupConcurrentCap;
+  const suggestedMaxClients = morningCohortCap + Math.round(afternoonCohortCap * 0.65) + Math.round(afterSchoolGroupCap * 0.5);
+  const maxClinicClientCapacity = Math.max(4, Number(c.maxClinicClientCapacity) || suggestedMaxClients);
+
+  const space = {
+    totalSqFt,
+    gymSqFtPct,
+    dttRoomsPct,
+    groupRoomsPct,
+    calmingRoomsPct,
+    adminLobbyPct,
+    gymSqFt,
+    dttSqFt,
+    groupSqFt,
+    calmingSqFt,
+    adminLobbySqFt,
+    dttRooms,
+    gymConcurrentCap,
+    groupConcurrentCap,
+    morningCohortCap,
+    afternoonCohortCap,
+    afterSchoolGroupCap,
+    suggestedMaxClients,
+    maxClinicClientCapacity
+  };
+
+  const tiCostPerSqFt = Math.max(0, Number(c.tiCostPerSqFt) ?? 85);
+  const landlordTiAllowancePerSqFt = Math.max(0, Number(c.landlordTiAllowancePerSqFt) ?? 30);
+  const grossTiConstruction = Math.round(totalSqFt * tiCostPerSqFt);
+  const landlordTiCredit = Math.round(totalSqFt * landlordTiAllowancePerSqFt);
+  const netTiConstruction = Math.max(0, grossTiConstruction - landlordTiCredit);
+
+  const gymEquipmentItems = [
+    {
+      key: 'gymCeilingRiggingCost',
+      label: 'Structural Steel Overhead Swing Rigging & Vestibular System',
+      category: 'Sensory & Motor Gym',
+      cost: Math.max(0, Number(c.gymCeilingRiggingCost) ?? 38000),
+      note: 'Engineered I-beam ceiling mounts, platform, bolster, Lycra cuddle & rotational swings'
+    },
+    {
+      key: 'gymClimbingFoamPitCost',
+      label: 'Therapeutic Rock Climbing Wall, Cargo Net & Recessed Foam Pit',
+      category: 'Sensory & Motor Gym',
+      cost: Math.max(0, Number(c.gymClimbingFoamPitCost) ?? 45000),
+      note: 'Custom angled pediatric climbing wall, dual crash pit with medical-grade vinyl cubes'
+    },
+    {
+      key: 'gymTrampolineObstacleCost',
+      label: 'Commercial Safety Trampoline, Balance Beams & Proprioceptive Rig',
+      category: 'Sensory & Motor Gym',
+      cost: Math.max(0, Number(c.gymTrampolineObstacleCost) ?? 28000),
+      note: 'Deck-level trampoline, monkey bars, heavy-work resistance sleds, crash mats & bolsters'
+    },
+    {
+      key: 'gymSensoryWallTactileCost',
+      label: 'Interactive LED Sensory Walls, Tactile Motor Path & NET Play Kits',
+      category: 'Sensory & Motor Gym',
+      cost: Math.max(0, Number(c.gymSensoryWallTactileCost) ?? 19000),
+      note: 'Acoustic tactile panels, scooter boards, weighted vests, fine/gross motor circuit kits'
+    }
+  ];
+  const totalGymEquipment = gymEquipmentItems.reduce((s, x) => s + x.cost, 0);
+
+  const dttFurnishingTotal = Math.round(dttRooms * (Number(c.dttRoomFurnishingPerRoom) ?? 3200));
+  const clinicalTechItems = [
+    {
+      key: 'dttRoomFurnishingPerRoom',
+      label: `1:1 DTT Therapy Suites Furnishing (${dttRooms} Suites @ $${(Number(c.dttRoomFurnishingPerRoom) ?? 3200).toLocaleString()})`,
+      category: 'Clinical Suites',
+      cost: dttFurnishingTotal,
+      note: 'Adjustable pediatric tables, ergonomic RBT stools, locked stimulus cabinets & visual boards'
+    },
+    {
+      key: 'calmingRoomSnoezelenCost',
+      label: 'Snoezelen Multi-Sensory De-Escalation & Crisis Safety Suite',
+      category: 'Clinical Suites',
+      cost: Math.max(0, Number(c.calmingRoomSnoezelenCost) ?? 22000),
+      note: 'Impact-padded wall panels, LED bubble tubes, fiber-optic cascade & dimmable circadian lighting'
+    },
+    {
+      key: 'techSecurityAvCost',
+      label: 'RBT iPads, Badge Access Control & HIPAA Observation AV',
+      category: 'Clinical Tech & Safety',
+      cost: Math.max(0, Number(c.techSecurityAvCost) ?? 26000),
+      note: 'Fleet tablets with rugged cases, magnetic door locks, parent/BCBA observation cameras & Wi-Fi 6E'
+    },
+    {
+      key: 'preOpeningLicensingCost',
+      label: 'Architectural/MEP Blueprints, Permits, Licensing & Lease Deposit',
+      category: 'Soft Costs & Pre-Opening',
+      cost: Math.max(0, Number(c.preOpeningLicensingCost) ?? 35000),
+      note: 'Architect stamping, city building permits, fire marshal inspection & initial staff credentialing'
+    }
+  ];
+  const totalClinicalTechPreOpen = clinicalTechItems.reduce((s, x) => s + x.cost, 0);
+
+  const grossBuildoutCapEx = grossTiConstruction + totalGymEquipment + totalClinicalTechPreOpen;
+  const netBuildoutCapEx = netTiConstruction + totalGymEquipment + totalClinicalTechPreOpen;
+  const workingCapitalReserve = Math.max(0, Number(c.workingCapitalReserve) ?? 75000);
+  const totalCapitalRequired = netBuildoutCapEx + workingCapitalReserve;
+
+  const useFinancing = Boolean(c.useFinancing);
+  const downPaymentPct = Math.min(100, Math.max(5, Number(c.downPaymentPct) ?? 20));
+  const loanInterestRatePct = Math.max(0, Number(c.loanInterestRatePct) ?? 7.5);
+  const loanTermYears = Math.max(1, Number(c.loanTermYears) ?? 10);
+
+  const loanPrincipal = useFinancing ? Math.round(totalCapitalRequired * (1 - downPaymentPct / 100)) : 0;
+  const upfrontEquityCash = totalCapitalRequired - loanPrincipal;
+
+  let monthlyDebtService = 0;
+  if (useFinancing && loanPrincipal > 0) {
+    const r = (loanInterestRatePct / 100) / 12;
+    const n = loanTermYears * 12;
+    monthlyDebtService = r === 0
+      ? Math.round(loanPrincipal / n)
+      : Math.round((loanPrincipal * (r * Math.pow(1 + r, n))) / (Math.pow(1 + r, n) - 1));
+  }
+
+  const capex = {
+    tiCostPerSqFt,
+    landlordTiAllowancePerSqFt,
+    grossTiConstruction,
+    landlordTiCredit,
+    netTiConstruction,
+    gymEquipmentItems,
+    totalGymEquipment,
+    clinicalTechItems,
+    totalClinicalTechPreOpen,
+    grossBuildoutCapEx,
+    netBuildoutCapEx,
+    workingCapitalReserve,
+    totalCapitalRequired,
+    useFinancing,
+    downPaymentPct,
+    loanInterestRatePct,
+    loanTermYears,
+    loanPrincipal,
+    upfrontEquityCash,
+    monthlyDebtService
+  };
+
+  const rawCompShare = Math.max(0, Number(c.compTierSharePct) ?? 45);
+  const rawFocShare = Math.max(0, Number(c.focusedTierSharePct) ?? 40);
+  const rawGrpShare = Math.max(0, Number(c.groupGymTierSharePct) ?? 15);
+  const shareSum = Math.max(1, rawCompShare + rawFocShare + rawGrpShare);
+  const compShare = rawCompShare / shareSum;
+  const focShare = rawFocShare / shareSum;
+  const grpShare = rawGrpShare / shareSum;
+
+  const compWeeklyHours = Math.max(10, Number(c.compWeeklyHours) || 32);
+  const focusedWeeklyHours = Math.max(6, Number(c.focusedWeeklyHours) || 18);
+  const groupGymWeeklyHours = Math.max(2, Number(c.groupGymWeeklyHours) || 8);
+
+  const weightedWeeklyHoursPerClient = +(
+    compShare * compWeeklyHours +
+    focShare * focusedWeeklyHours +
+    grpShare * groupGymWeeklyHours
+  ).toFixed(1);
+
+  const WEEKS_PER_MO = 4.333;
+  const gymGroupHrsWk = Math.max(0, Number(c.gymGroupHrsPerClientWk) ?? 3.0);
+  const direct1on1HrsWk = Math.max(2, weightedWeeklyHoursPerClient - gymGroupHrsWk);
+
+  const rate97153Hr = Math.max(20, Number(c.rate97153Hr) || 68);
+  const rate97155Hr = Math.max(40, Number(c.rate97155Hr) || 125);
+  const rate97156Hr = Math.max(40, Number(c.rate97156Hr) || 110);
+  const rate97151Hr = Math.max(40, Number(c.rate97151Hr) || 140);
+  const rate97158Hr = Math.max(15, Number(c.rate97158Hr) || 42);
+
+  const bcbaSupRatio = (Math.max(5, Number(c.bcbaSupervisionRatioPct) || 12)) / 100;
+  const famHrsMo = Math.max(0, Number(c.familyGuidanceHrsPerClientMo) ?? 2.0);
+  const assessHrsMo = Math.max(0, Number(c.assessmentHrsPerClientMo) ?? 1.33);
+  const realization = Math.min(100, Math.max(50, Number(c.attendanceRealizationPct) || 89)) / 100;
+
+  const clientMoHrs97153 = direct1on1HrsWk * WEEKS_PER_MO;
+  const clientMoHrs97158 = gymGroupHrsWk * WEEKS_PER_MO;
+  const clientMoHrs97155 = clientMoHrs97153 * bcbaSupRatio;
+
+  const rev97153PerClient = clientMoHrs97153 * rate97153Hr;
+  const rev97158PerClient = clientMoHrs97158 * rate97158Hr;
+  const rev97155PerClient = clientMoHrs97155 * rate97155Hr;
+  const rev97156PerClient = famHrsMo * rate97156Hr;
+  const rev97151PerClient = assessHrsMo * rate97151Hr;
+
+  const monthlyGrossRevPerClient = Math.round(
+    rev97153PerClient + rev97158PerClient + rev97155PerClient + rev97156PerClient + rev97151PerClient
+  );
+  const monthlyNetRevPerClient = Math.round(monthlyGrossRevPerClient * realization);
+
+  const rbtHourlyWage = Math.max(12, Number(c.rbtHourlyWage) || 23.5);
+  const rbtNonBillablePct = Math.max(0, Number(c.rbtNonBillablePct) ?? 14) / 100;
+  const payrollTaxBenefitsPct = Math.max(0, Number(c.payrollTaxBenefitsPct) ?? 18) / 100;
+  const bcbaAnnualSalary = Math.max(50000, Number(c.bcbaAnnualSalary) || 92000);
+  const bcbaCaseloadLimit = Math.max(4, Number(c.bcbaCaseloadLimit) || 10);
+  const sensorySuppliesPerClientMo = Math.max(0, Number(c.sensorySuppliesPerClientMo) ?? 95);
+
+  const deliveredRbtHrsPerClientMo = (clientMoHrs97153 + clientMoHrs97158 * 0.5) * realization;
+  const rbtPaidHrsPerClientMo = deliveredRbtHrsPerClientMo * (1 + rbtNonBillablePct);
+  const rbtCostPerClientMo = rbtPaidHrsPerClientMo * rbtHourlyWage * (1 + payrollTaxBenefitsPct);
+  const bcbaLoadedMonthly = (bcbaAnnualSalary / 12) * (1 + payrollTaxBenefitsPct);
+  const bcbaCostPerClientMo = bcbaLoadedMonthly / bcbaCaseloadLimit;
+
+  const monthlyDirectLaborPerClient = Math.round(rbtCostPerClientMo + bcbaCostPerClientMo);
+  const monthlyContributionPerClient = Math.round(
+    monthlyNetRevPerClient - monthlyDirectLaborPerClient - sensorySuppliesPerClientMo
+  );
+  const contributionMarginPct = monthlyNetRevPerClient > 0
+    ? Math.round((monthlyContributionPerClient / monthlyNetRevPerClient) * 100)
+    : 0;
+
+  const unitEconomics = {
+    weightedWeeklyHoursPerClient,
+    compSharePct: Math.round(compShare * 100),
+    focSharePct: Math.round(focShare * 100),
+    grpSharePct: Math.round(grpShare * 100),
+    rev97153Net: Math.round(rev97153PerClient * realization),
+    rev97158Net: Math.round(rev97158PerClient * realization),
+    rev97155Net: Math.round(rev97155PerClient * realization),
+    rev97156Net: Math.round(rev97156PerClient * realization),
+    rev97151Net: Math.round(rev97151PerClient * realization),
+    rbtCostPerClientMo: Math.round(rbtCostPerClientMo),
+    bcbaCostPerClientMo: Math.round(bcbaCostPerClientMo),
+    monthlyGrossRevPerClient,
+    monthlyNetRevPerClient,
+    monthlyDirectLaborPerClient,
+    sensorySuppliesPerClientMo,
+    monthlyContributionPerClient,
+    contributionMarginPct
+  };
+
+  const baseRentMonthly = Math.round((totalSqFt * (Number(c.baseRentPerSqFtYr) ?? 28)) / 12);
+  const camUtilitiesMonthly = Math.round((totalSqFt * (Number(c.camUtilitiesPerSqFtYr) ?? 7.5)) / 12);
+  const rentAndCamMonthly = baseRentMonthly + camUtilitiesMonthly;
+  const adminDirectorMonthly = Math.round(Number(c.adminDirectorMonthly) ?? 10500);
+  const insuranceSanitationMonthly = Math.round(Number(c.insuranceSanitationMonthly) ?? 2800);
+  const marketingCrmMonthly = Math.round(Number(c.marketingCrmMonthly) ?? 1800);
+  const fixedFacilityOverheadMo = rentAndCamMonthly + adminDirectorMonthly + insuranceSanitationMonthly + marketingCrmMonthly;
+
+  const initialClients = Math.min(maxClinicClientCapacity, Math.max(1, Number(c.initialClientsMonth1) || 8));
+  const monthlyNewSignups = Math.max(0, Number(c.monthlyNewClientSignups) ?? 2.5);
+  const monthlyChurnRate = Math.min(25, Math.max(0, Number(c.monthlyGraduationChurnPct) ?? 2.0)) / 100;
+  const rbtWeeklyTarget = Math.max(15, Number(c.rbtWeeklyBillableTarget) || 30);
+
+  const enableAncillaryGym = Boolean(c.enableAncillaryGym);
+  const targetGymMemberships = Math.max(0, Number(c.gymMembershipsCount) ?? 35);
+  const gymMembershipFee = Math.max(0, Number(c.gymMembershipMonthlyFee) ?? 145);
+  const otPtSubleaseMo = Math.max(0, Number(c.otPtSubleaseMonthly) ?? 3500);
+
+  const months = [];
+  let exactClients = initialClients;
+  let cumCash = -upfrontEquityCash;
+  let unleveredCumCash = -totalCapitalRequired;
+
+  for (let m = 1; m <= 36; m++) {
+    if (m > 1) {
+      const churned = exactClients * monthlyChurnRate;
+      exactClients = Math.min(maxClinicClientCapacity, Math.max(1, exactClients + monthlyNewSignups - churned));
+    }
+    const activeClients = Math.round(exactClients * 10) / 10;
+    const utilizationPct = Math.min(100, Math.round((activeClients / maxClinicClientCapacity) * 100));
+
+    const cpt97153Rev = Math.round(activeClients * rev97153PerClient * realization);
+    const cpt97155Rev = Math.round(activeClients * rev97155PerClient * realization);
+    const cpt97156Rev = Math.round(activeClients * rev97156PerClient * realization);
+    const cpt97151Rev = Math.round(activeClients * rev97151PerClient * realization);
+    const cpt97158Rev = Math.round(activeClients * rev97158PerClient * realization);
+    const netAbaRevenue = cpt97153Rev + cpt97155Rev + cpt97156Rev + cpt97151Rev + cpt97158Rev;
+
+    const gymRampFactor = Math.min(1, 0.35 + (m - 1) * 0.13);
+    const activeGymMembers = enableAncillaryGym ? Math.round(targetGymMemberships * gymRampFactor) : 0;
+    const ancillaryGymRevenue = enableAncillaryGym
+      ? Math.round(activeGymMembers * gymMembershipFee + otPtSubleaseMo * (m >= 2 ? 1 : 0.5))
+      : 0;
+
+    const totalRevenue = netAbaRevenue + ancillaryGymRevenue;
+
+    const billableHoursMo = Math.round(
+      activeClients * (clientMoHrs97153 + clientMoHrs97158 + clientMoHrs97155 + famHrsMo + assessHrsMo) * realization
+    );
+
+    const totalRbtBillableWk = activeClients * (direct1on1HrsWk + gymGroupHrsWk * 0.5) * realization;
+    const rbtHeadcount = Math.max(2, Math.ceil(totalRbtBillableWk / rbtWeeklyTarget));
+    const bcbaHeadcount = Math.max(1, Math.ceil(activeClients / bcbaCaseloadLimit));
+
+    const rbtLaborCost = Math.round(activeClients * rbtCostPerClientMo);
+    const bcbaLaborCost = Math.round(bcbaHeadcount * bcbaLoadedMonthly);
+    const totalClinicalLabor = rbtLaborCost + bcbaLaborCost;
+
+    const grossProfit = totalRevenue - totalClinicalLabor;
+    const grossMarginPct = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 100) : 0;
+
+    const sensorySupplies = Math.round(activeClients * sensorySuppliesPerClientMo);
+    const totalFacilityOpEx = fixedFacilityOverheadMo + sensorySupplies;
+
+    const ebitda = grossProfit - totalFacilityOpEx;
+    const ebitdaMarginPct = totalRevenue > 0 ? Math.round((ebitda / totalRevenue) * 100) : 0;
+
+    const debtService = monthlyDebtService;
+    const netCashFlow = ebitda - debtService;
+    cumCash += netCashFlow;
+    unleveredCumCash += ebitda;
+
+    months.push({
+      month: m,
+      year: Math.ceil(m / 12),
+      quarter: Math.ceil(m / 3),
+      activeClients,
+      utilizationPct,
+      billableHoursMo,
+      cpt97153Rev,
+      cpt97155Rev,
+      cpt97156Rev,
+      cpt97151Rev,
+      cpt97158Rev,
+      netAbaRevenue,
+      activeGymMembers,
+      ancillaryGymRevenue,
+      totalRevenue,
+      rbtHeadcount,
+      bcbaHeadcount,
+      rbtLaborCost,
+      bcbaLaborCost,
+      totalClinicalLabor,
+      grossProfit,
+      grossMarginPct,
+      baseRentMonthly,
+      camUtilitiesMonthly,
+      rentAndCam: rentAndCamMonthly,
+      adminPayroll: adminDirectorMonthly,
+      insuranceAndOps: insuranceSanitationMonthly + marketingCrmMonthly,
+      sensorySupplies,
+      totalFacilityOpEx,
+      ebitda,
+      ebitdaMarginPct,
+      debtService,
+      netCashFlow,
+      cumulativeCashFlow: Math.round(cumCash),
+      unleveredCumulativeCashFlow: Math.round(unleveredCumCash)
+    });
+  }
+
+  const years = [1, 2, 3].map((yr) => {
+    const slice = months.filter((x) => x.year === yr);
+    const sum = (k) => slice.reduce((a, b) => a + (b[k] || 0), 0);
+    const totalRevenue = sum('totalRevenue');
+    const totalClinicalLabor = sum('totalClinicalLabor');
+    const grossProfit = sum('grossProfit');
+    const totalFacilityOpEx = sum('totalFacilityOpEx');
+    const ebitda = sum('ebitda');
+    const debtService = sum('debtService');
+    const netIncome = sum('netCashFlow');
+    const lastMo = slice[slice.length - 1];
+    return {
+      year: yr,
+      startClients: slice[0].activeClients,
+      endClients: lastMo.activeClients,
+      avgClients: +(slice.reduce((a, b) => a + b.activeClients, 0) / slice.length).toFixed(1),
+      endUtilizationPct: lastMo.utilizationPct,
+      endRbtHeadcount: lastMo.rbtHeadcount,
+      endBcbaHeadcount: lastMo.bcbaHeadcount,
+      cpt97153Rev: sum('cpt97153Rev'),
+      cpt97155Rev: sum('cpt97155Rev'),
+      cpt97156Rev: sum('cpt97156Rev'),
+      cpt97151Rev: sum('cpt97151Rev'),
+      cpt97158Rev: sum('cpt97158Rev'),
+      netAbaRevenue: sum('netAbaRevenue'),
+      ancillaryGymRevenue: sum('ancillaryGymRevenue'),
+      totalRevenue,
+      totalClinicalLabor,
+      grossProfit,
+      grossMarginPct: totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 100) : 0,
+      rentAndCam: sum('rentAndCam'),
+      adminPayroll: sum('adminPayroll'),
+      insuranceAndOps: sum('insuranceAndOps'),
+      sensorySupplies: sum('sensorySupplies'),
+      totalFacilityOpEx,
+      ebitda,
+      ebitdaMarginPct: totalRevenue > 0 ? Math.round((ebitda / totalRevenue) * 100) : 0,
+      debtService,
+      netIncome,
+      endingCumulativeCash: lastMo.cumulativeCashFlow
+    };
+  });
+
+  const steadyAncillaryMo = enableAncillaryGym
+    ? Math.round(targetGymMemberships * gymMembershipFee + otPtSubleaseMo)
+    : 0;
+  const netClientVarMargin = Math.max(500, monthlyNetRevPerClient - Math.round(rbtCostPerClientMo) - sensorySuppliesPerClientMo);
+  const netFixedLoadOp = Math.max(0, fixedFacilityOverheadMo + Math.round(bcbaLoadedMonthly) - steadyAncillaryMo);
+  const breakEvenClientsOperating = Math.max(1, Math.ceil(netFixedLoadOp / netClientVarMargin));
+  const breakEvenClientsCashFlow = Math.max(1, Math.ceil((netFixedLoadOp + monthlyDebtService) / netClientVarMargin));
+
+  const firstPositiveCashMo = months.find((m) => m.netCashFlow >= 0);
+  const paybackMo = months.find((m) => m.cumulativeCashFlow >= 0);
+  const m36 = months[35];
+  const threeYearTotalEbitda = months.reduce((s, m) => s + m.ebitda, 0);
+  const threeYearNetProfitAfterDebt = months.reduce((s, m) => s + m.netCashFlow, 0);
+
+  const kpis = {
+    breakEvenClientsOperating,
+    breakEvenClientsCashFlow,
+    breakEvenUtilizationPct: Math.min(100, Math.round((breakEvenClientsCashFlow / maxClinicClientCapacity) * 100)),
+    breakEvenMonth: firstPositiveCashMo ? firstPositiveCashMo.month : null,
+    paybackMonth: paybackMo ? paybackMo.month : null,
+    steadyStateMonthlyRev: m36.totalRevenue,
+    steadyStateMonthlyEbitda: m36.ebitda,
+    steadyStateEbitdaMarginPct: m36.ebitdaMarginPct,
+    steadyStateAnnualRev: m36.totalRevenue * 12,
+    steadyStateAnnualEbitda: m36.ebitda * 12,
+    threeYearTotalEbitda,
+    threeYearNetProfitAfterDebt,
+    threeYearCumulativeNetCash: m36.cumulativeCashFlow,
+    cashOnCashReturnPct: Math.round((threeYearNetProfitAfterDebt / Math.max(1, upfrontEquityCash)) * 100),
+    revenuePerSqFtYr: Math.round((m36.totalRevenue * 12) / totalSqFt),
+    ebitdaPerSqFtYr: Math.round((m36.ebitda * 12) / totalSqFt)
+  };
+
+  return { config: c, space, capex, unitEconomics, months, years, kpis };
+}
+
+function renderFacilityJCurveSvg(months, capex, kpis) {
+  const w = 640, h = 235, padL = 62, padR = 24, padT = 26, padB = 34;
+  const ptsData = [
+    { m: 0, lev: -capex.upfrontEquityCash, unlev: -capex.totalCapitalRequired },
+    ...months.map((x) => ({ m: x.month, lev: x.cumulativeCashFlow, unlev: x.unleveredCumulativeCashFlow }))
+  ];
+  const allVals = ptsData.flatMap((d) => [d.lev, d.unlev, 0]);
+  const minV = Math.min(-100000, ...allVals);
+  const maxV = Math.max(100000, ...allVals);
+  const span = Math.max(1, maxV - minV);
+
+  const x = (m) => Math.round(padL + (m / 36) * (w - padL - padR));
+  const y = (v) => Math.round(h - padB - ((v - minV) / span) * (h - padT - padB));
+  const zeroY = y(0);
+
+  const levPoly = ptsData.map((d) => `${x(d.m)},${y(d.lev)}`).join(' ');
+  const unlevPoly = ptsData.map((d) => `${x(d.m)},${y(d.unlev)}`).join(' ');
+  const areaPoly = `${x(0)},${zeroY} ${levPoly} ${x(36)},${zeroY}`;
+
+  const fmtK = (v) => {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? '-' : '';
+    if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+    return `${sign}$${Math.round(abs / 1000)}k`;
+  };
+
+  const paybackX = kpis.paybackMonth ? x(kpis.paybackMonth) : null;
+
+  return `
+  <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:linear-gradient(155deg,#041f27 0%,#08333e 100%);border-radius:10px;border:1.5px solid #0d9488;display:block;overflow:visible">
+    <defs>
+      <linearGradient id="jCurveFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#10b981" stop-opacity="0.38"/>
+        <stop offset="70%" stop-color="#0284c7" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="#f43f5e" stop-opacity="0.18"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Grid lines -->
+    ${[minV, 0, Math.round(maxV * 0.5), maxV].map((gv) => `
+      <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="${gv === 0 ? '#6ee7b7' : 'rgba(148,163,184,0.2)'}" stroke-width="${gv === 0 ? '1.8' : '1'}" ${gv === 0 ? 'stroke-dasharray="4 3"' : ''}/>
+      <text x="${padL - 8}" y="${y(gv) + 4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="700" fill="${gv === 0 ? '#6ee7b7' : '#94a3b8'}">${fmtK(gv)}</text>
+    `).join('')}
+
+    <!-- X-axis Month Labels -->
+    ${[0, 6, 12, 18, 24, 30, 36].map((m) => `
+      <line x1="${x(m)}" x2="${x(m)}" y1="${padT}" y2="${h - padB}" stroke="rgba(148,163,184,0.12)" stroke-width="1"/>
+      <text x="${x(m)}" y="${h - 10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="600" fill="#cbd5e1">M${m}</text>
+    `).join('')}
+
+    <!-- Shaded area -->
+    <polygon points="${areaPoly}" fill="url(#jCurveFill)"/>
+
+    <!-- Unlevered line -->
+    <polyline fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="4 3" points="${unlevPoly}"/>
+
+    <!-- Levered Cumulative Cash Flow line -->
+    <polyline fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${levPoly}"/>
+
+    <!-- Payback Crossover Marker -->
+    ${paybackX !== null ? `
+      <line x1="${paybackX}" x2="${paybackX}" y1="${padT}" y2="${h - padB}" stroke="#fbbf24" stroke-width="1.8" stroke-dasharray="3 3"/>
+      <circle cx="${paybackX}" cy="${zeroY}" r="5.5" fill="#fbbf24" stroke="#041f27" stroke-width="2"/>
+      <rect x="${Math.min(w - 145, Math.max(padL + 4, paybackX - 64))}" y="${padT + 2}" width="128" height="20" rx="4" fill="#fbbf24"/>
+      <text x="${Math.min(w - 81, Math.max(padL + 68, paybackX))}" y="${padT + 15}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="800" fill="#041f27">PAYBACK: MONTH ${kpis.paybackMonth}</text>
+    ` : ''}
+
+    <!-- Key Milestone Dots -->
+    ${[0, 12, 24, 36].map((m) => {
+      const pt = ptsData.find((d) => d.m === m);
+      if (!pt) return '';
+      return `<circle cx="${x(m)}" cy="${y(pt.lev)}" r="4" fill="#ecfeff" stroke="#10b981" stroke-width="2"><title>Month ${m}: ${fmtK(pt.lev)} Cumulative Net Cash</title></circle>`;
+    }).join('')}
+  </svg>
+  `;
+}
+
+function renderFacilityRevOpExSvg(months, kpis) {
+  const w = 640, h = 235, padL = 62, padR = 24, padT = 26, padB = 34;
+  const maxVal = Math.max(50000, ...months.map((m) => Math.max(m.totalRevenue, m.totalClinicalLabor + m.totalFacilityOpEx + m.debtService)));
+  const x = (m) => Math.round(padL + ((m - 1) / 35) * (w - padL - padR));
+  const y = (v) => Math.round(h - padB - (Math.max(0, v) / maxVal) * (h - padT - padB));
+
+  const revPts = months.map((m) => `${x(m.month)},${y(m.totalRevenue)}`).join(' ');
+  const costPts = months.map((m) => `${x(m.month)},${y(m.totalClinicalLabor + m.totalFacilityOpEx + m.debtService)}`).join(' ');
+  const ebitdaPts = months.map((m) => `${x(m.month)},${y(Math.max(0, m.ebitda))}`).join(' ');
+
+  const fmtK = (v) => v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : `$${Math.round(v / 1000)}k`;
+  const beX = kpis.breakEvenMonth ? x(kpis.breakEvenMonth) : null;
+
+  return `
+  <svg viewBox="0 0 ${w} ${h}" width="100%" style="background:linear-gradient(155deg,#e2f6f4 0%,#d9eff8 100%);border-radius:10px;border:1.5px solid #6abdb8;display:block;overflow:visible">
+    ${[0, Math.round(maxVal * 0.33), Math.round(maxVal * 0.66), maxVal].map((gv) => `
+      <line x1="${padL}" x2="${w - padR}" y1="${y(gv)}" y2="${y(gv)}" stroke="#99cfc9" stroke-width="1"/>
+      <text x="${padL - 8}" y="${y(gv) + 4}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="700" fill="#1e4e56">${fmtK(gv)}</text>
+    `).join('')}
+
+    ${[1, 6, 12, 18, 24, 30, 36].map((m) => `
+      <text x="${x(m)}" y="${h - 10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="700" fill="#255f66">M${m}</text>
+    `).join('')}
+
+    <!-- EBITDA Line -->
+    <polyline fill="none" stroke="#0284c7" stroke-width="2.2" stroke-dasharray="4 3" points="${ebitdaPts}"/>
+
+    <!-- Total Cost + Debt Service Line -->
+    <polyline fill="none" stroke="#e11d48" stroke-width="2.4" points="${costPts}"/>
+
+    <!-- Total Revenue Line -->
+    <polyline fill="none" stroke="#047857" stroke-width="3.2" stroke-linecap="round" points="${revPts}"/>
+
+    ${beX !== null ? `
+      <line x1="${beX}" x2="${beX}" y1="${padT}" y2="${h - padB}" stroke="#047857" stroke-width="1.6" stroke-dasharray="3 3"/>
+      <rect x="${Math.min(w - 155, Math.max(padL + 4, beX - 70))}" y="${padT + 2}" width="140" height="20" rx="4" fill="#047857"/>
+      <text x="${Math.min(w - 85, Math.max(padL + 74, beX))}" y="${padT + 15}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.2" font-weight="800" fill="#ffffff">BREAK-EVEN: MONTH ${kpis.breakEvenMonth}</text>
+    ` : ''}
+  </svg>
+  `;
+}
+
+async function facilityModelView() {
+  if (!facilityData) {
+    facilityData = await api('GET', '/api/facility-model');
+    const defModel = (facilityData.models || []).find((m) => m.is_default) || (facilityData.models || [])[0];
+    if (defModel) {
+      activeFacilityModelId = defModel.id;
+      facilityCfg = { ...defModel.config };
+    }
+  }
+  const models = facilityData.models || [];
+  const activeModelMeta = models.find((m) => m.id === activeFacilityModelId) || models[0] || { id: 1, name: 'Base Case Clinic & Gym', subtitle: '' };
+  if (!facilityCfg) {
+    facilityCfg = { ...(activeModelMeta.config || {}) };
+  }
+
+  const pf = computeClientFacilityModel(facilityCfg);
+  const { config: c, space, capex, unitEconomics: ue, months, years, kpis } = pf;
+  const signups = facilityData.signups || [];
+  const sigSum = facilityData.signupSummary || { totalSignups: 0, committedMonth1Count: 0, waitlistCount: 0, totalCommittedWeeklyHours: 0, avgWeeklyHoursPerSignup: 24, tierCounts: {}, tierSharesPct: {}, projectedMonthlyGrossFromSignups: 0 };
+
+  const fmt$ = (n) => {
+    const val = Math.round(Number(n) || 0);
+    return val < 0 ? `-$${Math.abs(val).toLocaleString()}` : `$${val.toLocaleString()}`;
+  };
+
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:16px">
+      ${brandEmblem('lg')}
+      <div>
+        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">CAPITAL EXPANSION · PHYSICAL CLINIC & SENSORY GYM PRO FORMA</div>
+        <h1>Physical ABA Clinic & Sensory / Motor Gym Financial Model</h1>
+        <p class="page-sub">${esc(activeModelMeta.name)} · ${esc(activeModelMeta.subtitle)}</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="sec" style="padding:9px 14px;font-size:0.82rem" onclick="act.syncFacilityFromSignups()" title="Sync Month-1 Clients & Therapy Tier Mix from Live Client Signup Roster">⚡ Sync from Client Signups (${sigSum.committedMonth1Count} M1 / ${sigSum.totalSignups} Total)</button>
+      <button class="ok" style="padding:9px 14px;font-size:0.82rem" onclick="act.saveFacilityScenario()">💾 Save Scenario</button>
+      <button class="sec" style="padding:9px 14px;font-size:0.82rem" onclick="act.saveAsNewFacilityScenario()">+ Save As New</button>
+      <button class="sec" style="padding:9px 14px;font-size:0.82rem" onclick="act.exportFacilityCsv()">📥 Export 36-Mo CSV</button>
+      <button class="sec" style="padding:9px 14px;font-size:0.82rem" onclick="window.print()">🖨️ Print Pro Forma</button>
+    </div>
+  </div>
+
+  <!-- Scenario Preset Switcher Bar -->
+  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:linear-gradient(135deg,#042e39 0%,#0b4650 100%);color:#fff;border:1.5px solid #2dd4bf">
+    <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-family:var(--font-mono);font-size:0.74rem;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.06em">Facility Footprint Presets:</span>
+        ${models.map((m) => `
+          <button class="${m.id === activeFacilityModelId ? 'ok' : 'sec'}" style="padding:7px 14px;font-size:0.8rem;${m.id === activeFacilityModelId ? 'background:#10b981;border-color:#a7f3d0;color:#fff' : 'background:rgba(255,255,255,0.1);color:#e2f8f5;border-color:rgba(255,255,255,0.25)'}" onclick="act.selectFacilityModel(${m.id})">
+            🏗️ ${esc(m.name.split(':')[0])} <span style="opacity:0.85;font-family:var(--font-mono);font-size:0.74rem">(${(m.config.totalSqFt || 6000).toLocaleString()} sf)</span>
+          </button>
+        `).join('')}
+      </div>
+      <div style="font-family:var(--font-mono);font-size:0.76rem;color:#99f6e4">
+        Live Signup Pipeline: <b>${sigSum.totalSignups} Children</b> (${fmt$(sigSum.projectedMonthlyGrossFromSignups)}/mo gross demand)
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 Executive Headline Financial KPIs -->
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));margin-bottom:18px">
+    <div class="stat-card">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Net Build-Out CapEx</div>
+        <span class="badge p">${space.totalSqFt.toLocaleString()} SQ FT</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${fmt$(capex.netBuildoutCapEx)}</div>
+      <div class="stat-sub">Gross ${fmt$(capex.grossBuildoutCapEx)} less <b>-${fmt$(capex.landlordTiCredit)}</b> TI credit · Gym Eq: <b>${fmt$(capex.totalGymEquipment)}</b></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Upfront Cash Equity</div>
+        <span class="badge sen">${capex.useFinancing ? `SBA ${100 - capex.downPaymentPct}% LTV` : '100% CASH'}</span>
+      </div>
+      <div class="stat" style="color:var(--sensory)">${fmt$(capex.upfrontEquityCash)}</div>
+      <div class="stat-sub">Includes ${fmt$(capex.workingCapitalReserve)} WC · Loan: <b>${fmt$(capex.loanPrincipal)}</b> (${fmt$(capex.monthlyDebtService)}/mo)</div>
+    </div>
+
+    <div class="stat-card ok">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Break-Even Enrollment</div>
+        <span class="badge tan">MONTH ${kpis.breakEvenMonth || '—'}</span>
+      </div>
+      <div class="stat" style="color:var(--ok)">${kpis.breakEvenClientsCashFlow} <span style="font-size:1rem;font-weight:600">Clients</span></div>
+      <div class="stat-sub"><b>${kpis.breakEvenUtilizationPct}%</b> of ${space.maxClinicClientCapacity}-client capacity · Op Break-Even: ${kpis.breakEvenClientsOperating} kids</div>
+    </div>
+
+    <div class="stat-card ok">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Full Equity Payback</div>
+        <span class="badge ok">${kpis.paybackMonth ? `${(kpis.paybackMonth / 12).toFixed(1)} YRS` : '>36 MO'}</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${kpis.paybackMonth ? `Month ${kpis.paybackMonth}` : 'Month 36+'}</div>
+      <div class="stat-sub">3-Yr Cash-on-Cash Return: <b>${kpis.cashOnCashReturnPct}%</b> on upfront equity</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Steady-State EBITDA</div>
+        <span class="badge p">${kpis.steadyStateEbitdaMarginPct}% MARGIN</span>
+      </div>
+      <div class="stat" style="color:var(--ok)">${fmt$(kpis.steadyStateMonthlyEbitda)}<span style="font-size:0.95rem">/mo</span></div>
+      <div class="stat-sub"><b>${fmt$(kpis.steadyStateAnnualEbitda)}/yr</b> EBITDA on ${fmt$(kpis.steadyStateAnnualRev)}/yr revenue</div>
+    </div>
+
+    <div class="stat-card ok">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">3-Year Net Cash Flow</div>
+        <span class="badge sen">${fmt$(kpis.revenuePerSqFtYr)}/SF/YR</span>
+      </div>
+      <div class="stat" style="color:var(--primary)">${fmt$(kpis.threeYearCumulativeNetCash)}</div>
+      <div class="stat-sub">Cumulative cash after CapEx & SBA debt · 3-Yr EBITDA: <b>${fmt$(kpis.threeYearTotalEbitda)}</b></div>
+    </div>
+  </div>
+
+  <!-- 4-Pillar Workstation Sub-Navigation Tabs -->
+  <div class="kpi-persona-switcher" style="margin-bottom:18px">
+    <button class="kpi-persona-tab ${facilitySubTab === 'overview' ? 'active' : ''}" onclick="act.setFacilitySubTab('overview')">
+      <div class="kpi-tab-icon">📊</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">1. Executive Pro Forma & Floorplan</div>
+        <div class="kpi-tab-sub">What-If Sliders, Space Zones & J-Curve</div>
+      </div>
+      <span class="badge ${facilitySubTab === 'overview' ? 'p' : 'sec'}">36-Mo</span>
+    </button>
+    <button class="kpi-persona-tab ${facilitySubTab === 'signups' ? 'active' : ''}" onclick="act.setFacilitySubTab('signups')">
+      <div class="kpi-tab-icon">🧒</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">2. Client Therapy Signups & Cohorts</div>
+        <div class="kpi-tab-sub">Enrolled Roster, Waitlist & CPT Mix</div>
+      </div>
+      <span class="badge ${facilitySubTab === 'signups' ? 'sen' : 'sec'}">${sigSum.totalSignups} Kids</span>
+    </button>
+    <button class="kpi-persona-tab ${facilitySubTab === 'capex' ? 'active' : ''}" onclick="act.setFacilitySubTab('capex')">
+      <div class="kpi-tab-icon">🤸</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">3. Sensory Gym & Clinic CapEx</div>
+        <div class="kpi-tab-sub">Rigging, Climbing Wall, TI & SBA Loan</div>
+      </div>
+      <span class="badge ${facilitySubTab === 'capex' ? 'tan' : 'sec'}">${fmt$(capex.netBuildoutCapEx)}</span>
+    </button>
+    <button class="kpi-persona-tab ${facilitySubTab === 'pnl' ? 'active' : ''}" onclick="act.setFacilitySubTab('pnl')">
+      <div class="kpi-tab-icon">📑</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">4. 3-Year P&L & Unit Economics</div>
+        <div class="kpi-tab-sub">Per-Client Margin, Staffing & Schedule</div>
+      </div>
+      <span class="badge ${facilitySubTab === 'pnl' ? 'esc' : 'sec'}">P&L</span>
+    </button>
+  </div>
+
+  ${facilitySubTab === 'overview' ? `
+    <!-- TAB 1: EXECUTIVE PRO FORMA, INTERACTIVE WHAT-IF SLIDERS, ARCHITECTURAL ZONES & J-CURVE -->
+    <div class="card" style="background:var(--slate-50);border:1.5px solid var(--slate-300)">
+      <div class="flex-between" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0 0 2px">🎛️ Real-Time Facility, Enrollment & Reimbursement What-If Controls</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-600)">Drag any slider to recalculate CapEx, RBT/BCBA staffing, break-even client count, and the 36-month J-curve in real time.</p>
+        </div>
+        <span class="badge p">Instant Sensitivity Analysis</span>
+      </div>
+
+      <div class="row" style="margin-bottom:12px">
+        <div>
+          <label>Total Clinic + Gym Footprint: <b>${c.totalSqFt.toLocaleString()} sq ft</b> ($${Math.round((c.totalSqFt * c.baseRentPerSqFtYr) / 12).toLocaleString()}/mo base rent)</label>
+          <input type="range" min="2000" max="20000" step="250" value="${c.totalSqFt}" oninput="act.updateFacilityCfg('totalSqFt', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Sensory & Gross-Motor Gym Share: <b>${c.gymSqFtPct}%</b> (${space.gymSqFt.toLocaleString()} sq ft)</label>
+          <input type="range" min="20" max="55" step="1" value="${c.gymSqFtPct}" oninput="act.updateFacilityCfg('gymSqFtPct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>1:1 DTT Therapy Suites: <b>${c.dttRoomCount} Suites</b> (${space.dttSqFt.toLocaleString()} sq ft)</label>
+          <input type="range" min="4" max="30" step="1" value="${c.dttRoomCount}" oninput="act.updateFacilityCfg('dttRoomCount', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Max Clinic Enrollment Ceiling: <b>${c.maxClinicClientCapacity} Clients</b> (AM + PM Cohorts)</label>
+          <input type="range" min="8" max="75" step="1" value="${c.maxClinicClientCapacity}" oninput="act.updateFacilityCfg('maxClinicClientCapacity', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+      </div>
+
+      <div class="row" style="margin-bottom:0">
+        <div>
+          <label>Month-1 Enrolled Clients: <b>${c.initialClientsMonth1} Clients</b> (Committed Signups)</label>
+          <input type="range" min="2" max="40" step="1" value="${c.initialClientsMonth1}" oninput="act.updateFacilityCfg('initialClientsMonth1', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Monthly New Therapy Signups: <b>+${c.monthlyNewClientSignups} Clients/mo</b></label>
+          <input type="range" min="0.5" max="8" step="0.5" value="${c.monthlyNewClientSignups}" oninput="act.updateFacilityCfg('monthlyNewClientSignups', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>CPT 97153 1:1 Direct Rate: <b>$${c.rate97153Hr}/hr</b> ($${(c.rate97153Hr / 4).toFixed(2)}/unit)</label>
+          <input type="range" min="50" max="96" step="1" value="${c.rate97153Hr}" oninput="act.updateFacilityCfg('rate97153Hr', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>RBT Base Hourly Wage: <b>$${c.rbtHourlyWage.toFixed(2)}/hr</b> (+${c.payrollTaxBenefitsPct}% tax/benefits)</label>
+          <input type="range" min="18" max="34" step="0.5" value="${c.rbtHourlyWage}" oninput="act.updateFacilityCfg('rbtHourlyWage', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+      </div>
+    </div>
+
+    <!-- Architectural Floorplan & Sensory Gym Zone Allocation Bar -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div>
+          <h3 style="margin:0 0 2px">📐 Architectural Space Allocation & Sensory Gym Zone Blueprint (${space.totalSqFt.toLocaleString()} sq ft)</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Optimized pediatric clinical layout combining high-density 1:1 DTT suites with a commercial Sensory & Gross-Motor Gym.</p>
+        </div>
+        <span class="badge sen">${fmt$(kpis.revenuePerSqFtYr)} Rev / Sq Ft / Yr</span>
+      </div>
+
+      <div style="display:flex;height:34px;border-radius:8px;overflow:hidden;margin-bottom:14px;border:1.5px solid var(--slate-300);font-family:var(--font-mono);font-size:0.75rem;font-weight:700;color:#fff">
+        <div style="width:${space.gymSqFtPct}%;background:linear-gradient(90deg,#059669,#10b981);display:flex;align-items:center;justify-content:center" title="Sensory & Gross-Motor Gym: ${space.gymSqFt.toLocaleString()} sq ft">🤸 Sensory Gym ${space.gymSqFtPct}% (${space.gymSqFt.toLocaleString()} sf)</div>
+        <div style="width:${space.dttRoomsPct}%;background:linear-gradient(90deg,#0369a1,#0284c7);display:flex;align-items:center;justify-content:center" title="1:1 DTT Suites: ${space.dttSqFt.toLocaleString()} sq ft">🧩 ${space.dttRooms} DTT Suites ${space.dttRoomsPct}%</div>
+        <div style="width:${space.groupRoomsPct}%;background:#d97706;display:flex;align-items:center;justify-content:center" title="Social Skills & Group Classrooms: ${space.groupSqFt.toLocaleString()} sq ft">🤝 Group ${space.groupRoomsPct}%</div>
+        <div style="width:${space.calmingRoomsPct}%;background:#6366f1;display:flex;align-items:center;justify-content:center" title="Snoezelen Calming Rooms: ${space.calmingSqFt.toLocaleString()} sq ft">🌊 ${space.calmingRoomsPct}%</div>
+        <div style="width:${space.adminLobbyPct}%;background:#475569;display:flex;align-items:center;justify-content:center" title="Parent Observation & Staff Hub: ${space.adminLobbySqFt.toLocaleString()} sq ft">🛋️ ${space.adminLobbyPct}%</div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));margin-bottom:0">
+        <div style="padding:12px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:8px">
+          <div style="font-weight:700;color:#065f46;font-size:0.9rem">🤸 Sensory & Gross-Motor Gym</div>
+          <div style="font-family:var(--font-mono);font-size:1.1rem;font-weight:800;color:#047857;margin:4px 0">${space.gymSqFt.toLocaleString()} sq ft (${space.gymSqFtPct}%)</div>
+          <div style="font-size:0.78rem;color:#065f46">Overhead steel swing rig, rock wall, recessed foam crash pit, trampoline & NET obstacle course · <b>${space.gymConcurrentCap} kids concurrent</b></div>
+        </div>
+        <div style="padding:12px;background:#f0f9ff;border:1px solid #7dd3fc;border-radius:8px">
+          <div style="font-weight:700;color:#075985;font-size:0.9rem">🧩 1:1 DTT Therapy Suites</div>
+          <div style="font-family:var(--font-mono);font-size:1.1rem;font-weight:800;color:#0369a1;margin:4px 0">${space.dttSqFt.toLocaleString()} sq ft (${space.dttRooms} Suites)</div>
+          <div style="font-size:0.78rem;color:#075985">Acoustic-treated 1:1 learning rooms (~${Math.round(space.dttSqFt / space.dttRooms)} sf/room) with observation glass & First/Then boards</div>
+        </div>
+        <div style="padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px">
+          <div style="font-weight:700;color:#92400e;font-size:0.9rem">🤝 Group & Mock Classrooms</div>
+          <div style="font-family:var(--font-mono);font-size:1.1rem;font-weight:800;color:#b45309;margin:4px 0">${space.groupSqFt.toLocaleString()} sq ft (${space.groupRoomsPct}%)</div>
+          <div style="font-size:0.78rem;color:#92400e">Circle-time & school-readiness transition suites for CPT 97158 peer social groups · <b>${space.groupConcurrentCap} kids concurrent</b></div>
+        </div>
+        <div style="padding:12px;background:#eef2ff;border:1px solid #a5b4fc;border-radius:8px">
+          <div style="font-weight:700;color:#3730a3;font-size:0.9rem">🌊 Snoezelen & Crisis Suites</div>
+          <div style="font-family:var(--font-mono);font-size:1.1rem;font-weight:800;color:#4338ca;margin:4px 0">${space.calmingSqFt.toLocaleString()} sq ft (${space.calmingRoomsPct}%)</div>
+          <div style="font-size:0.78rem;color:#3730a3">Padded low-stimulation sensory regulation rooms with LED bubble tubes & deep-pressure mats</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dual 36-Month SVG Charts: Cumulative Cash Flow J-Curve & Revenue vs Cost -->
+    <div class="row">
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:8px">
+          <div>
+            <h3 style="margin:0 0 2px">📈 36-Month Cumulative Cash Flow J-Curve & Payback</h3>
+            <p style="margin:0;font-size:0.8rem;color:var(--slate-500)">Tracks net cash from Day-0 CapEx equity outlay (${fmt$(-capex.upfrontEquityCash)}) through full payback.</p>
+          </div>
+          <span class="badge ok">Payback: M${kpis.paybackMonth || '36+'}</span>
+        </div>
+        ${renderFacilityJCurveSvg(months, capex, kpis)}
+        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.74rem;color:var(--slate-600);margin-top:8px">
+          <span>🟢 Solid: <b>SBA Levered Cash Flow</b></span>
+          <span>🔵 Dashed: <b>100% Cash Unlevered</b></span>
+          <span>🟡 Marker: <b>100% Equity Recovered</b></span>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:8px">
+          <div>
+            <h3 style="margin:0 0 2px">💵 Monthly Revenue vs. Total Cost & EBITDA Ramp</h3>
+            <p style="margin:0;font-size:0.8rem;color:var(--slate-500)">Monthly CPT + Gym Revenue vs. RBT/BCBA Labor + NNN Rent + SBA Debt Service.</p>
+          </div>
+          <span class="badge p">Break-Even: ${kpis.breakEvenClientsCashFlow} Kids</span>
+        </div>
+        ${renderFacilityRevOpExSvg(months, kpis)}
+        <div class="flex-between" style="font-family:var(--font-mono);font-size:0.74rem;color:var(--slate-600);margin-top:8px">
+          <span style="color:#047857">🟢 <b>Net Revenue (${fmt$(kpis.steadyStateMonthlyRev)}/mo M36)</b></span>
+          <span style="color:#e11d48">🔴 <b>Labor + Rent + Debt</b></span>
+          <span style="color:#0284c7">🔵 <b>Monthly EBITDA (${fmt$(kpis.steadyStateMonthlyEbitda)}/mo)</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3-Year Executive Snapshot Table -->
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:8px">
+        <div>
+          <h3 style="margin:0 0 2px">🗓️ 3-Year Executive Pro Forma Summary (Year 1 – Year 3)</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Consolidated annual revenue, clinical staffing, facility operating expenses, EBITDA, and cumulative cash flow.</p>
+        </div>
+        <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="act.setFacilitySubTab('pnl')">Open Full 36-Month Schedule →</button>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Pro Forma Line Item</th>
+              <th style="text-align:right">Year 1 (Ramp-Up)</th>
+              <th style="text-align:right">Year 2 (Expansion)</th>
+              <th style="text-align:right">Year 3 (Steady-State)</th>
+              <th style="text-align:right">3-Year Cumulative</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><b>Ending Enrolled Therapy Clients (Capacity: ${space.maxClinicClientCapacity})</b></td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${years[0].endClients} clients</b> (${years[0].endUtilizationPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${years[1].endClients} clients</b> (${years[1].endUtilizationPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${years[2].endClients} clients</b> (${years[2].endUtilizationPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)">Avg ${years[2].avgClients} clients</td>
+            </tr>
+            <tr>
+              <td>Clinical Staffing Roster (Ending RBTs / BCBAs)</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${years[0].endRbtHeadcount} RBTs · ${years[0].endBcbaHeadcount} BCBAs</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${years[1].endRbtHeadcount} RBTs · ${years[1].endBcbaHeadcount} BCBAs</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${years[2].endRbtHeadcount} RBTs · ${years[2].endBcbaHeadcount} BCBAs</td>
+              <td style="text-align:right;font-family:var(--font-mono)">BACB ≥5% Compliant</td>
+            </tr>
+            <tr>
+              <td>Net ABA Insurance Revenue (CPT 97153/55/56/51/58)</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[0].netAbaRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[1].netAbaRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[2].netAbaRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);font-weight:700">${fmt$(years[0].netAbaRevenue + years[1].netAbaRevenue + years[2].netAbaRevenue)}</td>
+            </tr>
+            <tr>
+              <td>Sensory Gym Memberships & OT/PT Co-Treatment Revenue</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[0].ancillaryGymRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[1].ancillaryGymRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[2].ancillaryGymRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">${fmt$(years[0].ancillaryGymRevenue + years[1].ancillaryGymRevenue + years[2].ancillaryGymRevenue)}</td>
+            </tr>
+            <tr style="background:var(--slate-50);font-weight:700">
+              <td><b>Total Facility Net Revenue</b></td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(years[0].totalRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(years[1].totalRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(years[2].totalRevenue)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(years[0].totalRevenue + years[1].totalRevenue + years[2].totalRevenue)}</td>
+            </tr>
+            <tr>
+              <td>Direct Clinical Labor (RBTs + BCBAs + ${c.payrollTaxBenefitsPct}% Tax/Benefits)</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(years[0].totalClinicalLabor)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(years[1].totalClinicalLabor)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(years[2].totalClinicalLabor)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(years[0].totalClinicalLabor + years[1].totalClinicalLabor + years[2].totalClinicalLabor)}</td>
+            </tr>
+            <tr>
+              <td><b>Gross Clinical Margin</b></td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${fmt$(years[0].grossProfit)}</b> (${years[0].grossMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${fmt$(years[1].grossProfit)}</b> (${years[1].grossMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${fmt$(years[2].grossProfit)}</b> (${years[2].grossMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono)"><b>${fmt$(years[0].grossProfit + years[1].grossProfit + years[2].grossProfit)}</b></td>
+            </tr>
+            <tr>
+              <td>Facility Lease (NNN Rent + CAM), Admin, Gym Insurance & Supplies</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[0].totalFacilityOpEx)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[1].totalFacilityOpEx)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[2].totalFacilityOpEx)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[0].totalFacilityOpEx + years[1].totalFacilityOpEx + years[2].totalFacilityOpEx)}</td>
+            </tr>
+            <tr style="background:#ecfdf5;font-weight:700">
+              <td><b>Facility EBITDA (Operating Cash Flow)</b></td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#047857">${fmt$(years[0].ebitda)} (${years[0].ebitdaMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#047857">${fmt$(years[1].ebitda)} (${years[1].ebitdaMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#047857">${fmt$(years[2].ebitda)} (${years[2].ebitdaMarginPct}%)</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#047857">${fmt$(kpis.threeYearTotalEbitda)}</td>
+            </tr>
+            <tr>
+              <td>Less: SBA 7(a) Build-Out Loan Debt Service (P&I)</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[0].debtService)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[1].debtService)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[2].debtService)}</td>
+              <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(years[0].debtService + years[1].debtService + years[2].debtService)}</td>
+            </tr>
+            <tr style="background:var(--slate-100);font-weight:800">
+              <td><b>Net Pre-Tax Cash Flow (After Debt Service)</b></td>
+              <td style="text-align:right;font-family:var(--font-mono);color:${years[0].netIncome >= 0 ? 'var(--ok)' : 'var(--bad)'}">${fmt$(years[0].netIncome)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--ok)">${fmt$(years[1].netIncome)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--ok)">${fmt$(years[2].netIncome)}</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(kpis.threeYearNetProfitAfterDebt)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : ''}
+
+  ${facilitySubTab === 'signups' ? `
+    <!-- TAB 2: CLIENT THERAPY SIGNUPS, COHORT CAPACITY & CPT REVENUE MIX -->
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:18px">
+      <div class="stat-card ok">
+        <div class="flex-between" style="margin-bottom:6px">
+          <div class="stat-label" style="margin:0">Committed Day-1 Signups</div>
+          <span class="badge ok">MONTH 1 COHORT</span>
+        </div>
+        <div class="stat" style="color:var(--ok)">${sigSum.committedMonth1Count} <span style="font-size:1rem">Children</span></div>
+        <div class="stat-sub"><b>${sigSum.totalCommittedWeeklyHours} hrs/wk</b> authorized for Day-1 clinic opening</div>
+      </div>
+      <div class="stat-card">
+        <div class="flex-between" style="margin-bottom:6px">
+          <div class="stat-label" style="margin:0">Month 2–3 Auth & Waitlist</div>
+          <span class="badge tan">ONBOARDING PIPELINE</span>
+        </div>
+        <div class="stat" style="color:var(--primary)">${sigSum.waitlistCount} <span style="font-size:1rem">Children</span></div>
+        <div class="stat-sub">Total Signup Roster: <b>${sigSum.totalSignups} children</b> (${sigSum.avgWeeklyHoursPerSignup} avg hrs/wk)</div>
+      </div>
+      <div class="stat-card">
+        <div class="flex-between" style="margin-bottom:6px">
+          <div class="stat-label" style="margin:0">Roster Gross Revenue Run-Rate</div>
+          <span class="badge p">SIGNED COHORT</span>
+        </div>
+        <div class="stat" style="color:var(--primary)">${fmt$(sigSum.projectedMonthlyGrossFromSignups)}<span style="font-size:0.95rem">/mo</span></div>
+        <div class="stat-sub"><b>${fmt$(sigSum.projectedMonthlyGrossFromSignups * 12)}/yr</b> annualized from current ${sigSum.totalSignups} signups</div>
+      </div>
+    </div>
+
+    <!-- Therapy Tier Mix & Ancillary Sensory Gym Revenue Controls -->
+    <div class="card" style="background:var(--slate-50)">
+      <div class="flex-between" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0 0 2px">🎚️ Client Therapy Intensity Tiers & Sensory Gym Revenue Streams</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-600)">Configure the clinical caseload mix across Comprehensive (30–35h/wk), Focused + Gym (15–20h/wk), and Social/Gym Group (8h/wk), plus private-pay gym memberships.</p>
+        </div>
+        <button class="ok" style="padding:7px 14px;font-size:0.8rem" onclick="act.syncFacilityFromSignups()">⚡ Apply Mix from ${sigSum.totalSignups} Signed-Up Clients</button>
+      </div>
+      <div class="row" style="margin-bottom:12px">
+        <div>
+          <label>Comprehensive Tier Share (${c.compWeeklyHours}h/wk): <b>${ue.compSharePct}%</b></label>
+          <input type="range" min="10" max="80" step="5" value="${c.compTierSharePct}" oninput="act.updateFacilityCfg('compTierSharePct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Focused + Gym NET Share (${c.focusedWeeklyHours}h/wk): <b>${ue.focSharePct}%</b></label>
+          <input type="range" min="10" max="70" step="5" value="${c.focusedTierSharePct}" oninput="act.updateFacilityCfg('focusedTierSharePct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Social / Gym Group Share (${c.groupGymWeeklyHours}h/wk): <b>${ue.grpSharePct}%</b></label>
+          <input type="range" min="0" max="50" step="5" value="${c.groupGymTierSharePct}" oninput="act.updateFacilityCfg('groupGymTierSharePct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Attendance & Claim Realization: <b>${c.attendanceRealizationPct}%</b></label>
+          <input type="range" min="75" max="98" step="1" value="${c.attendanceRealizationPct}" oninput="act.updateFacilityCfg('attendanceRealizationPct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <div>
+          <label>CPT 97158 Sensory Gym Group Hrs/Wk: <b>${c.gymGroupHrsPerClientWk} hrs/wk</b> (@ $${c.rate97158Hr}/hr)</label>
+          <input type="range" min="0" max="8" step="0.5" value="${c.gymGroupHrsPerClientWk}" oninput="act.updateFacilityCfg('gymGroupHrsPerClientWk', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>Open Sensory Gym Memberships: <b>${c.gymMembershipsCount} Families</b> (@ $${c.gymMembershipMonthlyFee}/mo)</label>
+          <input type="range" min="0" max="100" step="5" value="${c.gymMembershipsCount}" oninput="act.updateFacilityCfg('gymMembershipsCount', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div>
+          <label>OT / PT Gym Co-Treatment Sublease: <b>$${c.otPtSubleaseMonthly.toLocaleString()}/mo</b></label>
+          <input type="range" min="0" max="10000" step="250" value="${c.otPtSubleaseMonthly}" oninput="act.updateFacilityCfg('otPtSubleaseMonthly', +this.value)" style="padding:0;height:10px;cursor:pointer">
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding-top:16px">
+          <input type="checkbox" id="chk_ancillary" ${c.enableAncillaryGym ? 'checked' : ''} onchange="act.updateFacilityCfg('enableAncillaryGym', this.checked)" style="width:18px;height:18px;margin:0">
+          <label for="chk_ancillary" style="margin:0;cursor:pointer"><b>Enable Ancillary Gym & OT/PT Revenue</b></label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client Therapy Signups & Waitlist Cohort Roster -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:12px">
+        <div>
+          <h3 style="margin:0 0 2px">🧒 Clients Signing Up for Physical Clinic & Sensory Gym Therapy (${signups.length} Children)</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Live intake & waitlist cohort feeding the clinic and sensory/gross-motor gym enrollment ramp (Synthetic Zero-PHI Demo Roster).</p>
+        </div>
+        <button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="showAddSignupForm=!showAddSignupForm;render()">+ Add Client Therapy Signup</button>
+      </div>
+
+      ${showAddSignupForm ? `
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:14px;margin-bottom:14px">
+          <div class="flex-between" style="margin-bottom:8px">
+            <h4 style="margin:0;color:#065f46">Add New Client Therapy Signup to Clinic & Gym Cohort</h4>
+            <button class="sec" style="padding:3px 8px;font-size:0.75rem" onclick="showAddSignupForm=false;render()">✕ Cancel</button>
+          </div>
+          <div class="row">
+            <div><label>Child Name / Synthetic ID</label><input id="sig_name" placeholder="e.g. Oliver Chen"></div>
+            <div><label>Age</label><input id="sig_age" type="number" value="5" min="2" max="18"></div>
+            <div>
+              <label>Therapy Program Tier</label>
+              <select id="sig_tier" onchange="document.getElementById('sig_hrs').value = this.value==='Comprehensive'?32 : this.value==='Focused'?18 : 8">
+                <option value="Comprehensive">Comprehensive Early Intensive (30–35h/wk)</option>
+                <option value="Focused">Focused ABA + Sensory Gym NET (15–20h/wk)</option>
+                <option value="Gym Group">After-School Social & Adaptive Gym Group (8h/wk)</option>
+              </select>
+            </div>
+            <div><label>Authorized Weekly Hours</label><input id="sig_hrs" type="number" value="32" min="4" max="40"></div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Assigned Clinic & Gym Cohort</label>
+              <select id="sig_cohort">
+                <option>Morning Cohort (8:30 AM–12:30 PM)</option>
+                <option>Afternoon Cohort (1–5 PM)</option>
+                <option>After-School Gym Group (4–6 PM)</option>
+              </select>
+            </div>
+            <div><label>Sensory & Motor Gym Track</label><input id="sig_track" value="Vestibular Swing Rig, Rock Wall & Crash Pit NET"></div>
+            <div>
+              <label>Enrollment Status</label>
+              <select id="sig_status">
+                <option value="committed">🟢 Committed (Day-1 Cohort)</option>
+                <option value="auth_pending">🟡 Payer Auth Pending (Month 2)</option>
+                <option value="waitlist">🔵 Waitlist Deposit Paid (Month 3)</option>
+              </select>
+            </div>
+            <div><label>Target Start Month (1–12)</label><input id="sig_month" type="number" value="1" min="1" max="12"></div>
+          </div>
+          <button class="ok" onclick="act.addFacilitySignup()">Save Client Signup & Recalculate Pipeline</button>
+        </div>
+      ` : ''}
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Child & Age</th>
+              <th>Therapy Tier</th>
+              <th>Weekly Hours</th>
+              <th>Assigned Cohort</th>
+              <th>Sensory & Motor Gym Prescription</th>
+              <th>Target Month</th>
+              <th>Enrollment Status</th>
+              <th style="text-align:right">Est. Gross Rev/Mo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${signups.map((s) => `
+              <tr>
+                <td>
+                  <div style="font-weight:700;color:var(--slate-900)">${esc(s.child_name)} <span style="font-weight:400;color:var(--slate-500)">(${s.age}y)</span></div>
+                  <div style="font-size:0.74rem;color:var(--slate-500)">${esc(s.payer)}</div>
+                </td>
+                <td>
+                  <span class="badge ${s.tier === 'Comprehensive' ? 'p' : s.tier === 'Focused' ? 'sen' : 'tan'}">${esc(s.tier)}</span>
+                </td>
+                <td style="font-family:var(--font-mono);font-weight:700">${s.weekly_hours} hrs/wk</td>
+                <td style="font-size:0.82rem">${esc(s.cohort)}</td>
+                <td style="font-size:0.82rem;color:var(--slate-700)">🤸 ${esc(s.gym_track)}</td>
+                <td style="font-family:var(--font-mono);font-weight:700">Month ${s.target_month}</td>
+                <td>
+                  <select onchange="act.updateFacilitySignupStatus(${s.id}, this.value)" style="padding:4px 8px;font-size:0.78rem;border-radius:6px;font-weight:600">
+                    <option value="committed" ${s.enrollment_status === 'committed' ? 'selected' : ''}>🟢 Committed</option>
+                    <option value="auth_pending" ${s.enrollment_status === 'auth_pending' ? 'selected' : ''}>🟡 Auth Pending</option>
+                    <option value="waitlist" ${s.enrollment_status === 'waitlist' ? 'selected' : ''}>🔵 Waitlist</option>
+                  </select>
+                </td>
+                <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--primary)">${fmt$(s.estMonthlyGrossRev)}/mo</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : ''}
+
+  ${facilitySubTab === 'capex' ? `
+    <!-- TAB 3: SENSORY GYM & CLINIC BUILD-OUT CAPEX + SBA 7(a)/504 FINANCING -->
+    <div class="row">
+      <div class="card" style="flex:1.15">
+        <div class="flex-between" style="margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px">🏗️ Leasehold TI Construction & Sensory Gym Equipment Controls</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">Adjust construction costs, landlord TI allowance, and itemized sensory/motor gym equipment.</p>
+          </div>
+          <span class="badge p">CapEx Inputs</span>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>TI Construction Cost: <b>$${c.tiCostPerSqFt}/sq ft</b> (${fmt$(capex.grossTiConstruction)})</label>
+            <input type="range" min="40" max="150" step="5" value="${c.tiCostPerSqFt}" oninput="act.updateFacilityCfg('tiCostPerSqFt', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>Landlord TI Allowance Credit: <b>$${c.landlordTiAllowancePerSqFt}/sq ft</b> (-${fmt$(capex.landlordTiCredit)})</label>
+            <input type="range" min="0" max="75" step="5" value="${c.landlordTiAllowancePerSqFt}" oninput="act.updateFacilityCfg('landlordTiAllowancePerSqFt', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Overhead Steel Swing Rigging & Vestibular: <b>${fmt$(c.gymCeilingRiggingCost)}</b></label>
+            <input type="range" min="10000" max="90000" step="2000" value="${c.gymCeilingRiggingCost}" oninput="act.updateFacilityCfg('gymCeilingRiggingCost', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>Rock Climbing Wall & Recessed Foam Crash Pit: <b>${fmt$(c.gymClimbingFoamPitCost)}</b></label>
+            <input type="range" min="10000" max="100000" step="2500" value="${c.gymClimbingFoamPitCost}" oninput="act.updateFacilityCfg('gymClimbingFoamPitCost', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Commercial Trampoline, Monkey Bars & Heavy-Work Rig: <b>${fmt$(c.gymTrampolineObstacleCost)}</b></label>
+            <input type="range" min="8000" max="75000" step="2000" value="${c.gymTrampolineObstacleCost}" oninput="act.updateFacilityCfg('gymTrampolineObstacleCost', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>Interactive LED Sensory Walls & Tactile Motor Path: <b>${fmt$(c.gymSensoryWallTactileCost)}</b></label>
+            <input type="range" min="5000" max="50000" step="1000" value="${c.gymSensoryWallTactileCost}" oninput="act.updateFacilityCfg('gymSensoryWallTactileCost', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Snoezelen Calming & De-Escalation Suite: <b>${fmt$(c.calmingRoomSnoezelenCost)}</b></label>
+            <input type="range" min="8000" max="60000" step="2000" value="${c.calmingRoomSnoezelenCost}" oninput="act.updateFacilityCfg('calmingRoomSnoezelenCost', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>60-Day Working Capital Reserve: <b>${fmt$(c.workingCapitalReserve)}</b></label>
+            <input type="range" min="25000" max="200000" step="5000" value="${c.workingCapitalReserve}" oninput="act.updateFacilityCfg('workingCapitalReserve', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+
+        <div style="background:var(--slate-100);padding:14px;border-radius:8px;margin-top:8px">
+          <div class="flex-between" style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" id="chk_sba" ${c.useFinancing ? 'checked' : ''} onchange="act.updateFacilityCfg('useFinancing', this.checked)" style="width:18px;height:18px;margin:0">
+              <label for="chk_sba" style="margin:0;cursor:pointer"><b>Finance Build-Out with SBA 7(a) / 504 Healthcare Facility Loan</b></label>
+            </div>
+            <span class="badge sen">${fmt$(capex.monthlyDebtService)}/mo P&I</span>
+          </div>
+          <div class="row" style="margin-bottom:0">
+            <div>
+              <label>Founder Equity Down Payment: <b>${c.downPaymentPct}%</b> (${fmt$(capex.upfrontEquityCash)})</label>
+              <input type="range" min="10" max="100" step="5" value="${c.downPaymentPct}" oninput="act.updateFacilityCfg('downPaymentPct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+            </div>
+            <div>
+              <label>SBA Loan Interest Rate: <b>${c.loanInterestRatePct}% APR</b></label>
+              <input type="range" min="4.5" max="12.0" step="0.25" value="${c.loanInterestRatePct}" oninput="act.updateFacilityCfg('loanInterestRatePct', +this.value)" style="padding:0;height:10px;cursor:pointer">
+            </div>
+            <div>
+              <label>Amortization Term: <b>${c.loanTermYears} Years</b></label>
+              <input type="range" min="5" max="25" step="1" value="${c.loanTermYears}" oninput="act.updateFacilityCfg('loanTermYears', +this.value)" style="padding:0;height:10px;cursor:pointer">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Itemized CapEx & Capital Stack Schedule Table -->
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px">📋 Itemized Build-Out CapEx & Sources/Uses Schedule</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">Lender-ready capital budget for the ${space.totalSqFt.toLocaleString()} sq ft clinic & sensory gym.</p>
+          </div>
+          <span class="badge ok">Total Uses: ${fmt$(capex.totalCapitalRequired)}</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Capital Expenditure Category & Specification</th>
+                <th style="text-align:right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <b>Gross Leasehold Tenant Improvements (TI)</b>
+                  <div style="font-size:0.75rem;color:var(--slate-500)">${space.totalSqFt.toLocaleString()} sq ft @ $${c.tiCostPerSqFt}/sf (acoustic framing, HVAC, LVT & rubber gym subfloor)</div>
+                </td>
+                <td style="text-align:right;font-family:var(--font-mono);font-weight:700">${fmt$(capex.grossTiConstruction)}</td>
+              </tr>
+              <tr style="background:#f0fdf4">
+                <td>
+                  <b style="color:#047857">Less: Landlord Tenant Improvement (TI) Allowance Credit</b>
+                  <div style="font-size:0.75rem;color:#065f46">${space.totalSqFt.toLocaleString()} sq ft @ -$${c.landlordTiAllowancePerSqFt}/sf landlord build-out contribution</div>
+                </td>
+                <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:#047857">-${fmt$(capex.landlordTiCredit)}</td>
+              </tr>
+              ${capex.gymEquipmentItems.map((item) => `
+                <tr>
+                  <td>
+                    <b>🤸 ${esc(item.label)}</b>
+                    <div style="font-size:0.75rem;color:var(--slate-500)">${esc(item.note)}</div>
+                  </td>
+                  <td style="text-align:right;font-family:var(--font-mono)">${fmt$(item.cost)}</td>
+                </tr>
+              `).join('')}
+              ${capex.clinicalTechItems.map((item) => `
+                <tr>
+                  <td>
+                    <b>🏥 ${esc(item.label)}</b>
+                    <div style="font-size:0.75rem;color:var(--slate-500)">${esc(item.note)}</div>
+                  </td>
+                  <td style="text-align:right;font-family:var(--font-mono)">${fmt$(item.cost)}</td>
+                </tr>
+              `).join('')}
+              <tr style="background:var(--slate-50);font-weight:700">
+                <td><b>Net Physical Build-Out & Sensory Gym Equipment CapEx</b></td>
+                <td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(capex.netBuildoutCapEx)}</td>
+              </tr>
+              <tr>
+                <td>
+                  <b>Working Capital & Payer Reimbursement Cycle Reserve</b>
+                  <div style="font-size:0.75rem;color:var(--slate-500)">Covers initial 60-day insurance billing clearinghouse cycle & RBT onboarding</div>
+                </td>
+                <td style="text-align:right;font-family:var(--font-mono)">${fmt$(capex.workingCapitalReserve)}</td>
+              </tr>
+              <tr style="background:var(--slate-100);font-weight:800">
+                <td><b>Total Project Capital Required (Net CapEx + Working Capital)</b></td>
+                <td style="text-align:right;font-family:var(--font-mono);color:var(--slate-900);font-size:1rem">${fmt$(capex.totalCapitalRequired)}</td>
+              </tr>
+              <tr>
+                <td>SBA 7(a) / 504 Financed Loan Principal (${100 - capex.downPaymentPct}% LTV @ ${c.loanInterestRatePct}% for ${c.loanTermYears} yrs)</td>
+                <td style="text-align:right;font-family:var(--font-mono);color:#0369a1">${fmt$(capex.loanPrincipal)}</td>
+              </tr>
+              <tr style="background:#ecfdf5;font-weight:800">
+                <td><b>Upfront Founder / Investor Cash Equity Required (${capex.downPaymentPct}%)</b></td>
+                <td style="text-align:right;font-family:var(--font-mono);color:#047857;font-size:1.05rem">${fmt$(capex.upfrontEquityCash)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  ` : ''}
+
+  ${facilitySubTab === 'pnl' ? `
+    <!-- TAB 4: 3-YEAR / 36-MONTH PRO FORMA INCOME STATEMENT & UNIT ECONOMICS -->
+    <div class="row">
+      <!-- Unit Economics Per Client Card -->
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:8px">
+          <div>
+            <h3 style="margin:0 0 2px">🔬 Monthly Unit Economics per Enrolled Therapy Client</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">Blended across ${ue.weightedWeeklyHoursPerClient} billable hrs/wk (${c.attendanceRealizationPct}% attendance/realization).</p>
+          </div>
+          <span class="badge ok">${ue.contributionMarginPct}% Contribution</span>
+        </div>
+        <table>
+          <tbody>
+            <tr><td>CPT 97153 (1:1 Direct RBT in Clinic & Gym NET @ $${c.rate97153Hr}/hr)</td><td style="text-align:right;font-family:var(--font-mono);font-weight:700">${fmt$(ue.rev97153Net)}/mo</td></tr>
+            <tr><td>CPT 97155 (BCBA Direction / Protocol Mod @ $${c.rate97155Hr}/hr)</td><td style="text-align:right;font-family:var(--font-mono)">${fmt$(ue.rev97155Net)}/mo</td></tr>
+            <tr><td>CPT 97158 (Sensory Gym Social Skills Group @ $${c.rate97158Hr}/hr)</td><td style="text-align:right;font-family:var(--font-mono)">${fmt$(ue.rev97158Net)}/mo</td></tr>
+            <tr><td>CPT 97156 & 97151 (Family Guidance & 6-Mo Re-Auth Assessments)</td><td style="text-align:right;font-family:var(--font-mono)">${fmt$(ue.rev97156Net + ue.rev97151Net)}/mo</td></tr>
+            <tr style="background:var(--slate-50);font-weight:700"><td><b>Net Realized Revenue per Client / Month</b></td><td style="text-align:right;font-family:var(--font-mono);color:var(--primary)">${fmt$(ue.monthlyNetRevPerClient)}/mo</td></tr>
+            <tr><td>Less: Direct RBT Wage + Non-Billable Prep (${c.rbtNonBillablePct}%) + Tax/Benefits (${c.payrollTaxBenefitsPct}%)</td><td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(ue.rbtCostPerClientMo)}/mo</td></tr>
+            <tr><td>Less: Allocated Supervising BCBA Compensation (1:${c.bcbaCaseloadLimit} caseload)</td><td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(ue.bcbaCostPerClientMo)}/mo</td></tr>
+            <tr><td>Less: Reinforcers & Sensory Gym Consumables</td><td style="text-align:right;font-family:var(--font-mono)">-${fmt$(ue.sensorySuppliesPerClientMo)}/mo</td></tr>
+            <tr style="background:#ecfdf5;font-weight:800"><td><b>Net Clinic Contribution Margin per Client</b></td><td style="text-align:right;font-family:var(--font-mono);color:#047857;font-size:1rem">${fmt$(ue.monthlyContributionPerClient)}/mo (${ue.contributionMarginPct}%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Staffing & Facility Fixed OpEx Controls -->
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:8px">
+          <div>
+            <h3 style="margin:0 0 2px">⚙️ Clinical Staffing & Facility Lease OpEx Controls</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">Adjust salaries, caseload ratios, NNN lease rates, and facility operating costs.</p>
+          </div>
+          <span class="badge tan">OpEx Drivers</span>
+        </div>
+        <div class="row">
+          <div>
+            <label>Supervising BCBA Salary: <b>$${c.bcbaAnnualSalary.toLocaleString()}/yr</b></label>
+            <input type="range" min="70000" max="125000" step="2000" value="${c.bcbaAnnualSalary}" oninput="act.updateFacilityCfg('bcbaAnnualSalary', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>BCBA Caseload Ratio: <b>1 BCBA per ${c.bcbaCaseloadLimit} Clients</b></label>
+            <input type="range" min="6" max="16" step="1" value="${c.bcbaCaseloadLimit}" oninput="act.updateFacilityCfg('bcbaCaseloadLimit', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Base NNN Lease Rent: <b>$${c.baseRentPerSqFtYr}/sq ft/yr</b> (${fmt$(months[0].baseRentMonthly)}/mo)</label>
+            <input type="range" min="14" max="55" step="1" value="${c.baseRentPerSqFtYr}" oninput="act.updateFacilityCfg('baseRentPerSqFtYr', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>CAM, HVAC & Fiber Utilities: <b>$${c.camUtilitiesPerSqFtYr}/sq ft/yr</b> (${fmt$(months[0].camUtilitiesMonthly)}/mo)</label>
+            <input type="range" min="3" max="18" step="0.5" value="${c.camUtilitiesPerSqFtYr}" oninput="act.updateFacilityCfg('camUtilitiesPerSqFtYr', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:0">
+          <div>
+            <label>Clinic/Gym Director & Front Desk Admin: <b>${fmt$(c.adminDirectorMonthly)}/mo</b></label>
+            <input type="range" min="4000" max="25000" step="500" value="${c.adminDirectorMonthly}" oninput="act.updateFacilityCfg('adminDirectorMonthly', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+          <div>
+            <label>Gym Liability Insurance & Medical Janitorial: <b>${fmt$(c.insuranceSanitationMonthly)}/mo</b></label>
+            <input type="range" min="1000" max="8000" step="200" value="${c.insuranceSanitationMonthly}" oninput="act.updateFacilityCfg('insuranceSanitationMonthly', +this.value)" style="padding:0;height:10px;cursor:pointer">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full 36-Month Schedule Table -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <h3 style="margin:0 0 2px">📊 Complete 36-Month Financial Schedule (Month 1 – Month 36)</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Month-by-month client ramp, RBT/BCBA hiring, CPT revenue, facility OpEx, EBITDA, SBA loan payment, and cumulative cash position.</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="${facilityPnlViewMode === 'annual' ? 'ok' : 'sec'}" style="padding:6px 12px;font-size:0.78rem" onclick="facilityPnlViewMode='annual';render()">Quarterly / Milestone View (M1–M36)</button>
+          <button class="${facilityPnlViewMode === 'monthly' ? 'ok' : 'sec'}" style="padding:6px 12px;font-size:0.78rem" onclick="facilityPnlViewMode='monthly';render()">All 36 Months View</button>
+          <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="act.exportFacilityCsv()">📥 Download CSV</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th style="text-align:right">Clients (Util %)</th>
+              <th style="text-align:right">Staff (RBT/BCBA)</th>
+              <th style="text-align:right">ABA CPT Rev</th>
+              <th style="text-align:right">Gym / OT Rev</th>
+              <th style="text-align:right">Total Revenue</th>
+              <th style="text-align:right">Clinical Labor</th>
+              <th style="text-align:right">Facility OpEx</th>
+              <th style="text-align:right">EBITDA (%)</th>
+              <th style="text-align:right">SBA Debt</th>
+              <th style="text-align:right">Net Cash Flow</th>
+              <th style="text-align:right">Cumulative Cash</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${months
+              .filter((m) => facilityPnlViewMode === 'monthly' || [1, 2, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36].includes(m.month))
+              .map((m) => {
+                const isBe = m.month === kpis.breakEvenMonth;
+                const isPb = m.month === kpis.paybackMonth;
+                return `
+                  <tr style="${isPb ? 'background:#ecfdf5;font-weight:700' : isBe ? 'background:#f0f9ff' : ''}">
+                    <td style="font-family:var(--font-mono);font-weight:700">
+                      M${m.month} <span style="font-size:0.72rem;color:var(--slate-500)">(Y${m.year})</span>
+                      ${isBe ? '<span class="badge p" style="font-size:0.65rem;margin-left:4px">BREAK-EVEN</span>' : ''}
+                      ${isPb ? '<span class="badge ok" style="font-size:0.65rem;margin-left:4px">PAYBACK</span>' : ''}
+                    </td>
+                    <td style="text-align:right;font-family:var(--font-mono)"><b>${m.activeClients}</b> (${m.utilizationPct}%)</td>
+                    <td style="text-align:right;font-family:var(--font-mono)">${m.rbtHeadcount}R / ${m.bcbaHeadcount}B</td>
+                    <td style="text-align:right;font-family:var(--font-mono)">${fmt$(m.netAbaRevenue)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono)">${fmt$(m.ancillaryGymRevenue)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:var(--primary)">${fmt$(m.totalRevenue)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono);color:#be123c">-${fmt$(m.totalClinicalLabor)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(m.totalFacilityOpEx)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${m.ebitda >= 0 ? '#047857' : '#be123c'}">${fmt$(m.ebitda)} (${m.ebitdaMarginPct}%)</td>
+                    <td style="text-align:right;font-family:var(--font-mono)">-${fmt$(m.debtService)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${m.netCashFlow >= 0 ? 'var(--ok)' : 'var(--bad)'}">${fmt$(m.netCashFlow)}</td>
+                    <td style="text-align:right;font-family:var(--font-mono);font-weight:700;color:${m.cumulativeCashFlow >= 0 ? '#047857' : '#64748b'}">${fmt$(m.cumulativeCashFlow)}</td>
+                  </tr>
+                `;
+              }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : ''}
+  `;
+}
+
 // Modal renderer
 function renderModal() {
   if (activeModal.type === 'abc') {
@@ -4928,6 +6213,103 @@ const act = {
       render();
     }
   }),
+  selectFacilityModel: (id) => {
+    activeFacilityModelId = Number(id);
+    const m = ((facilityData && facilityData.models) || []).find((x) => x.id === activeFacilityModelId);
+    if (m) facilityCfg = { ...m.config };
+    render();
+  },
+  setFacilitySubTab: (t) => {
+    facilitySubTab = t;
+    render();
+  },
+  updateFacilityCfg: (key, value) => {
+    if (!facilityCfg) facilityCfg = {};
+    facilityCfg[key] = value;
+    render();
+  },
+  syncFacilityFromSignups: () => {
+    if (!facilityData || !facilityData.signupSummary) return;
+    const s = facilityData.signupSummary;
+    if (!facilityCfg) facilityCfg = {};
+    facilityCfg.initialClientsMonth1 = Math.max(1, s.committedMonth1Count || 8);
+    if (s.tierSharesPct) {
+      facilityCfg.compTierSharePct = s.tierSharesPct.compTierSharePct ?? 45;
+      facilityCfg.focusedTierSharePct = s.tierSharesPct.focusedTierSharePct ?? 40;
+      facilityCfg.groupGymTierSharePct = s.tierSharesPct.groupGymTierSharePct ?? 15;
+    }
+    alert(`✓ Synced Financial Model with Live Therapy Signup Roster:\n• Month-1 Committed Clients: ${facilityCfg.initialClientsMonth1} children\n• Tier Mix: ${facilityCfg.compTierSharePct}% Comprehensive / ${facilityCfg.focusedTierSharePct}% Focused / ${facilityCfg.groupGymTierSharePct}% Gym Group`);
+    render();
+  },
+  saveFacilityScenario: safe(async () => {
+    if (!facilityCfg) return;
+    const res = await api('PUT', `/api/facility-model/${activeFacilityModelId}`, { config: facilityCfg });
+    facilityData = res;
+    alert('✓ Facility & Sensory Gym Financial Model saved!');
+    render();
+  }),
+  saveAsNewFacilityScenario: safe(async () => {
+    if (!facilityCfg) return;
+    const name = prompt('Enter a name for this Clinic & Sensory Gym Scenario:', `Custom ${(facilityCfg.totalSqFt || 6000).toLocaleString()} sq ft Clinic + Sensory Gym`);
+    if (!name) return;
+    const subtitle = `${facilityCfg.dttRoomCount || 12} DTT Suites · ${Math.round((facilityCfg.totalSqFt || 6000) * ((facilityCfg.gymSqFtPct || 35) / 100)).toLocaleString()} sq ft Sensory Gym · ${facilityCfg.maxClinicClientCapacity || 28}-Client Cap`;
+    const res = await api('POST', '/api/facility-model', { name, subtitle, config: facilityCfg });
+    facilityData = res;
+    activeFacilityModelId = res.id;
+    alert(`✓ Created new scenario: "${name}"`);
+    render();
+  }),
+  addFacilitySignup: safe(async () => {
+    const child_name = val('sig_name').trim();
+    if (!child_name) return alert('Please enter a child name or synthetic identifier.');
+    const age = +val('sig_age') || 5;
+    const tier = val('sig_tier') || 'Comprehensive';
+    const weekly_hours = +val('sig_hrs') || 30;
+    const cohort = val('sig_cohort') || 'Morning Cohort (8:30 AM–12:30 PM)';
+    const gym_track = val('sig_track') || 'Sensory Gym NET & Vestibular Circuit';
+    const enrollment_status = val('sig_status') || 'committed';
+    const target_month = +val('sig_month') || 1;
+    const res = await api('POST', '/api/facility-signups', {
+      child_name, age, tier, weekly_hours, cohort, gym_track, enrollment_status, target_month
+    });
+    facilityData = res;
+    showAddSignupForm = false;
+    render();
+  }),
+  updateFacilitySignupStatus: safe(async (id, enrollment_status) => {
+    const res = await api('PATCH', `/api/facility-signups/${id}`, { enrollment_status });
+    facilityData = res;
+    render();
+  }),
+  exportFacilityCsv: () => {
+    const pf = computeClientFacilityModel(facilityCfg || {});
+    const headers = [
+      'Month', 'Year', 'Active Clients', 'Capacity Utilization %', 'RBT Headcount', 'BCBA Headcount',
+      'CPT 97153 Rev', 'CPT 97155 Rev', 'CPT 97156 Rev', 'CPT 97151 Rev', 'CPT 97158 Gym Group Rev',
+      'Net ABA Revenue', 'Ancillary Sensory Gym & OT/PT Rev', 'Total Net Revenue',
+      'RBT Labor Cost', 'BCBA Labor Cost', 'Total Clinical Labor COGS', 'Gross Profit', 'Gross Margin %',
+      'Rent & CAM/Utilities', 'Admin & Director Payroll', 'Insurance, Marketing & Ops', 'Sensory & Gym Supplies',
+      'Total Facility OpEx', 'EBITDA', 'EBITDA Margin %', 'SBA Loan Debt Service', 'Net Cash Flow', 'Cumulative Cash Flow'
+    ];
+    const rows = pf.months.map((m) => [
+      m.month, m.year, m.activeClients, m.utilizationPct, m.rbtHeadcount, m.bcbaHeadcount,
+      m.cpt97153Rev, m.cpt97155Rev, m.cpt97156Rev, m.cpt97151Rev, m.cpt97158Rev,
+      m.netAbaRevenue, m.ancillaryGymRevenue, m.totalRevenue,
+      m.rbtLaborCost, m.bcbaLaborCost, m.totalClinicalLabor, m.grossProfit, m.grossMarginPct,
+      m.rentAndCam, m.adminPayroll, m.insuranceAndOps, m.sensorySupplies,
+      m.totalFacilityOpEx, m.ebitda, m.ebitdaMarginPct, m.debtService, m.netCashFlow, m.cumulativeCashFlow
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EBA_Clinic_Sensory_Gym_36Mo_ProForma_${pf.space.totalSqFt}sqft.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
 window.act = act;
 
@@ -5567,6 +6949,7 @@ async function render() {
     else if (route === 'supervision') html = await supervisionView();
     else if (route === 'presentation') html = presentationView();
     else if (route === 'leads') html = await leadsView();
+    else if (route === 'facility') html = await facilityModelView();
     else html = '<h1>View Not Found</h1><div class="card">Please select an option from the navigation menu.</div>';
     $app.innerHTML = shell(html, route === 'client' ? 'clients' : route === 'session' ? 'notes' : route);
   } catch (e) { $app.innerHTML = shell(`<div class="card err">${esc(e.message)}</div>`, ''); }

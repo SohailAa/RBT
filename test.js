@@ -1,7 +1,10 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-['eba.db', 'eba.db-shm', 'eba.db-wal'].forEach((f) => { try { fs.unlinkSync(path.join(__dirname, f)); } catch {} });
+['eba.db', 'eba.db-shm', 'eba.db-wal', 'eba.test.db', 'eba.test.db-shm', 'eba.test.db-wal'].forEach((f) => { try { fs.unlinkSync(path.join(__dirname, f)); } catch {} });
+if (fs.existsSync(path.join(__dirname, 'eba.db'))) {
+  process.env.EBA_DB_PATH = path.join(__dirname, 'eba.test.db');
+}
 const handler = require('./server');
 
 let fails = 0;
@@ -394,6 +397,77 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      oDashUpdated.owner.inboundPipeline.measurePmProspectsCount >= 2 &&
      oDashUpdated.owner.inboundPipeline.demoScheduledCount >= 2,
      'Owner KPI dashboard integrates inbound CRM pipeline telemetry and MeasurePM switch tracking');
+
+  // 8. Physical Clinic & Sensory Gym Financial Model + Client Therapy Signup Pipeline
+  const { calculateFacilityModel, DEFAULT_FACILITY_MODELS } = require('./lib/generators');
+  const baseSim = calculateFacilityModel(DEFAULT_FACILITY_MODELS[0].config);
+  ok(baseSim.space.totalSqFt === 6000 && baseSim.space.gymSqFt === 2100 && baseSim.space.dttSqFt === 1800 && baseSim.space.maxClinicClientCapacity === 28,
+     'Facility pro-forma engine accurately calculates architectural space allocation & dual-cohort client capacity');
+  ok(baseSim.capex.grossBuildoutCapEx > 400000 && baseSim.capex.landlordTiCredit === 180000 && baseSim.capex.monthlyDebtService > 2000,
+     'Facility pro-forma engine computes gross CapEx, Landlord TI credit offset, and SBA 7(a) monthly debt service');
+  ok(baseSim.unitEconomics.monthlyGrossRevPerClient > 7000 && baseSim.unitEconomics.contributionMarginPct > 35,
+     'Facility pro-forma engine computes per-client ABA CPT (97153/97155/97156/97158) unit economics & contribution margin');
+  ok(baseSim.months.length === 36 && baseSim.years.length === 3 && baseSim.kpis.breakEvenClientsCashFlow > 0 && baseSim.kpis.paybackMonth !== null,
+     'Facility pro-forma engine generates 36-month cash flow schedule, 3-year P&L rollups, break-even census, and CapEx payback month');
+
+  // Test GET /api/facility-model
+  const facGet = (await o('GET', '/api/facility-model')).j;
+  ok(Array.isArray(facGet.models) && facGet.models.length >= 3 && facGet.models[0].proForma && facGet.models[0].proForma.kpis,
+     'GET /api/facility-model returns 3 seeded clinic & sensory gym scenarios with server-computed 36-month projections');
+  ok(Array.isArray(facGet.signups) && facGet.signups.length >= 12 && facGet.signupSummary.committedMonth1Count === 8 && facGet.signupSummary.projectedMonthlyGrossFromSignups > 80000,
+     'GET /api/facility-model returns 12 client therapy signups with committed Month-1 cohort & monthly revenue telemetry');
+
+  // Test PUT /api/facility-model/:id to update scenario parameters
+  const firstModelId = facGet.models[0].id;
+  const updatedConfig = Object.assign({}, facGet.models[0].config, { totalSqFt: 6500, gymSqFtPct: 32 });
+  const facPut = await o('PUT', `/api/facility-model/${firstModelId}`, {
+    name: 'Base Case: 6,500 sq ft Expanded Gym',
+    config: updatedConfig
+  });
+  const updatedModelObj = (facPut.j.models || []).find((m) => m.id === firstModelId);
+  ok(facPut.s === 200 && updatedModelObj && updatedModelObj.proForma.space.totalSqFt === 6500 && updatedModelObj.proForma.space.gymSqFt === 2080,
+     'PUT /api/facility-model/:id updates scenario assumptions and recomputes pro-forma projection');
+
+  // Test POST /api/facility-model to save a custom scenario
+  const facPost = await o('POST', '/api/facility-model', {
+    name: 'Custom Satellite Gym & Clinic',
+    subtitle: '4,800 sq ft suburban expansion with 30% sensory gym',
+    config: Object.assign({}, DEFAULT_FACILITY_MODELS[1].config, { totalSqFt: 4800, gymSqFtPct: 30 })
+  });
+  const createdModelObj = (facPost.j.models || []).find((m) => m.id === facPost.j.id);
+  ok(facPost.s === 200 && facPost.j.id && createdModelObj && createdModelObj.proForma.space.totalSqFt === 4800,
+     'POST /api/facility-model saves new custom facility financial scenario');
+
+  // Test POST /api/facility-signups to enroll a new client into the physical clinic + gym cohort
+  const newSignupRes = await o('POST', '/api/facility-signups', {
+    child_name: 'Zoe V. (Synthetic)',
+    age: 5,
+    diagnosis: 'ASD (F84.0)',
+    tier: 'Focused',
+    weekly_hours: 25,
+    payer: 'Sample Commercial PPO',
+    cohort: 'Morning Cohort (8:30 AM–12:30 PM)',
+    gym_track: 'Vestibular Swing & Motor Planning Circuit',
+    enrollment_status: 'committed',
+    target_month: 1
+  });
+  ok(newSignupRes.s === 200 && newSignupRes.j.id && newSignupRes.j.signupSummary.committedMonth1Count === 9,
+     'POST /api/facility-signups enrolls new client into therapy cohort and updates Month-1 committed census');
+
+  // Test PATCH /api/facility-signups/:id to promote waitlist client to committed Month-1
+  const waitlistSignup = facGet.signups.find((s) => s.enrollment_status !== 'committed' || s.target_month > 1);
+  const patchSignupRes = await o('PATCH', `/api/facility-signups/${waitlistSignup.id}`, {
+    enrollment_status: 'committed',
+    target_month: 1
+  });
+  ok(patchSignupRes.s === 200 && patchSignupRes.j.signupSummary.committedMonth1Count === 10,
+     'PATCH /api/facility-signups/:id promotes waitlisted client to committed Month-1 launch cohort');
+
+  // Test RBAC barriers on Facility Model endpoints
+  const parentFacRes = await p('GET', '/api/facility-model');
+  ok(parentFacRes.s === 403, 'Parent role is blocked from accessing internal clinic & gym financial model');
+  const rbtFacPostRes = await r('POST', '/api/facility-model', { name: 'Unauthorized', config: {} });
+  ok(rbtFacPostRes.s === 403, 'RBT role is blocked from modifying clinic & gym financial scenarios');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');

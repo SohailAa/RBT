@@ -9,7 +9,8 @@ const PORT = process.env.PORT || 3000;
 const ON_VERCEL = !!process.env.VERCEL;
 // On Vercel the filesystem is read-only except /tmp, and /tmp is ephemeral (demo data only).
 // In-memory DB on Vercel provides instantaneous zero-dependency startup with zero binary issues.
-const db = ON_VERCEL ? new MemoryDB() : createDatabase(path.join(__dirname, 'eba.db'));
+const dbPath = process.env.EBA_DB_PATH || path.join(__dirname, 'eba.db');
+const db = ON_VERCEL ? new MemoryDB() : createDatabase(dbPath);
 const SECRET = process.env.SESSION_SECRET || 'dev-only-secret-change-me';
 db.exec('PRAGMA foreign_keys = ON');
 db.exec(`
@@ -704,6 +705,167 @@ route('PATCH', '/api/leads/:id', (u, b, p) => {
   run('UPDATE leads SET status=?, notes=? WHERE id=?', status, notes, id);
   logAudit(u, { entity_type: 'leads', entity_id: id, action: 'UPDATE_LEAD', details: `Status: ${status}` });
   return get('SELECT * FROM leads WHERE id=?', id);
+});
+
+function buildFacilityPayload() {
+  const rawModels = all('SELECT * FROM facility_models');
+  const models = rawModels.map((m) => {
+    const config = parse(m.config_json) || (G.DEFAULT_FACILITY_MODELS[0] && G.DEFAULT_FACILITY_MODELS[0].config) || {};
+    return {
+      id: m.id,
+      name: m.name,
+      subtitle: m.subtitle,
+      is_default: m.is_default,
+      updated_at: m.updated_at,
+      config,
+      proForma: G.calculateFacilityModel(config)
+    };
+  });
+
+  const rawSignups = all('SELECT * FROM facility_signups');
+  const signups = rawSignups.map((s) => {
+    const wkHrs = Number(s.weekly_hours) || 20;
+    const isGroupOnly = String(s.tier || '').toLowerCase().includes('group');
+    const directHrsMo = (isGroupOnly ? 0 : Math.max(0, wkHrs - 2)) * 4.333;
+    const groupHrsMo = (isGroupOnly ? wkHrs : 2) * 4.333;
+    const supHrsMo = directHrsMo * 0.12;
+    const estMonthlyGrossRev = Math.round(
+      directHrsMo * 68 + groupHrsMo * 42 + supHrsMo * 125 + 2 * 110 + 1.33 * 140
+    );
+    return {
+      ...s,
+      weekly_hours: wkHrs,
+      target_month: Number(s.target_month) || 1,
+      estMonthlyGrossRev
+    };
+  });
+
+  const totalSignups = signups.length;
+  const committedMonth1 = signups.filter((s) => s.enrollment_status === 'committed' && s.target_month <= 1);
+  const waitlistOrPending = signups.filter((s) => s.enrollment_status !== 'committed' || s.target_month > 1);
+
+  const compCount = signups.filter((s) => String(s.tier || '').toLowerCase().includes('comp')).length;
+  const focCount = signups.filter((s) => String(s.tier || '').toLowerCase().includes('focus')).length;
+  const grpCount = Math.max(0, totalSignups - compCount - focCount);
+
+  const compSharePct = totalSignups ? Math.round((compCount / totalSignups) * 100) : 45;
+  const focSharePct = totalSignups ? Math.round((focCount / totalSignups) * 100) : 40;
+  const grpSharePct = Math.max(0, 100 - compSharePct - focSharePct);
+
+  const avgWeeklyHoursPerSignup = totalSignups
+    ? +(signups.reduce((a, b) => a + b.weekly_hours, 0) / totalSignups).toFixed(1)
+    : 24.0;
+  const totalCommittedWeeklyHours = committedMonth1.reduce((a, b) => a + b.weekly_hours, 0);
+  const projectedMonthlyGrossFromSignups = signups.reduce((a, b) => a + b.estMonthlyGrossRev, 0);
+
+  const activeDbClientsCount = (all('SELECT COUNT(*) c FROM clients')[0] || {}).c || 0;
+  const totalLeadsCount = (all('SELECT COUNT(*) c FROM leads')[0] || {}).c || 0;
+
+  return {
+    models,
+    signups,
+    signupSummary: {
+      totalSignups,
+      committedMonth1Count: committedMonth1.length,
+      waitlistCount: waitlistOrPending.length,
+      totalCommittedWeeklyHours,
+      avgWeeklyHoursPerSignup,
+      tierCounts: { Comprehensive: compCount, Focused: focCount, 'Gym Group': grpCount },
+      tierSharesPct: {
+        compTierSharePct: compSharePct,
+        focusedTierSharePct: focSharePct,
+        groupGymTierSharePct: grpSharePct
+      },
+      projectedMonthlyGrossFromSignups
+    },
+    livePracticeTelemetry: {
+      activeDbClientsCount,
+      totalLeadsCount
+    }
+  };
+}
+
+route('GET', '/api/facility-model', (u) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA', 'RBT');
+  return buildFacilityPayload();
+});
+
+route('POST', '/api/facility-model', (u, b) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const name = String(b.name || '').trim() || 'Custom Clinic & Sensory Gym Scenario';
+  const subtitle = String(b.subtitle || '').trim() || 'Custom CapEx, Staffing & Enrollment Pro Forma';
+  const cfg = typeof b.config === 'object' && b.config ? b.config : (G.DEFAULT_FACILITY_MODELS[0] && G.DEFAULT_FACILITY_MODELS[0].config) || {};
+  const nowStr = new Date().toISOString();
+  const res = run(
+    'INSERT INTO facility_models(name, subtitle, is_default, config_json, updated_at) VALUES(?,?,?,?,?)',
+    name,
+    subtitle,
+    0,
+    JSON.stringify(cfg),
+    nowStr
+  );
+  const newId = Number(res.lastInsertRowid);
+  logAudit(u, { entity_type: 'facility_model', entity_id: newId, action: 'CREATE_FACILITY_MODEL', details: `Created scenario: ${name}` });
+  return { id: newId, ...buildFacilityPayload() };
+});
+
+route('PUT', '/api/facility-model/:id', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM facility_models WHERE id=?', id);
+  if (!row) bad(404, 'Scenario not found');
+  const existingCfg = parse(row.config_json) || {};
+  const nextCfg = typeof b.config === 'object' && b.config ? { ...existingCfg, ...b.config } : existingCfg;
+  const name = b.name !== undefined ? String(b.name).trim() : row.name;
+  const subtitle = b.subtitle !== undefined ? String(b.subtitle).trim() : row.subtitle;
+  const nowStr = new Date().toISOString();
+  run(
+    'UPDATE facility_models SET name=?, subtitle=?, config_json=?, updated_at=? WHERE id=?',
+    name,
+    subtitle,
+    JSON.stringify(nextCfg),
+    nowStr,
+    id
+  );
+  logAudit(u, { entity_type: 'facility_model', entity_id: id, action: 'UPDATE_FACILITY_MODEL', details: `Updated scenario: ${name}` });
+  return { id, ...buildFacilityPayload() };
+});
+
+route('POST', '/api/facility-signups', (u, b) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const childName = String(b.child_name || '').trim();
+  if (!childName) bad(400, 'Child name or identifier is required');
+  const age = Math.max(1, Math.min(21, Number(b.age) || 6));
+  const diagnosis = String(b.diagnosis || 'ASD (F84.0)').trim();
+  const tier = String(b.tier || 'Comprehensive').trim();
+  const weeklyHours = Math.max(2, Math.min(45, Number(b.weekly_hours) || 25));
+  const payer = String(b.payer || 'Sample Commercial PPO').trim();
+  const cohort = String(b.cohort || 'Morning Cohort (8:30 AM–12:30 PM)').trim();
+  const gymTrack = String(b.gym_track || 'Sensory Gym NET & Vestibular Circuit').trim();
+  const status = String(b.enrollment_status || 'committed').trim();
+  const targetMonth = Math.max(1, Math.min(36, Number(b.target_month) || 1));
+  const notes = String(b.notes || '').trim();
+
+  const res = run(
+    'INSERT INTO facility_signups(child_name, age, diagnosis, tier, weekly_hours, payer, cohort, gym_track, enrollment_status, target_month, notes) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+    childName, age, diagnosis, tier, weeklyHours, payer, cohort, gymTrack, status, targetMonth, notes
+  );
+  const newId = Number(res.lastInsertRowid);
+  logAudit(u, { entity_type: 'facility_signup', entity_id: newId, action: 'ADD_FACILITY_SIGNUP', details: `Added therapy signup: ${childName} (${tier}, ${weeklyHours}h/wk)` });
+  return { id: newId, ...buildFacilityPayload() };
+});
+
+route('PATCH', '/api/facility-signups/:id', (u, b, p) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const id = Number(p.id);
+  const row = get('SELECT * FROM facility_signups WHERE id=?', id);
+  if (!row) bad(404, 'Signup record not found');
+  const status = b.enrollment_status !== undefined ? String(b.enrollment_status).trim() : row.enrollment_status;
+  const targetMonth = b.target_month !== undefined ? Math.max(1, Math.min(36, Number(b.target_month) || 1)) : row.target_month;
+  const weeklyHours = b.weekly_hours !== undefined ? Math.max(2, Math.min(45, Number(b.weekly_hours) || 20)) : row.weekly_hours;
+  const tier = b.tier !== undefined ? String(b.tier).trim() : row.tier;
+  run('UPDATE facility_signups SET enrollment_status=?, target_month=?, weekly_hours=?, tier=? WHERE id=?', status, targetMonth, weeklyHours, tier, id);
+  return { id, ...buildFacilityPayload() };
 });
 
 route('GET', '/api/dashboard', (u) => {
@@ -1695,6 +1857,7 @@ async function handler(req, res) {
     }
     let rel = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
     if (rel === 'website' || rel === 'marketing') rel = 'website.html';
+    if (rel === 'facility-model' || rel === 'financial-model') rel = 'Clinic_Sensory_Gym_Financial_Model.html';
     const candidates = [
       path.join(__dirname, 'public', rel),
       path.join(__dirname, rel),
