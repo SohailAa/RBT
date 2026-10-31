@@ -33,6 +33,9 @@ let staffProdSearchQuery = '';
 let staffProdRoleFilter = 'ALL';
 let staffProdClientFilter = 'ALL';
 let lastStaffProdData = [];
+let clientBillingSearchQuery = '';
+let clientBillingStatusFilter = 'ALL';
+let lastClientBillingSnapshots = [];
 
 const KID_THEMES = {
   space: {
@@ -844,6 +847,186 @@ function renderOwnerKpi(d) {
       }).join('') : '<p style="color:var(--slate-500);font-size:0.84rem">All client authorizations have plenty of units remaining.</p>'}
     </div>
   </div>
+
+  <!-- Client Administrative Billing & Reimbursement Snapshots -->
+  ${renderClientBillingSnapshotsCard(owner.clientBillingSnapshots || (d.adminKpi && d.adminKpi.clientBillingSnapshots) || [], '4. Client Billing & Reimbursement Snapshots')}
+  `;
+}
+
+window.renderClientBillingRowsHtml = function(list) {
+  const q = (clientBillingSearchQuery || '').trim().toLowerCase();
+  const filtered = (list || []).filter(c => {
+    if (clientBillingStatusFilter === 'HELD' && !(c.heldSessionsCount > 0 || c.heldAmount > 0)) return false;
+    if (clientBillingStatusFilter === 'AT_RISK' && !c.hasAuthAtRisk) return false;
+    if (clientBillingStatusFilter === 'CLEAN' && (c.heldSessionsCount > 0 || c.hasAuthAtRisk)) return false;
+    if (!q) return true;
+    return (c.clientName || '').toLowerCase().includes(q) ||
+           (c.payerName || '').toLowerCase().includes(q) ||
+           (c.authNumber || '').toLowerCase().includes(q) ||
+           (c.memberId || '').toLowerCase().includes(q) ||
+           (c.assignedTeam || '').toLowerCase().includes(q);
+  });
+
+  const countEl = typeof document !== 'undefined' ? document.getElementById('client_billing_count_badge') : null;
+  if (countEl) countEl.textContent = `${filtered.length} of ${(list || []).length} Clients`;
+
+  if (!filtered.length) {
+    return `<tr><td colspan="7" style="text-align:center;color:var(--slate-500);padding:20px">No client billing snapshots match "${esc(clientBillingSearchQuery)}". <a href="javascript:void(0)" onclick="act.resetClientBillingFilters()" style="color:var(--primary);font-weight:700">Reset filters</a></td></tr>`;
+  }
+
+  return filtered.map(c => {
+    const authBadges = (c.authorizations || []).map(a =>
+      `<span class="badge ${a.atRisk ? 'bad' : 'p'}" style="margin-right:4px;margin-bottom:3px">CPT ${esc(a.code)}: ${a.used}/${a.authorized}u ($${(a.usedValue || 0).toLocaleString()})</span>`
+    ).join('');
+
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="user-avatar" style="width:36px;height:36px;font-size:0.82rem;flex-shrink:0">${getInitials(c.clientName)}</div>
+            <div>
+              <div style="font-weight:700;color:var(--slate-900);font-size:0.95rem">
+                <a href="javascript:void(0)" onclick="act.openClientBillingModal(${c.clientId})" style="color:var(--slate-900);text-decoration:none">${esc(c.clientName)}</a>
+              </div>
+              <div style="font-size:0.76rem;color:var(--slate-600);margin-top:2px">
+                <b>${esc(c.payerName)}</b> · <span style="font-family:var(--font-mono)">${esc(c.authNumber)}</span>
+              </div>
+              <div style="font-size:0.72rem;color:var(--slate-500)">Member ID: ${esc(c.memberId)} · Guardian: ${esc(c.guardian)}</div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="font-size:0.82rem;font-weight:600;color:var(--slate-800)">${esc(c.planType)}</div>
+          <div style="font-size:0.76rem;color:var(--slate-600);margin-top:2px">${esc(c.copayInfo)}</div>
+          <div style="font-size:0.74rem;color:${c.patientBalance > 0 ? 'var(--warn)' : 'var(--ok)'};font-weight:700;margin-top:2px">
+            Family Balance: $${(c.patientBalance || 0).toLocaleString()}
+          </div>
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:0.8rem;margin-bottom:4px">
+            <b>${c.totalUsedUnits} / ${c.totalAuthorizedUnits} units (${c.authBurnPct}%)</b>
+            <span style="color:var(--slate-500);font-size:0.74rem">${c.remainingUnits} rem</span>
+          </div>
+          <div class="bar" style="height:7px;margin-bottom:6px">
+            <div style="width:${Math.min(100, c.authBurnPct)}%;background:${c.authBurnPct >= 80 ? 'var(--bad)' : 'var(--primary)'}"></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap">${authBadges}</div>
+        </td>
+        <td>
+          <div style="font-size:1rem;font-weight:700;color:var(--slate-900)">$${(c.totalBilled || 0).toLocaleString()}</div>
+          <div style="font-size:0.74rem;color:var(--slate-500)">Allowed: $${(c.totalAllowed || 0).toLocaleString()}</div>
+        </td>
+        <td>
+          <div style="font-size:1rem;font-weight:700;color:var(--ok)">$${(c.totalReimbursed || 0).toLocaleString()}</div>
+          <div style="font-size:0.74rem;color:var(--slate-600)"><b>${c.reimbursementRatePct}%</b> realized · ERA Paid</div>
+        </td>
+        <td>
+          ${c.pendingPayerAmount > 0 ? `
+            <div style="font-size:0.82rem;font-weight:700;color:var(--primary)">$${c.pendingPayerAmount.toLocaleString()} Pending</div>
+            <div style="font-size:0.72rem;color:var(--slate-500)">${c.pendingSessionsCount} clean claim(s) in 837P</div>
+          ` : ''}
+          ${c.heldAmount > 0 ? `
+            <div style="font-size:0.82rem;font-weight:700;color:var(--bad);margin-top:2px">$${c.heldAmount.toLocaleString()} Held</div>
+            <div style="font-size:0.72rem;color:var(--bad)">${c.heldSessionsCount} unsigned/missing note(s)</div>
+          ` : ''}
+          ${!c.pendingPayerAmount && !c.heldAmount ? `<span class="tag approved">All Claims Settled</span>` : ''}
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:4px" onclick="act.openClientBillingModal(${c.clientId})">💳 Billing Snapshot</button>
+          <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.quickPillar(${c.clientId}, 'services')" title="Open Insurance & Supervision Tab">360 →</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+};
+
+function renderClientBillingSnapshotsCard(snapshots, sectionTitle = 'Client Billing & Reimbursement Snapshots') {
+  const list = snapshots || [];
+  lastClientBillingSnapshots = list;
+
+  const totalBilledAll = list.reduce((s, c) => s + (c.totalBilled || 0), 0);
+  const totalReimbursedAll = list.reduce((s, c) => s + (c.totalReimbursed || 0), 0);
+  const totalPendingAll = list.reduce((s, c) => s + (c.pendingPayerAmount || 0), 0);
+  const totalHeldAll = list.reduce((s, c) => s + (c.heldAmount || 0), 0);
+  const avgReimbPct = totalBilledAll > 0 ? Math.round((totalReimbursedAll / totalBilledAll) * 100) : 92;
+
+  return `
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0 0 2px">${esc(sectionTitle)}</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Administrative view of each client's insurance policy, CPT authorization usage, billed claims, ERA reimbursements, and held notes.</p>
+      </div>
+      <span class="badge p" id="client_billing_count_badge">${list.length} of ${list.length} Clients</span>
+    </div>
+
+    <!-- Aggregate Billing & Reimbursement Strip -->
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px">
+      <div style="background:var(--slate-50);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--slate-200)">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Total Billed (Auth Cycle)</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--slate-900);margin-top:2px">$${totalBilledAll.toLocaleString()}</div>
+        <div style="font-size:0.75rem;color:var(--slate-500)">Across ${list.length} active client(s)</div>
+      </div>
+      <div style="background:#f0fdf4;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid #bbf7d0">
+        <div style="font-size:0.72rem;font-weight:700;color:#047857;text-transform:uppercase">Reimbursed (ERA/EFT Paid)</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--ok);margin-top:2px">$${totalReimbursedAll.toLocaleString()}</div>
+        <div style="font-size:0.75rem;color:#065f46"><b>${avgReimbPct}%</b> net payer realization</div>
+      </div>
+      <div style="background:#f0f9ff;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid #bae6fd">
+        <div style="font-size:0.72rem;font-weight:700;color:#0369a1;text-transform:uppercase">Pending Payer (837P)</div>
+        <div style="font-size:1.25rem;font-weight:700;color:var(--primary);margin-top:2px">$${totalPendingAll.toLocaleString()}</div>
+        <div style="font-size:0.75rem;color:#0369a1">Clean signed claims in clearinghouse</div>
+      </div>
+      <div style="background:${totalHeldAll > 0 ? '#fff1f2' : 'var(--slate-50)'};padding:10px 14px;border-radius:var(--radius-sm);border:1px solid ${totalHeldAll > 0 ? '#fecdd3' : 'var(--slate-200)'}">
+        <div style="font-size:0.72rem;font-weight:700;color:${totalHeldAll > 0 ? 'var(--bad)' : 'var(--slate-500)'};text-transform:uppercase">Held (Unsigned / Missing Note)</div>
+        <div style="font-size:1.25rem;font-weight:700;color:${totalHeldAll > 0 ? 'var(--bad)' : 'var(--ok)'};margin-top:2px">$${totalHeldAll.toLocaleString()}</div>
+        <div style="font-size:0.75rem;color:${totalHeldAll > 0 ? 'var(--bad)' : 'var(--slate-500)'}">${totalHeldAll > 0 ? 'Requires RBT note or BCBA co-sign' : 'Zero claims held'}</div>
+      </div>
+    </div>
+
+    <!-- Search & Filter Bar -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;background:var(--slate-50);padding:10px;border-radius:var(--radius-md);border:1px solid var(--slate-200)">
+      <div style="flex:1.6;min-width:200px">
+        <input
+          id="client_billing_search_input"
+          placeholder="🔍 Search by client name, insurance payer, auth #, or clinician..."
+          value="${esc(clientBillingSearchQuery)}"
+          oninput="act.filterClientBillingTable(this.value, null)"
+          style="margin:0;padding:8px 12px;font-size:0.84rem;background:#fff"
+        >
+      </div>
+      <div style="min-width:170px">
+        <select
+          onchange="act.filterClientBillingTable(null, this.value)"
+          style="margin:0;padding:8px 10px;font-size:0.84rem;background:#fff"
+        >
+          <option value="ALL" ${clientBillingStatusFilter === 'ALL' ? 'selected' : ''}>All Billing Statuses</option>
+          <option value="HELD" ${clientBillingStatusFilter === 'HELD' ? 'selected' : ''}>Held Claims Only</option>
+          <option value="AT_RISK" ${clientBillingStatusFilter === 'AT_RISK' ? 'selected' : ''}>Auth Near Limit (≥80%)</option>
+          <option value="CLEAN" ${clientBillingStatusFilter === 'CLEAN' ? 'selected' : ''}>Clean / Settled</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Client & Insurance Payer</th>
+            <th>Coverage & Copay</th>
+            <th>Authorized Units & CPT Breakdown</th>
+            <th>Total Billed</th>
+            <th>Reimbursed (Paid)</th>
+            <th>Pending / Held</th>
+            <th style="text-align:right">Snapshot</th>
+          </tr>
+        </thead>
+        <tbody id="client_billing_tbody">
+          ${window.renderClientBillingRowsHtml(list)}
+        </tbody>
+      </table>
+    </div>
+  </div>
   `;
 }
 
@@ -1160,6 +1343,9 @@ function renderAdminKpi(d) {
     </div>
   </div>
 
+  <!-- Client Administrative Billing & Reimbursement Snapshots -->
+  ${renderClientBillingSnapshotsCard(admin.clientBillingSnapshots || bill.clientBillingSnapshots || [], 'Client Billing & Reimbursement Snapshots')}
+
   <!-- 1. Missing Notes Table -->
   <div class="card">
     <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px">
@@ -1391,9 +1577,10 @@ async function clientsView() {
         <tr>
           <th>Client Name</th>
           <th>Diagnosis</th>
+          <th>Insurance Payer & Auth</th>
           <th>Communication Modality</th>
           <th>Setting / School</th>
-          <th>Action</th>
+          <th style="text-align:right">Action</th>
         </tr>
       </thead>
       <tbody>
@@ -1409,10 +1596,12 @@ async function clientsView() {
               </div>
             </td>
             <td><span class="badge p">${esc(c.diagnosis || 'ASD')}</span></td>
+            <td><span class="badge">${esc(c.insurance || 'BlueCross ABA Auth #BC-88412')}</span></td>
             <td><span class="badge att">${esc(c.communication || 'Vocal')}</span></td>
             <td>${esc(c.school || 'Home / Clinic')}</td>
-            <td>
-              <button class="sec" onclick="go('client',${c.id})">Open 360 Record →</button>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
+              <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="go('client',${c.id})">Open 360 Record →</button>
             </td>
           </tr>
         `).join('')}
@@ -1586,7 +1775,7 @@ async function clientView(id) {
     client: c, goals, plans, stories, auths, assigned,
     abcLogs = [], abcSummary = { functions: {}, total: 0 }, supervisionLogs = [],
     behaviorPrograms = [], behaviorEvents = [], behaviorSummary = {},
-    taskAnalyses = [], fidelityIoaLogs = [], auditLogs = []
+    taskAnalyses = [], fidelityIoaLogs = [], auditLogs = [], billingSnapshot = null
   } = data;
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
   const tabs = P ? [['goals', 'Skill Goals'], ['stories', 'Social Stories']] : [
@@ -1596,7 +1785,7 @@ async function clientView(id) {
     ['plans', 'Behavior Plan (BIP)'],
     ['stories', 'Social Stories'],
     ['profile', 'Client Info'],
-    ['services', 'Insurance & Supervision']
+    ['services', 'Insurance, Billing & Supervision']
   ];
   if (P && !['goals', 'stories'].includes(tab)) tab = 'goals';
   if (!P && !tabs.map(t=>t[0]).includes(tab)) tab = 'overview';
@@ -1618,6 +1807,7 @@ async function clientView(id) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${!P ? `
+          <button class="ok" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Log (${auditLogs.length})</button>
         ` : ''}
@@ -2414,7 +2604,50 @@ async function clientView(id) {
 
   // Tab: Authorizations & Services
   else if (tab === 'services') {
+    const bs = billingSnapshot || {};
     body = `
+    ${bs.clientId ? `
+      <div class="card">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <h3 style="margin:0 0 2px">💳 Administrative Billing & Reimbursement Snapshot</h3>
+            <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Payer policy details, total billed claims, ERA/EFT reimbursements received, and pending/held claims.</p>
+          </div>
+          <button class="ok" style="padding:7px 14px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">🖨️ Open Printable Billing Statement</button>
+        </div>
+
+        <div style="background:var(--slate-50);padding:12px 14px;border-radius:var(--radius-md);border:1px solid var(--slate-200);margin-bottom:14px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:0.84rem">
+          <div><b>Payer:</b> ${esc(bs.payerName)} (${esc(bs.planType)})</div>
+          <div><b>Member ID:</b> <span style="font-family:var(--font-mono)">${esc(bs.memberId)}</span></div>
+          <div><b>Prior Auth #:</b> <span style="font-family:var(--font-mono)">${esc(bs.authNumber)}</span></div>
+          <div><b>Copay / Coverage:</b> ${esc(bs.copayInfo)}</div>
+        </div>
+
+        <div class="grid" style="margin-bottom:0">
+          <div class="stat-card">
+            <div class="stat-label">Total Billed (Auth Cycle)</div>
+            <div class="stat" style="color:var(--slate-900)">$${(bs.totalBilled || 0).toLocaleString()}</div>
+            <div class="stat-sub">Allowed: $${(bs.totalAllowed || 0).toLocaleString()} (${bs.totalUsedUnits} units used)</div>
+          </div>
+          <div class="stat-card ok">
+            <div class="stat-label">Reimbursed (ERA/EFT Paid)</div>
+            <div class="stat" style="color:var(--ok)">$${(bs.totalReimbursed || 0).toLocaleString()}</div>
+            <div class="stat-sub"><b>${bs.reimbursementRatePct}%</b> net payer realization</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pending Payer (837P)</div>
+            <div class="stat" style="color:var(--primary)">$${(bs.pendingPayerAmount || 0).toLocaleString()}</div>
+            <div class="stat-sub">${bs.pendingSessionsCount || 0} clean claim(s) in clearinghouse</div>
+          </div>
+          <div class="stat-card ${bs.heldAmount > 0 ? 'bad' : 'ok'}">
+            <div class="stat-label">Held (Unsigned / Missing Note)</div>
+            <div class="stat" style="color:${bs.heldAmount > 0 ? 'var(--bad)' : 'var(--ok)'}">$${(bs.heldAmount || 0).toLocaleString()}</div>
+            <div class="stat-sub">${bs.heldSessionsCount || 0} session(s) awaiting note / co-sign</div>
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
     <div class="card">
       <div class="flex-between">
         <h3>Active CPT Insurance Authorizations</h3>
@@ -5727,11 +5960,197 @@ function renderModal() {
       </div>
     </div>`;
   }
+  if (activeModal.type === 'client_billing_snapshot') {
+    const s = activeModal.snapshot || {};
+    const auths = s.authorizations || [];
+    const claims = s.sessionClaims || [];
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:920px;width:96%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--slate-200)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="user-avatar" style="width:44px;height:44px;font-size:0.95rem">${getInitials(s.clientName || 'Client')}</div>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span class="badge p">Administrative Billing & Reimbursement Snapshot</span>
+                <span class="badge ${s.billingStatusTone || 'ok'}">${esc(s.billingStatus || 'Current')}</span>
+              </div>
+              <h3 style="margin:4px 0 0;font-size:1.3rem">${esc(s.clientName)} — Payer & Reimbursement Ledger</h3>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="window.print()">🖨️ Print Statement</button>
+            <button class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
+          </div>
+        </div>
+
+        <!-- 1. Payer, Policy & Family Coverage Details -->
+        <div style="background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:14px 16px;margin:14px 0">
+          <div style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase;margin-bottom:8px">1. Insurance Policy, Prior Authorization & Family Responsibility</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:0.84rem">
+            <div><span style="color:var(--slate-500)">Insurance Payer:</span><br><b>${esc(s.payerName)}</b></div>
+            <div><span style="color:var(--slate-500)">Plan Type:</span><br><b>${esc(s.planType)}</b></div>
+            <div><span style="color:var(--slate-500)">Subscriber / Member ID:</span><br><b style="font-family:var(--font-mono)">${esc(s.memberId)}</b></div>
+            <div><span style="color:var(--slate-500)">Prior Authorization #:</span><br><b style="font-family:var(--font-mono)">${esc(s.authNumber)}</b> (${esc(s.authEffective)} → ${esc(s.authExpires)})</div>
+            <div><span style="color:var(--slate-500)">Copay & Deductible Status:</span><br><b>${esc(s.copayInfo)}</b></div>
+            <div><span style="color:var(--slate-500)">Patient / Family Balance:</span><br><b style="color:${s.patientBalance > 0 ? 'var(--warn)' : 'var(--ok)'}">$${(s.patientBalance || 0).toLocaleString()}</b> (${esc(s.guardian)})</div>
+            <div><span style="color:var(--slate-500)">Primary Diagnosis:</span><br><b>${esc(s.diagnosis)}</b></div>
+            <div><span style="color:var(--slate-500)">Assigned Clinical Team:</span><br><b>${esc(s.assignedTeam)}</b></div>
+          </div>
+        </div>
+
+        <!-- 2. Billed vs. Reimbursed vs. Pending vs. Held KPI Cards -->
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:14px 0">
+          <div class="stat-card">
+            <div class="stat-label">Total Billed (Auth Cycle)</div>
+            <div class="stat" style="color:var(--slate-900)">$${(s.totalBilled || 0).toLocaleString()}</div>
+            <div class="stat-sub">Contracted Allowed: <b>$${(s.totalAllowed || 0).toLocaleString()}</b></div>
+          </div>
+          <div class="stat-card ok">
+            <div class="stat-label">Reimbursed (ERA/EFT Paid)</div>
+            <div class="stat" style="color:var(--ok)">$${(s.totalReimbursed || 0).toLocaleString()}</div>
+            <div class="stat-sub"><b>${s.reimbursementRatePct}%</b> net payer realization</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pending Payer (837P)</div>
+            <div class="stat" style="color:var(--primary)">$${(s.pendingPayerAmount || 0).toLocaleString()}</div>
+            <div class="stat-sub">${s.pendingSessionsCount || 0} clean claim(s) in clearinghouse</div>
+          </div>
+          <div class="stat-card ${s.heldAmount > 0 ? 'bad' : 'ok'}">
+            <div class="stat-label">Held Claims (Unbilled)</div>
+            <div class="stat" style="color:${s.heldAmount > 0 ? 'var(--bad)' : 'var(--ok)'}">$${(s.heldAmount || 0).toLocaleString()}</div>
+            <div class="stat-sub">${s.heldSessionsCount || 0} session(s) missing note / co-sign</div>
+          </div>
+        </div>
+
+        <!-- 3. CPT Authorization & Dollar Utilization Breakdown -->
+        <h4 style="margin:16px 0 8px;font-size:0.95rem">2. CPT Authorization Burn-Down & Contracted Dollar Value</h4>
+        <div class="table-responsive" style="margin-bottom:16px">
+          <table>
+            <thead>
+              <tr>
+                <th>CPT Code</th>
+                <th>Service Description</th>
+                <th>Rate</th>
+                <th>Authorized Units ($)</th>
+                <th>Used Units ($)</th>
+                <th>Remaining Units ($)</th>
+                <th>Utilization</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${auths.map(a => `
+                <tr>
+                  <td><b>CPT ${esc(a.code)}</b></td>
+                  <td>${esc(a.label)}</td>
+                  <td>$${a.ratePerUnit}/unit ($${a.ratePerHour}/hr)</td>
+                  <td>${a.authorized}u ($${(a.authorizedValue || 0).toLocaleString()})</td>
+                  <td><b>${a.used}u ($${(a.usedValue || 0).toLocaleString()})</b></td>
+                  <td>${a.remaining}u ($${(a.remainingValue || 0).toLocaleString()})</td>
+                  <td>
+                    <span class="tag ${a.atRisk ? 'draft' : 'approved'}">${a.burnPct}% Used</span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 4. Session-by-Session Claim & ERA Reimbursement Ledger -->
+        <h4 style="margin:16px 0 8px;font-size:0.95rem">3. Recent Session Claims & ERA Reimbursement Ledger</h4>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Claim ID / Date</th>
+                <th>Clinician</th>
+                <th>CPT & Units</th>
+                <th>Billed</th>
+                <th>Allowed</th>
+                <th>Reimbursed</th>
+                <th>ERA / 837P Status</th>
+                <th style="text-align:right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${claims.length ? claims.map(cl => `
+                <tr>
+                  <td>
+                    <b>${esc(cl.claimId)}</b>
+                    <div style="font-size:0.75rem;color:var(--slate-500)">${esc(cl.date)} · Session #${cl.sessionId}</div>
+                  </td>
+                  <td>
+                    <b>${esc(cl.staffName)}</b>
+                    <div style="font-size:0.74rem;color:var(--slate-500)">${esc(cl.staffRole)}</div>
+                  </td>
+                  <td>
+                    <span class="badge p">CPT ${esc(cl.cptCode)}</span>
+                    <div style="font-size:0.76rem;color:var(--slate-600);margin-top:2px">${cl.units} units (${cl.hours} hrs)</div>
+                  </td>
+                  <td><b>$${cl.billedAmount}</b></td>
+                  <td>$${cl.allowedAmount}</td>
+                  <td>
+                    <b style="color:${cl.reimbursedAmount > 0 ? 'var(--ok)' : 'var(--slate-500)'}">$${cl.reimbursedAmount}</b>
+                    ${cl.copayAmount > 0 ? `<div style="font-size:0.7rem;color:var(--slate-500)">+$${cl.copayAmount} copay</div>` : ''}
+                  </td>
+                  <td>
+                    <span class="tag ${cl.claimState === 'paid' ? 'approved' : cl.claimState === 'pending' ? 'pending_approval' : 'bad'}">
+                      ${esc(cl.claimStatus)}
+                    </span>
+                    <div style="font-size:0.72rem;color:var(--slate-500);margin-top:2px;font-family:var(--font-mono)">Ref: ${esc(cl.eraReference)}</div>
+                  </td>
+                  <td style="text-align:right">
+                    <button class="sec" style="padding:5px 10px;font-size:0.75rem" onclick="act.closeModal();go('session',${cl.sessionId})">
+                      ${cl.claimState === 'held' ? 'Resolve Note →' : 'View Note'}
+                    </button>
+                  </td>
+                </tr>
+              `).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--slate-500)">No session claims recorded yet.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid var(--slate-200)">
+          <div style="font-size:0.8rem;color:var(--slate-500)">
+            CMS 8-Minute Rule Verified · Last ERA Remittance Sync: <b>${esc(s.lastEraDate)}</b>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="sec" onclick="act.closeModal();act.quickPillar(${s.clientId}, 'services')">Open Full Client 360 →</button>
+            <button class="ok" onclick="act.exportClaimsBatch()">Export Client 837P Claims</button>
+            <button class="sec" onclick="act.closeModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
   return '';
 }
 
 // ---------- Actions ----------
 const act = {
+  openClientBillingModal: safe(async (clientId) => {
+    const cached = (lastClientBillingSnapshots || []).find(s => Number(s.clientId) === Number(clientId));
+    const snapshot = cached || await api('GET', `/api/clients/${clientId}/billing-snapshot`);
+    activeModal = { type: 'client_billing_snapshot', snapshot };
+    render();
+  }),
+  filterClientBillingTable: (query, status) => {
+    if (query !== null && query !== undefined) clientBillingSearchQuery = query;
+    if (status !== null && status !== undefined) clientBillingStatusFilter = status;
+    const tbody = document.getElementById('client_billing_tbody');
+    if (tbody && window.renderClientBillingRowsHtml) {
+      tbody.innerHTML = window.renderClientBillingRowsHtml(lastClientBillingSnapshots);
+    } else {
+      render();
+    }
+  },
+  resetClientBillingFilters: () => {
+    clientBillingSearchQuery = '';
+    clientBillingStatusFilter = 'ALL';
+    const inp = document.getElementById('client_billing_search_input');
+    if (inp) inp.value = '';
+    render();
+  },
   login: safe(async () => {
     try {
       me = await api('POST', '/api/login', { email: val('em'), password: val('pw') });

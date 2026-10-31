@@ -332,12 +332,18 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(rDash.rbtKpi.dataRequirements && rDash.rbtKpi.dataRequirements.requiredTrialsPerSession === 25, 'RBT KPI tracks daily trial quota and active target requirements');
   ok(rDash.rbtKpi.trainingAndSupervision && typeof rDash.rbtKpi.trainingAndSupervision.personalSupPct === 'number', 'RBT KPI tracks personal monthly BACB 5% supervision progress');
 
-  // 4. Administrator KPI Telemetry
+  // 4. Administrator KPI Telemetry & Client Billing Snapshots
   const aDash = (await a('GET', '/api/dashboard')).j;
   ok(aDash.adminKpi && aDash.adminKpi.documentationDelinquency && typeof aDash.adminKpi.documentationDelinquency.missingNotesCount === 'number', 'Admin KPI tracks missing & delinquent notes with elapsed hours');
   ok(aDash.adminKpi.billingAndClaims && typeof aDash.adminKpi.billingAndClaims.claimsReadyRevenue === 'number' && typeof aDash.adminKpi.billingAndClaims.claimsReadyUnits === 'number', 'Admin KPI tracks claims ready for 837P clearinghouse release');
   ok(Array.isArray(aDash.adminKpi.billingAndClaims.authorizationsAtRisk), 'Admin KPI tracks payer authorizations at risk (>= 80% burned)');
   ok(aDash.adminKpi.sessionDiscrepancies && Array.isArray(aDash.adminKpi.sessionDiscrepancies.unstartedList), 'Admin KPI tracks EVV session scheduling discrepancies');
+  ok(Array.isArray(aDash.adminKpi.clientBillingSnapshots) && aDash.adminKpi.clientBillingSnapshots.length >= 2, 'Admin KPI includes administrative client billing & reimbursement snapshots');
+  ok(aDash.adminKpi.clientBillingSnapshots.every(cs => cs.payerName && cs.totalBilled > 0 && cs.totalReimbursed > 0 && Array.isArray(cs.authorizations) && Array.isArray(cs.sessionClaims)), 'Each client billing snapshot includes payer info, billed/reimbursed amounts, CPT authorizations, and session claims ledger');
+  const snapRes = await a('GET', '/api/clients/1/billing-snapshot');
+  ok(snapRes.s === 200 && snapRes.j.clientId === 1 && snapRes.j.totalBilled > 0 && Array.isArray(snapRes.j.sessionClaims), 'GET /api/clients/:id/billing-snapshot returns client billing & reimbursement snapshot');
+  const snapParentBlock = await p('GET', '/api/clients/1/billing-snapshot');
+  ok(snapParentBlock.s === 403, 'Parent role blocked from administrative billing snapshot endpoint');
 
   // 5. B2B Marketing Website & Lead Engine (vs. MeasurePM)
   const webRes = await fetch(base + '/website.html');
