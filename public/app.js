@@ -352,16 +352,14 @@ const NAV = {
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'SOAP Notes & Billing Sign-Off'],
-    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
-    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking']
   ],
   BCBA: [
     ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Clients & Assigned Sessions'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Review & Co-Sign Notes'],
-    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking'],
-    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking']
   ],
   RBT: [
     ['dashboard', NAV_ICONS.dashboard, 'My Daily Dashboard', 'Tasks, Data Quotas & Training'],
@@ -375,8 +373,7 @@ const NAV = {
     ['notes', NAV_ICONS.notes, 'Notes & Billing', 'Missing Notes & Ready Claims'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Attendance'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles & Insurance Auths'],
-    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Compliance'],
-    ['licensing', NAV_ICONS.supervision, 'Software Licensing', 'MSA, HIPAA BAA & Key Caps']
+    ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Compliance']
   ],
   PARENT: [
     ['clients', NAV_ICONS.clients, 'My Child Portal', 'Goals & Social Stories']
@@ -4069,6 +4066,7 @@ async function leadsView() {
                   </select>
                 </td>
                 <td style="text-align:right;white-space:nowrap">
+                  <button class="btn ok" style="padding:4px 8px;font-size:0.8rem" onclick="act.issueLicenseFromLead(${l.id}, ${esc(JSON.stringify(l.clinic_name || ''))}, ${esc(JSON.stringify(l.name || ''))}, ${esc(JSON.stringify(l.email || ''))}, ${esc(JSON.stringify(l.caseload_size || '16-40'))})">🔑 Issue License</button>
                   <button class="btn sec" style="padding:4px 8px;font-size:0.8rem" onclick="act.editLeadNotes(${l.id}, ${esc(JSON.stringify(l.notes || ''))})">📝 Note</button>
                   <a href="mailto:${esc(l.email)}?subject=Effective%20Behavioral%20Approach%20%E2%80%94%20VIP%20Demo%20Walkthrough&body=Hi%20${encodeURIComponent(l.name)},%0A%0AThank%20you%20for%20reaching%20out%20to%20Effective%20Behavioral%20Approach.%20We%20would%20love%20to%20show%20you%20how%20our%20Unified%20Behavioral%20Health%20Record%20and%201-click%20re-auth%20packets%20compare%20to%20${encodeURIComponent(l.current_software || 'legacy software')}.%0A%0AWhen%20is%20a%20good%20time%20this%20week%20for%20a%20quick%2015-minute%20walkthrough?%0A%0ABest%20regards,%0AEBA%20Clinical%20Team" class="btn p" style="padding:4px 8px;font-size:0.8rem;text-decoration:none;display:inline-block">✉️ Email</a>
                 </td>
@@ -4080,6 +4078,455 @@ async function leadsView() {
       </div>
     `}
   </div>
+  `;
+}
+
+async function licensingView() {
+  const data = await api('GET', '/api/licensing');
+  lastLicensingData = data;
+  const pLic = data.primaryLicense || {};
+  const list = data.clinicLicenses || [];
+  const summary = data.portfolioSummary || { totalLicenses: 0, activeCount: 0, lockedOutCount: 0, pendingAgreementsCount: 0, totalLicensingMrr: 0, totalLicensingArr: 0 };
+  const tiers = data.tiers || {};
+
+  if (!selectedAgreementLicId || !list.some((l) => l.id === selectedAgreementLicId)) {
+    selectedAgreementLicId = pLic.id || (list[0] && list[0].id) || 1;
+  }
+  const activeLicObj = list.find((l) => l.id === selectedAgreementLicId) || pLic;
+  const ags = activeLicObj.agreements || {};
+  const docObj = ags[activeAgreementDoc] || ags.msa || { title: 'Master Subscription Agreement', content: '', status: 'pending' };
+  const hp = pLic.hybridPricing || { baseFee: 599, maxClients: 40, perClientFee: 15, maxSeats: 20, perSeatFee: 24, clientCapFee: 600, seatCapFee: 480, netMonthlyTotal: 1427, annualContractValue: 17124, clientUtilizationPct: 5, seatUtilizationPct: 25 };
+  const canEdit = me && (me.role === 'OWNER' || me.role === 'ADMIN');
+
+  return `
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:16px">
+      ${brandEmblem('lg')}
+      <div>
+        <div style="font-family:var(--font-mono);font-size:0.74rem;color:#0369a1;font-weight:800;letter-spacing:0.08em;text-transform:uppercase">COMMERCIAL B2B SAAS LICENSING · HYBRID SEAT/CLIENT CAPS & HIPAA BAA</div>
+        <h1>Clinic Software Licensing, Legal Agreements & Key Enforcement</h1>
+        <p class="page-sub">Manage B2B SaaS Master Subscription Agreements (MSA), HIPAA Business Associate Agreements (BAA), Clinical EULAs, Hybrid Base + Per-Client/Seat Caps, and Hard Lockout controls.</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <a href="/website.html#pricing" target="_blank" class="btn sec" style="text-decoration:none;padding:9px 14px;font-size:0.82rem">🌐 View Public Clinic Pricing Tiers</a>
+      ${canEdit ? `<button class="ok" style="padding:9px 14px;font-size:0.82rem" onclick="licensingSubTab='portfolio';showIssueLicenseForm=true;render()">+ Issue Clinic License Key</button>` : ''}
+      <button class="sec" style="padding:9px 14px;font-size:0.82rem" onclick="window.print()">🖨️ Print Agreements</button>
+    </div>
+  </div>
+
+  <!-- Hard Lockout Status Alert Banner (if primary clinic license is expired/suspended) -->
+  ${pLic.isLockedOut ? `
+    <div class="card" style="background:#fef2f2;border:2px solid #ef4444;margin-bottom:16px;padding:16px 20px">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <span class="badge bad" style="font-weight:800;margin-bottom:4px">🔒 HARD LOCKOUT ACTIVE — NON-OWNER LOGINS BLOCKED</span>
+          <h3 style="margin:4px 0 2px;color:#991b1b">Clinic Software License Expired or Suspended</h3>
+          <p style="margin:0;font-size:0.86rem;color:#7f1d1d">All BCBA, RBT, Administrator, and Parent Portal logins and API requests are currently blocked with HTTP 403 Hard Lockout. Only the Practice Owner can access the platform to renew the cryptographic license key.</p>
+        </div>
+        ${canEdit ? `<button class="ok" style="padding:10px 18px;font-size:0.9rem" onclick="act.renewClinicLicenseKey(${pLic.id})">🔑 Renew & Activate 1-Year License Key Now →</button>` : ''}
+      </div>
+    </div>
+  ` : ''}
+
+  <!-- 4 Executive Licensing & Compliance KPI Cards -->
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-bottom:18px">
+    <div class="stat-card ${pLic.isLockedOut ? 'bad' : 'ok'}">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Primary Clinic License</div>
+        <span class="badge ${pLic.isLockedOut ? 'bad' : 'ok'}">${pLic.isLockedOut ? '🔒 HARD LOCKOUT' : '✓ ACTIVE KEY'}</span>
+      </div>
+      <div class="stat" style="color:${pLic.isLockedOut ? 'var(--bad)' : 'var(--ok)'};font-size:1.35rem">${esc((pLic.tier || 'growth').toUpperCase())}</div>
+      <div class="stat-sub">Expires: <b>${esc(pLic.expires_at || '—')}</b> · Enforcement: <b>Hard Lockout</b></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Hybrid Client & Seat Caps</div>
+        <span class="badge p">BASE $${hp.baseFee}/MO</span>
+      </div>
+      <div class="stat" style="color:var(--primary);font-size:1.35rem">${pLic.activeClients || 0}/${pLic.max_clients || 40} <span style="font-size:0.9rem;font-weight:600">Clients</span> · ${pLic.activeSeats || 0}/${pLic.max_seats || 20} <span style="font-size:0.9rem;font-weight:600">Seats</span></div>
+      <div class="stat-sub">+$${pLic.per_client_fee || 15}/client cap · +$${pLic.per_seat_fee || 24}/seat cap = <b>$${(hp.netMonthlyTotal || 0).toLocaleString()}/mo</b></div>
+    </div>
+
+    <div class="stat-card ${pLic.allAgreementsSigned ? 'ok' : 'warn'}">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">Commercial & HIPAA Contracts</div>
+        <span class="badge ${pLic.allAgreementsSigned ? 'ok' : 'tan'}">${pLic.allAgreementsSigned ? '3/3 EXECUTED' : 'SIGNATURE NEEDED'}</span>
+      </div>
+      <div class="stat" style="color:var(--slate-900);font-size:1.25rem">MSA · HIPAA BAA · EULA</div>
+      <div class="stat-sub">Signed by: <b>${esc(pLic.msa_signed_by || 'Pending Execution')}</b></div>
+    </div>
+
+    <div class="stat-card ok">
+      <div class="flex-between" style="margin-bottom:6px">
+        <div class="stat-label" style="margin:0">B2B Clinic Licensing ARR</div>
+        <span class="badge sen">${summary.activeCount}/${summary.totalLicenses} ACTIVE CLINICS</span>
+      </div>
+      <div class="stat" style="color:var(--ok);font-size:1.35rem">$${(summary.totalLicensingArr || 0).toLocaleString()}<span style="font-size:0.9rem">/yr</span></div>
+      <div class="stat-sub"><b>$${(summary.totalLicensingMrr || 0).toLocaleString()}/mo</b> MRR across ${summary.totalLicenses} licensed ABA clinics</div>
+    </div>
+  </div>
+
+  <!-- 3-Tab Sub-Navigation -->
+  <div class="kpi-persona-switcher" style="margin-bottom:18px">
+    <button class="kpi-persona-tab ${licensingSubTab === 'agreements' ? 'active' : ''}" onclick="act.setLicensingSubTab('agreements')">
+      <div class="kpi-tab-icon">📜</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">1. B2B SaaS MSA, HIPAA BAA & EULA Generator</div>
+        <div class="kpi-tab-sub">Legal Contract Templates, 21 CFR e-Signatures & PDF Export</div>
+      </div>
+      <span class="badge ${licensingSubTab === 'agreements' ? 'p' : 'sec'}">3 Contracts</span>
+    </button>
+    <button class="kpi-persona-tab ${licensingSubTab === 'overview' ? 'active' : ''}" onclick="act.setLicensingSubTab('overview')">
+      <div class="kpi-tab-icon">🔑</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">2. Hybrid Pricing Caps & Hard Lockout Control</div>
+        <div class="kpi-tab-sub">HMAC-SHA256 Key Vault, Client/Seat Caps & Lockout Simulator</div>
+      </div>
+      <span class="badge ${pLic.isLockedOut ? 'bad' : 'ok'}">${pLic.isLockedOut ? 'Locked' : 'Active'}</span>
+    </button>
+    <button class="kpi-persona-tab ${licensingSubTab === 'portfolio' ? 'active' : ''}" onclick="act.setLicensingSubTab('portfolio')">
+      <div class="kpi-tab-icon">🏢</div>
+      <div class="kpi-tab-text">
+        <div class="kpi-tab-title">3. B2B Clinic License Portfolio (${list.length})</div>
+        <div class="kpi-tab-sub">Provision Clinic Tenants, Convert CRM Leads & Track Renewals</div>
+      </div>
+      <span class="badge ${licensingSubTab === 'portfolio' ? 'sen' : 'sec'}">$${Math.round((summary.totalLicensingMrr || 0) / 1000)}k MRR</span>
+    </button>
+  </div>
+
+  ${licensingSubTab === 'agreements' ? `
+    <!-- TAB 1: COMMERCIAL & LEGAL LICENSING TEMPLATES (MSA, HIPAA BAA, CLINICAL EULA) -->
+    <div class="card" style="background:linear-gradient(135deg,#042e39 0%,#0b4650 100%);color:#fff;border:1.5px solid #2dd4bf;margin-bottom:16px">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:0.74rem;color:#6ee7b7;font-weight:700;text-transform:uppercase">Select Licensed Clinic for Contract Generation & Execution</div>
+          <div style="font-size:1.05rem;font-weight:700;margin-top:2px">${esc(activeLicObj.clinic_name)} — <span style="font-family:var(--font-mono);color:#38bdf8">${esc(activeLicObj.license_key)}</span></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select onchange="act.selectAgreementLicense(+this.value)" style="margin:0;padding:8px 12px;border-radius:8px;font-weight:700;background:#fff;color:var(--slate-900);min-width:260px">
+            ${list.map((l) => `
+              <option value="${l.id}" ${l.id === activeLicObj.id ? 'selected' : ''}>
+                ${l.isPrimary ? '⭐ [Primary] ' : '🏢 '}${esc(l.clinic_name)} (${esc(l.tier.toUpperCase())})
+              </option>
+            `).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 Legal Document Switcher Cards -->
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-bottom:16px">
+      ${[
+        { key: 'msa', icon: '📄', meta: ags.msa || {}, tag: 'Commercial SaaS Terms' },
+        { key: 'baa', icon: '🛡️', meta: ags.baa || {}, tag: '45 CFR § 164.504(e) HIPAA' },
+        { key: 'eula', icon: '⚖️', meta: ags.eula || {}, tag: 'BACB & AI Guardrails' }
+      ].map((item) => {
+        const isCurrent = activeAgreementDoc === item.key;
+        const isSigned = item.meta.status === 'signed';
+        return `
+          <div class="card" onclick="act.setAgreementDoc('${item.key}')" style="cursor:pointer;margin-bottom:0;border:2px solid ${isCurrent ? '#0d9488' : 'var(--slate-200)'};background:${isCurrent ? '#f0fdfa' : '#fff'}">
+            <div class="flex-between" style="margin-bottom:6px">
+              <span class="badge ${isCurrent ? 'p' : 'sec'}">${item.icon} ${esc(item.tag)}</span>
+              <span class="badge ${isSigned ? 'ok' : 'warn'}">${isSigned ? '✓ SIGNED' : '⏳ PENDING'}</span>
+            </div>
+            <h3 style="margin:4px 0;font-size:1rem;color:var(--slate-900)">${esc(item.meta.title || item.key.toUpperCase())}</h3>
+            <p style="margin:0 0 8px;font-size:0.8rem;color:var(--slate-600)">${esc(item.meta.subtitle || '')}</p>
+            <div style="font-size:0.75rem;color:${isSigned ? '#047857' : '#b45309'};font-weight:700">
+              ${isSigned ? `Signed by ${esc(item.meta.signedBy)}` : 'Click to review & electronically execute →'}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- Legal Contract Document Viewer & Electronic Signature Execution Block -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--slate-200)">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="badge p">${esc(docObj.id || 'EBA-LEGAL')}</span>
+            <span class="badge ${docObj.status === 'signed' ? 'ok' : 'warn'}">${docObj.status === 'signed' ? `✓ EXECUTED BY ${esc(docObj.signedBy)}` : '⏳ AWAITING ELECTRONIC SIGNATURE'}</span>
+          </div>
+          <h3 style="margin:6px 0 2px">${esc(docObj.title)}</h3>
+          <div style="font-size:0.82rem;color:var(--slate-500)">Clinic: <b>${esc(activeLicObj.clinic_name)}</b> · License Key: <code>${esc(activeLicObj.license_key)}</code></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="act.copyAgreementText()">📋 Copy Contract Text</button>
+          <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="window.print()">🖨️ Print / Save PDF</button>
+        </div>
+      </div>
+
+      <pre id="legal_agreement_text" style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-radius:10px;padding:18px;font-family:var(--font-mono);font-size:0.8rem;line-height:1.65;white-space:pre-wrap;color:var(--slate-900);max-height:460px;overflow-y:auto;margin:0 0 16px">${esc(docObj.content)}</pre>
+
+      ${canEdit ? `
+        <div style="background:#f0fdfa;border:1.5px solid #5eead4;border-radius:10px;padding:16px">
+          <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+            <div style="flex:1;min-width:240px">
+              <label style="margin:0 0 4px;font-size:0.8rem;font-weight:700;color:#0f766e">✍️ Electronic Execution & 21 CFR Part 11 Authorized Signer Name + Title</label>
+              <input id="lic_signer_name" value="${esc(activeLicObj.contact_name ? `${activeLicObj.contact_name}, Authorized Clinic Representative` : `${me.name}, ${me.role}`)}" style="margin:0;background:#fff">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+              <button class="ok" style="padding:10px 16px;font-size:0.84rem" onclick="act.signLicenseAgreement(${activeLicObj.id}, '${activeAgreementDoc}')">
+                ✍️ Sign ${activeAgreementDoc.toUpperCase()} Only
+              </button>
+              <button class="btn p" style="padding:10px 16px;font-size:0.84rem" onclick="act.signLicenseAgreement(${activeLicObj.id}, 'all')">
+                ⚡ Execute All 3 Agreements (MSA + HIPAA BAA + EULA)
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  ` : ''}
+
+  ${licensingSubTab === 'overview' ? `
+    <!-- TAB 2: CRYPTOGRAPHIC KEY VAULT, HYBRID PRICING CAPS & HARD LOCKOUT ENFORCEMENT -->
+    <div class="row">
+      <!-- Cryptographic License Key & Hard Lockout Control Card -->
+      <div class="card" style="flex:1.1">
+        <div class="flex-between" style="margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px">🔐 Cryptographic License Key Vault & Hard Lockout Gate</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">HMAC-SHA256 signed key binding tier, client cap, clinician seat cap, and expiration date.</p>
+          </div>
+          <span class="badge ${pLic.signatureValid ? 'ok' : 'bad'}">${pLic.signatureValid ? '✓ HMAC-SHA256 VERIFIED' : '✗ INVALID SIGNATURE'}</span>
+        </div>
+
+        <div style="background:linear-gradient(135deg,#041f27 0%,#08333e 100%);color:#fff;padding:16px;border-radius:10px;border:1.5px solid #14b8a6;margin-bottom:14px">
+          <div style="font-size:0.72rem;font-family:var(--font-mono);color:#6ee7b7;text-transform:uppercase;letter-spacing:0.06em">Active Tenant Cryptographic License Key</div>
+          <div style="font-family:var(--font-mono);font-size:1.05rem;font-weight:800;color:#ecfeff;margin:6px 0;word-break:break-all">${esc(pLic.license_key)}</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.76rem;color:#99f6e4;margin-top:8px">
+            <span>Clinic: <b>${esc(pLic.clinic_name)}</b></span>
+            <span>Issued: <b>${esc(pLic.issued_at)}</b></span>
+            <span>Expires: <b>${esc(pLic.expires_at)}</b></span>
+            <span>Status: <b>${esc((pLic.status || 'active').toUpperCase())}</b></span>
+          </div>
+        </div>
+
+        <!-- Client & Seat Cap Utilization Progress Bars -->
+        <div style="background:var(--slate-50);padding:14px;border-radius:10px;border:1px solid var(--slate-200);margin-bottom:14px">
+          <div class="flex-between" style="font-size:0.84rem;margin-bottom:4px">
+            <span><b>Active Client Caseload Cap</b> (+$${pLic.per_client_fee}/mo per client slot)</span>
+            <span style="font-family:var(--font-mono);font-weight:700">${pLic.activeClients} / ${pLic.max_clients} Clients (${hp.clientUtilizationPct}%)</span>
+          </div>
+          <div class="bar" style="height:8px;margin-bottom:12px">
+            <div style="width:${hp.clientUtilizationPct}%;background:${hp.clientUtilizationPct >= 90 ? 'var(--bad)' : 'var(--ok)'}"></div>
+          </div>
+
+          <div class="flex-between" style="font-size:0.84rem;margin-bottom:4px">
+            <span><b>Active Clinician Seat Cap</b> (BCBAs, RBTs & Admins @ +$${pLic.per_seat_fee}/mo per seat)</span>
+            <span style="font-family:var(--font-mono);font-weight:700">${pLic.activeSeats} / ${pLic.max_seats} Seats (${hp.seatUtilizationPct}%)</span>
+          </div>
+          <div class="bar" style="height:8px">
+            <div style="width:${hp.seatUtilizationPct}%;background:${hp.seatUtilizationPct >= 90 ? 'var(--bad)' : 'var(--primary)'}"></div>
+          </div>
+        </div>
+
+        <!-- Hard Lockout Enforcement Controls -->
+        <div style="background:${pLic.isLockedOut ? '#fef2f2' : '#fffbeb'};border:1.5px solid ${pLic.isLockedOut ? '#f87171' : '#fcd34d'};border-radius:10px;padding:14px">
+          <div style="font-weight:800;font-size:0.88rem;color:${pLic.isLockedOut ? '#991b1b' : '#92400e'};margin-bottom:4px">
+            🛡️ Expiration Enforcement Policy: HARD LOCKOUT (Owner-Only Recovery)
+          </div>
+          <p style="margin:0 0 12px;font-size:0.8rem;color:var(--slate-700)">
+            When the clinic license expires or is suspended, all non-Owner logins (<code>BCBA</code>, <code>RBT</code>, <code>ADMIN</code>, <code>PARENT</code>) are immediately blocked with HTTP 403 until the Practice Owner renews the license key.
+          </p>
+          ${canEdit ? `
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${!pLic.isLockedOut ? `
+                <button class="bad" style="padding:8px 14px;font-size:0.82rem" onclick="act.simulateHardLockout(${pLic.id})">
+                  🔒 Simulate License Expiration (Test Hard Lockout)
+                </button>
+              ` : ''}
+              <button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="act.renewClinicLicenseKey(${pLic.id})">
+                🔑 Renew & Issue New 1-Year Cryptographic Key
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <!-- Hybrid Base Fee + Per-Client / Per-Seat Cap Configurator -->
+      <div class="card" style="flex:1">
+        <div class="flex-between" style="margin-bottom:10px">
+          <div>
+            <h3 style="margin:0 0 2px">🧮 Hybrid Base Platform Fee + Per-Client / Per-Seat Cap Configurator</h3>
+            <p style="margin:0;font-size:0.82rem;color:var(--slate-500)">Configure your clinic's subscription tier, licensed client cap, and clinician seat cap.</p>
+          </div>
+          <span class="badge p">$${(hp.netMonthlyTotal || 0).toLocaleString()}/mo</span>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Subscription Tier</label>
+            <select id="cfg_lic_tier" onchange="act.prefillTierDefaults(this.value)">
+              ${Object.values(tiers).map((t) => `
+                <option value="${t.id}" ${pLic.tier === t.id ? 'selected' : ''}>${esc(t.name)} ($${t.baseFee}/mo base · ${t.maxClients} clients · ${t.maxSeats} seats)</option>
+              `).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Billing Cycle</label>
+            <select id="cfg_lic_cycle">
+              <option value="annual" ${pLic.billing_cycle === 'annual' ? 'selected' : ''}>Annual Commitment (15% Discount)</option>
+              <option value="monthly" ${pLic.billing_cycle === 'monthly' ? 'selected' : ''}>Month-to-Month Billing</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Licensed Active Client Cap (Max Clients)</label>
+            <input id="cfg_lic_clients" type="number" min="1" max="500" value="${pLic.max_clients || 40}">
+          </div>
+          <div>
+            <label>Licensed Clinician Seat Cap (Max Staff Seats)</label>
+            <input id="cfg_lic_seats" type="number" min="1" max="300" value="${pLic.max_seats || 20}">
+          </div>
+          <div>
+            <label>Expiration Date</label>
+            <input id="cfg_lic_exp" type="date" value="${esc(pLic.expires_at || '2027-10-31')}">
+          </div>
+        </div>
+
+        <table>
+          <tbody>
+            <tr><td>Base Platform Fee (${esc(hp.tierName || 'Growth Practice')})</td><td style="text-align:right;font-family:var(--font-mono);font-weight:700">$${(hp.baseFee || 0).toLocaleString()}/mo</td></tr>
+            <tr><td>Licensed Client Caseload Cap (${hp.maxClients} clients @ $${hp.perClientFee}/client)</td><td style="text-align:right;font-family:var(--font-mono)">+$${(hp.clientCapFee || 0).toLocaleString()}/mo</td></tr>
+            <tr><td>Licensed Clinician Seat Cap (${hp.maxSeats} seats @ $${hp.perSeatFee}/seat)</td><td style="text-align:right;font-family:var(--font-mono)">+$${(hp.seatCapFee || 0).toLocaleString()}/mo</td></tr>
+            <tr style="background:var(--slate-50);font-weight:700"><td>Gross Monthly Platform Total</td><td style="text-align:right;font-family:var(--font-mono)">$${(hp.grossMonthlyTotal || 0).toLocaleString()}/mo</td></tr>
+            <tr style="background:#ecfdf5;font-weight:800">
+              <td><b>Net Monthly Subscription (${hp.billingCycle === 'annual' ? '15% Annual Discount Applied' : 'Monthly Rate'})</b></td>
+              <td style="text-align:right;font-family:var(--font-mono);color:#047857;font-size:1.05rem">$${(hp.netMonthlyTotal || 0).toLocaleString()}/mo ($${(hp.annualContractValue || 0).toLocaleString()}/yr)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${canEdit ? `
+          <div style="margin-top:14px;display:flex;justify-content:flex-end">
+            <button class="ok" style="padding:10px 18px;font-size:0.86rem" onclick="act.updateLicenseCaps(${pLic.id})">
+              💾 Update Hybrid Caps & Re-Issue Signed License Key
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  ` : ''}
+
+  ${licensingSubTab === 'portfolio' ? `
+    <!-- TAB 3: B2B CLINIC LICENSE PORTFOLIO & TENANT PROVISIONING -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div>
+          <h3 style="margin:0 0 2px">🏢 Commercial B2B Clinic License Portfolio (${list.length} Licensed Clinics)</h3>
+          <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Provision new ABA clinics with cryptographically signed keys, track hybrid seat/client caps, and verify executed MSA & HIPAA BAA contracts.</p>
+        </div>
+        ${canEdit ? `<button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="showIssueLicenseForm=!showIssueLicenseForm;render()">${showIssueLicenseForm ? '✕ Close Form' : '+ Issue New Clinic License Key'}</button>` : ''}
+      </div>
+
+      ${showIssueLicenseForm && canEdit ? `
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:16px;margin-bottom:16px">
+          <h4 style="margin:0 0 10px;color:#065f46">🔑 Provision New B2B Clinic Software License & Generate MSA / HIPAA BAA</h4>
+          <div class="row">
+            <div><label>Clinic / Practice Legal Name *</label><input id="new_lic_clinic" placeholder="e.g. Summit Behavioral Horizons, LLC"></div>
+            <div><label>Primary Owner / Clinical Director *</label><input id="new_lic_contact" placeholder="e.g. Dr. Rebecca Vance, BCBA-D"></div>
+            <div><label>Work Email *</label><input id="new_lic_email" type="email" placeholder="rebecca@summitaba.org"></div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Subscription Tier</label>
+              <select id="new_lic_tier" onchange="const t=this.value;document.getElementById('new_lic_clients').value=t==='starter'?15:t==='enterprise'?100:40;document.getElementById('new_lic_seats').value=t==='starter'?8:t==='enterprise'?50:20;">
+                <option value="starter">Starter Clinic ($299/mo base · 15 Clients · 8 Seats)</option>
+                <option value="growth" selected>Growth Practice ($599/mo base · 40 Clients · 20 Seats)</option>
+                <option value="enterprise">Enterprise Multi-Site ($1,199/mo base · 100 Clients · 50 Seats)</option>
+              </select>
+            </div>
+            <div><label>Max Client Cap</label><input id="new_lic_clients" type="number" value="40" min="1" max="500"></div>
+            <div><label>Max Clinician Seat Cap</label><input id="new_lic_seats" type="number" value="20" min="1" max="300"></div>
+            <div>
+              <label>Billing Cycle</label>
+              <select id="new_lic_cycle">
+                <option value="annual" selected>Annual (-15% Discount)</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer">
+              <input type="checkbox" id="new_lic_autosign" checked style="width:18px;height:18px;margin:0">
+              <span><b>Pre-Execute MSA, HIPAA BAA & Clinical EULA on Issuance</b> (Sets license immediately to <code>active</code>)</span>
+            </label>
+            <button class="ok" onclick="act.issueNewClinicLicense()">🔑 Generate Cryptographic Key & Provision Clinic</button>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Licensed Clinic & Contact</th>
+              <th>Tier & Hybrid Caps</th>
+              <th>Cryptographic License Key</th>
+              <th>Legal Contracts (MSA / BAA / EULA)</th>
+              <th>Expires</th>
+              <th>Status</th>
+              <th style="text-align:right">MRR / Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map((l) => {
+              const q = l.hybridPricing || {};
+              return `
+                <tr>
+                  <td>
+                    <div style="font-weight:700;color:var(--slate-900)">
+                      ${l.isPrimary ? '<span class="badge p" style="margin-right:4px">PRIMARY</span>' : ''}${esc(l.clinic_name)}
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--slate-600)">${esc(l.contact_name)} · ${esc(l.contact_email)}</div>
+                  </td>
+                  <td>
+                    <span class="badge ${l.tier === 'enterprise' ? 'p' : l.tier === 'growth' ? 'sen' : 'tan'}">${esc(l.tier.toUpperCase())}</span>
+                    <div style="font-size:0.76rem;color:var(--slate-600);margin-top:3px">
+                      <b>${l.max_clients}</b> Clients · <b>${l.max_seats}</b> Staff Seats
+                    </div>
+                  </td>
+                  <td>
+                    <code style="font-size:0.74rem;background:var(--slate-100);padding:3px 6px;border-radius:4px;display:inline-block">${esc(l.license_key)}</code>
+                    <div style="font-size:0.7rem;color:${l.signatureValid ? '#047857' : '#be123c'};font-weight:700;margin-top:2px">
+                      ${l.signatureValid ? '✓ HMAC-SHA256 Valid' : '✗ Invalid Key'}
+                    </div>
+                  </td>
+                  <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <span class="badge ${l.msa_signed_by ? 'ok' : 'warn'}">MSA ${l.msa_signed_by ? '✓' : '⏳'}</span>
+                      <span class="badge ${l.baa_signed_by ? 'ok' : 'warn'}">BAA ${l.baa_signed_by ? '✓' : '⏳'}</span>
+                      <span class="badge ${l.eula_accepted_by ? 'ok' : 'warn'}">EULA ${l.eula_accepted_by ? '✓' : '⏳'}</span>
+                    </div>
+                  </td>
+                  <td style="font-family:var(--font-mono);font-size:0.8rem">${esc(l.expires_at)}</td>
+                  <td>
+                    <span class="badge ${l.isLockedOut ? 'bad' : l.status === 'active' ? 'ok' : 'warn'}">
+                      ${l.isLockedOut ? '🔒 Hard Lockout' : l.status === 'active' ? '🟢 Active' : '🟡 Pending Sign'}
+                    </span>
+                  </td>
+                  <td style="text-align:right;white-space:nowrap">
+                    <div style="font-family:var(--font-mono);font-weight:700;color:var(--primary);margin-bottom:4px">$${(q.netMonthlyTotal || 0).toLocaleString()}/mo</div>
+                    <button class="sec" style="padding:4px 8px;font-size:0.75rem" onclick="selectedAgreementLicId=${l.id};licensingSubTab='agreements';render()">📜 Contracts</button>
+                    ${canEdit ? (l.isLockedOut
+                      ? `<button class="ok" style="padding:4px 8px;font-size:0.75rem" onclick="act.renewClinicLicenseKey(${l.id})">🔑 Renew</button>`
+                      : `<button class="sec" style="padding:4px 8px;font-size:0.75rem" onclick="act.simulateHardLockout(${l.id})">🔒 Lock</button>`
+                    ) : ''}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ` : ''}
   `;
 }
 
@@ -6392,10 +6839,18 @@ const act = {
     } catch (e) { $app.innerHTML = loginView(e.message); }
   }),
   demoLogin: safe(async (email) => {
-    me = await api('POST', '/api/login', { email, password: 'password' });
-    kpiPersona = null;
-    location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
-    render();
+    try {
+      me = await api('POST', '/api/login', { email, password: 'password' });
+      kpiPersona = null;
+      location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
+      render();
+    } catch (e) {
+      if (!me) {
+        $app.innerHTML = loginView(e.message);
+      } else {
+        alert(`🔒 Hard Lockout Active:\n\n${e.message}`);
+      }
+    }
   }),
   logout: safe(async () => { await api('POST', '/api/logout'); me = null; kpiPersona = null; location.hash = ''; render(); }),
   setKpiPersona: (p) => {
@@ -6436,6 +6891,114 @@ const act = {
     });
     alert('Prospective clinic lead successfully created in CRM queue.');
     render();
+  }),
+  setLicensingSubTab: (t) => {
+    licensingSubTab = t;
+    render();
+  },
+  setAgreementDoc: (docKey) => {
+    activeAgreementDoc = docKey;
+    render();
+  },
+  selectAgreementLicense: (licId) => {
+    selectedAgreementLicId = Number(licId);
+    render();
+  },
+  copyAgreementText: () => {
+    const el = document.getElementById('legal_agreement_text');
+    if (el && navigator.clipboard) {
+      navigator.clipboard.writeText(el.innerText);
+      alert('Legal agreement copied to clipboard!');
+    }
+  },
+  signLicenseAgreement: safe(async (licId, agreementType) => {
+    const signer = val('lic_signer_name').trim() || `${me.name} (${me.role})`;
+    await api('POST', `/api/licensing/${licId}/sign-agreement`, {
+      agreement_type: agreementType,
+      signer_name: signer
+    });
+    alert(`✓ Electronically executed ${agreementType.toUpperCase()} as "${signer}".`);
+    render();
+  }),
+  simulateHardLockout: safe(async (licId) => {
+    const pastDate = '2025-01-01';
+    await api('PATCH', `/api/licensing/${licId}`, {
+      status: 'expired',
+      expires_at: pastDate
+    });
+    alert('🔒 Hard Lockout Activated! All non-Owner accounts (BCBA, RBT, Admin, Parent) are now blocked from logging in until the license key is renewed.');
+    render();
+  }),
+  renewClinicLicenseKey: safe(async (licId) => {
+    const res = await api('POST', `/api/licensing/${licId}/activate-key`, { renew: true });
+    alert(`🔑 License Renewed & Activated!\nNew HMAC-SHA256 Key: ${res.license_key}\nExpires: ${res.expires_at}`);
+    render();
+  }),
+  prefillTierDefaults: (tier) => {
+    const cEl = document.getElementById('cfg_lic_clients');
+    const sEl = document.getElementById('cfg_lic_seats');
+    if (cEl) cEl.value = tier === 'starter' ? 15 : tier === 'enterprise' ? 100 : 40;
+    if (sEl) sEl.value = tier === 'starter' ? 8 : tier === 'enterprise' ? 50 : 20;
+  },
+  updateLicenseCaps: safe(async (licId) => {
+    const tier = val('cfg_lic_tier') || 'growth';
+    const billing_cycle = val('cfg_lic_cycle') || 'annual';
+    const max_clients = Math.max(1, +val('cfg_lic_clients') || 40);
+    const max_seats = Math.max(1, +val('cfg_lic_seats') || 20);
+    const expires_at = val('cfg_lic_exp') || '2027-10-31';
+    await api('PATCH', `/api/licensing/${licId}`, {
+      tier,
+      billing_cycle,
+      max_clients,
+      max_seats,
+      expires_at,
+      status: 'active'
+    });
+    alert('✓ Hybrid Client/Seat Caps updated and new cryptographic license key generated!');
+    render();
+  }),
+  issueNewClinicLicense: safe(async () => {
+    const clinic_name = val('new_lic_clinic').trim();
+    const contact_name = val('new_lic_contact').trim();
+    const contact_email = val('new_lic_email').trim();
+    if (!clinic_name || !contact_name || !contact_email) {
+      return alert('Please enter Clinic Name, Contact Name, and Work Email.');
+    }
+    const tier = val('new_lic_tier') || 'growth';
+    const max_clients = Math.max(1, +val('new_lic_clients') || 40);
+    const max_seats = Math.max(1, +val('new_lic_seats') || 20);
+    const billing_cycle = val('new_lic_cycle') || 'annual';
+    const auto_sign = Boolean((document.getElementById('new_lic_autosign') || {}).checked);
+    const res = await api('POST', '/api/licensing/issue', {
+      clinic_name,
+      contact_name,
+      contact_email,
+      tier,
+      max_clients,
+      max_seats,
+      billing_cycle,
+      auto_sign
+    });
+    showIssueLicenseForm = false;
+    selectedAgreementLicId = res.id;
+    alert(`🔑 Issued Clinic License Key:\n${res.license_key}\n\nMSA, HIPAA BAA & EULA generated for ${clinic_name}.`);
+    render();
+  }),
+  issueLicenseFromLead: safe(async (leadId, clinicName, contactName, email, caseloadStr) => {
+    const isEnt = String(caseloadStr || '').includes('100') || String(caseloadStr || '').includes('50');
+    const isStart = String(caseloadStr || '').includes('1-10') || String(caseloadStr || '').includes('1-15');
+    const tier = isEnt ? 'enterprise' : isStart ? 'starter' : 'growth';
+    const res = await api('POST', '/api/licensing/issue', {
+      lead_id: leadId,
+      clinic_name: clinicName,
+      contact_name: contactName,
+      contact_email: email,
+      tier,
+      auto_sign: false
+    });
+    selectedAgreementLicId = res.id;
+    licensingSubTab = 'agreements';
+    go('licensing');
   }),
   addClient: safe(async () => {
     const r = await api('POST', '/api/clients', {
@@ -7704,6 +8267,7 @@ async function render() {
     else if (route === 'presentation') html = presentationView();
     else if (route === 'leads') html = await leadsView();
     else if (route === 'facility') html = await facilityModelView();
+    else if (route === 'licensing') html = await licensingView();
     else html = '<h1>View Not Found</h1><div class="card">Please select an option from the navigation menu.</div>';
     $app.innerHTML = shell(html, route === 'client' ? 'clients' : route === 'session' ? 'notes' : route);
   } catch (e) { $app.innerHTML = shell(`<div class="card err">${esc(e.message)}</div>`, ''); }
