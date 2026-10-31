@@ -1030,8 +1030,103 @@ function renderClientBillingSnapshotsCard(snapshots, sectionTitle = 'Client Bill
   `;
 }
 
+let bcbaClientSearchQuery = '';
+let lastBcbaClientProfiles = [];
+
+window.renderBcbaClientCardsHtml = function(profiles) {
+  const q = (bcbaClientSearchQuery || '').trim().toLowerCase();
+  const filtered = (profiles || []).filter(c => {
+    if (!q) return true;
+    return (c.name || '').toLowerCase().includes(q) ||
+           (c.diagnosis || '').toLowerCase().includes(q) ||
+           (c.communication || '').toLowerCase().includes(q) ||
+           (c.school || '').toLowerCase().includes(q) ||
+           (c.assignedRbts || []).join(' ').toLowerCase().includes(q);
+  });
+
+  const badgeEl = typeof document !== 'undefined' ? document.getElementById('bcba_client_count_badge') : null;
+  if (badgeEl) badgeEl.textContent = `${filtered.length} of ${(profiles || []).length} Clients`;
+
+  if (!filtered.length) {
+    return `<div style="grid-column:1/-1;text-align:center;color:var(--slate-500);padding:20px;background:var(--slate-50);border-radius:var(--radius-md)">No clients match "${esc(bcbaClientSearchQuery)}".</div>`;
+  }
+
+  return filtered.map(c => `
+    <div style="background:#fff;border:1.5px solid var(--slate-200);border-top:4px solid var(--primary);border-radius:var(--radius-md);padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;box-shadow:var(--shadow-xs)">
+      <div>
+        <!-- Client Header & Direct Open Button -->
+        <div class="flex-between" style="align-items:flex-start;gap:10px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="go('client', ${c.id})">
+            <div class="user-avatar" style="width:46px;height:46px;font-size:1rem;flex-shrink:0">${getInitials(c.name)}</div>
+            <div>
+              <div style="font-size:1.1rem;font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border);text-underline-offset:3px">${esc(c.name)}</div>
+              <div style="font-size:0.78rem;color:var(--slate-500);margin-top:2px">
+                DOB: <b>${esc(c.dob)}</b> · Setting: <b>${esc(c.school)}</b> · Guardian: <b>${esc(c.guardian)}</b>
+              </div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
+                <span class="badge p">${esc(c.diagnosis)}</span>
+                <span class="badge att">💬 ${esc(c.communication)}</span>
+                <span class="badge">👨‍⚕️ RBT: ${esc((c.assignedRbts || []).join(', '))}</span>
+              </div>
+            </div>
+          </div>
+          <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap;flex-shrink:0" onclick="go('client', ${c.id})">
+            Open Client Page →
+          </button>
+        </div>
+
+        <!-- Clinical Profile Vitals Box -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;background:var(--slate-50);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.8rem;margin-bottom:10px">
+          <div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Top Reinforcers</div>
+            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.reinforcers)}</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">🎧 Sensory Profile</div>
+            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.sensory)}</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Known Triggers</div>
+            <div style="font-weight:600;color:var(--slate-800);margin-top:2px">${esc(c.triggers)}</div>
+          </div>
+        </div>
+
+        <!-- Live Clinical Progress & Active Goals Preview -->
+        <div style="margin-bottom:8px">
+          <div class="flex-between" style="font-size:0.78rem;margin-bottom:6px">
+            <span style="font-weight:700;color:var(--slate-700)">Active Skill Goals (${c.activeGoalsCount} active · Avg ${c.avgSkillScorePct}% indep):</span>
+            <div style="display:flex;gap:4px">
+              ${c.criteriaMetCount > 0 ? `<span class="tag approved">${c.criteriaMetCount} Ready to Master</span>` : ''}
+              ${c.stalledCount > 0 ? `<span class="tag draft">${c.stalledCount} Stalled</span>` : ''}
+              ${c.pendingCoSignCount > 0 ? `<span class="badge bad">${c.pendingCoSignCount} Note to Co-Sign</span>` : ''}
+            </div>
+          </div>
+          ${(c.topGoals && c.topGoals.length) ? c.topGoals.map(g => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#f8fafc;border:1px solid var(--slate-200);border-radius:6px;font-size:0.79rem;margin-bottom:4px;cursor:pointer" onclick="act.quickPillar(${c.id}, 'skills')">
+              <span style="font-weight:600;color:var(--slate-800)">🎯 ${esc(g.title)}</span>
+              <span style="font-weight:700;color:${g.masteryMet ? 'var(--ok)' : g.stalled ? 'var(--warn)' : 'var(--primary)'}">${g.current}% / ${g.target}%</span>
+            </div>
+          `).join('') : ''}
+        </div>
+      </div>
+
+      <!-- Direct 1-Click Navigation to Client Page Tabs -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--slate-200)">
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'overview')">📋 Overview</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'skills')">🎯 Skill Goals (${c.activeGoalsCount})</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'behavior_abc')">📊 Behavior & ABC (${c.abcCount})</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'plans')">🛡️ BIP (${esc(c.bipStatus)})</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.quickPillar(${c.id}, 'profile')">👤 Edit Vitals</button>
+        <button class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.openReauthReportModal(${c.id})">📄 Re-Auth Report</button>
+      </div>
+    </div>
+  `).join('');
+};
+
 function renderBcbaKpi(d) {
   const bcba = d.bcbaKpi || {};
+  const clientProfiles = bcba.clientProfiles || [];
+  lastBcbaClientProfiles = clientProfiles;
   const prog = bcba.clientProgress || {};
   const beh = bcba.behaviorPatterns || {};
   const fDist = beh.functionDistribution || { Escape: 0, Attention: 0, Tangible: 0, Sensory: 0 };
@@ -1048,14 +1143,19 @@ function renderBcbaKpi(d) {
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:0.75rem;font-weight:700;color:#0f766e;text-transform:uppercase">BCBA View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Monitor Client Progress & Identify Patterns in Behavior</div>
+        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Monitor Client Progress, Open Client Profiles Directly & Identify Behavior Patterns</div>
       </div>
-      <button class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">Open Client Profiles →</button>
+      <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('clients')">View Full Clients Directory →</button>
     </div>
   </div>
 
   <!-- 4 Simple Summary Cards -->
   <div class="grid">
+    <div class="stat-card">
+      <div class="stat-label">Active Client Caseload</div>
+      <div class="stat" style="color:var(--primary)">${clientProfiles.length}</div>
+      <div class="stat-sub">Click any client card below to open their profile</div>
+    </div>
     <div class="stat-card">
       <div class="stat-label">Active Skill Goals</div>
       <div class="stat" style="color:var(--primary)">${prog.activeProgramsCount || 0}</div>
@@ -1067,14 +1167,32 @@ function renderBcbaKpi(d) {
       <div class="stat-sub"><b>${beh.trendDirection || 'Decreasing'}</b> (${beh.totalMaladaptiveEvents || 0} total incidents)</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Treatment Fidelity</div>
+      <div class="stat-label">Treatment Fidelity & IOA</div>
       <div class="stat" style="color:var(--sensory)">${beh.averageTreatmentIntegrityFidelity || 100}%</div>
-      <div class="stat-sub">RBT adherence to program steps</div>
+      <div class="stat-sub">IOA Agreement: <b>${beh.averageIoaAgreement || 92}%</b></div>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Observer Agreement (IOA)</div>
-      <div class="stat">${beh.averageIoaAgreement || 92}%</div>
-      <div class="stat-sub">Data reliability across therapists</div>
+  </div>
+
+  <!-- MY CLIENTS & CLINICAL PROFILES (READY TO VIEW ON LOGIN) -->
+  <div class="card">
+    <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0 0 2px">1. My Clients & Clinical Profiles — Ready to View</h3>
+        <p style="margin:0;font-size:0.84rem;color:var(--slate-500)">Click "Open Client Page →" or any section button below to jump straight into a child's 360 profile, skill goals, behavior graphs, or BIP.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="badge p" id="bcba_client_count_badge">${clientProfiles.length} of ${clientProfiles.length} Clients</span>
+        <input
+          placeholder="🔍 Search client, RBT, or diagnosis..."
+          value="${esc(bcbaClientSearchQuery)}"
+          oninput="bcbaClientSearchQuery=this.value;const g=document.getElementById('bcba_client_cards_grid');if(g)g.innerHTML=window.renderBcbaClientCardsHtml(lastBcbaClientProfiles);"
+          style="margin:0;padding:6px 12px;font-size:0.82rem;width:240px;background:var(--slate-50)"
+        >
+      </div>
+    </div>
+
+    <div id="bcba_client_cards_grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px">
+      ${window.renderBcbaClientCardsHtml(clientProfiles)}
     </div>
   </div>
 

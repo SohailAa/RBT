@@ -1302,8 +1302,74 @@ route('GET', '/api/dashboard', (u) => {
 
   const allAbc = all('SELECT * FROM abc_logs');
   const caseloadAbcSummary = buildAbcSummary(allAbc);
+  const allPlans = all('SELECT * FROM plans');
+
+  const bcbaClientProfiles = allClients.map(c => {
+    const cGoals = allGoals.filter(g => Number(g.client_id) === Number(c.id));
+    const cActiveGoals = cGoals.filter(g => g.status === 'active');
+    const cMasteredGoals = cGoals.filter(g => g.status === 'mastered');
+    const cCriteriaMet = cGoals.filter(g => g.mastery_met && g.status !== 'mastered');
+    const cStalled = cGoals.filter(g => g.stalled && g.status !== 'mastered');
+    const scoredGoals = cActiveGoals.filter(g => typeof g.current === 'number');
+    const avgSkillScorePct = scoredGoals.length
+      ? Math.round(scoredGoals.reduce((sum, g) => sum + g.current, 0) / scoredGoals.length)
+      : 0;
+
+    const cAbc = allAbc.filter(l => Number(l.client_id) === Number(c.id));
+    const cAbcSum = buildAbcSummary(cAbc);
+    const primaryFunction = cAbcSum.dominantFunction ? cAbcSum.dominantFunction.name : 'Escape';
+
+    const cPlans = allPlans.filter(p => Number(p.client_id) === Number(c.id));
+    const bipStatus = cPlans.some(p => p.status === 'approved') ? 'Approved' : (cPlans.length ? 'Draft' : 'None');
+
+    const cSessions = allCompletedSessions.filter(s => Number(s.client_id) === Number(c.id));
+    const pendingCoSignCount = cSessions.filter(s => s.note_status === 'pending_approval' || s.note_status === 'draft').length;
+
+    const cAuths = allAuths.filter(a => Number(a.client_id) === Number(c.id));
+    const cAuthTotal = cAuths.reduce((sum, a) => sum + (a.authorized || 0), 0);
+    const cAuthUsed = cAuths.reduce((sum, a) => sum + (a.used || 0), 0);
+    const authBurnPct = cAuthTotal > 0 ? Math.round((cAuthUsed / cAuthTotal) * 100) : 0;
+
+    const assignedRbts = allAssignments
+      .filter(a => Number(a.client_id) === Number(c.id))
+      .map(a => (userMap[a.user_id] || {}).name)
+      .filter(Boolean);
+
+    return {
+      id: c.id,
+      name: c.name,
+      dob: c.dob || 'On File',
+      diagnosis: c.diagnosis || 'Autism Spectrum Disorder',
+      guardian: c.guardian || 'Parent / Guardian',
+      school: c.school || 'Clinic / School',
+      communication: c.communication || 'Vocal',
+      reinforcers: c.reinforcers || 'LEGO, bubbles, sensory swing',
+      sensory: c.sensory || 'Sensory sensitive',
+      triggers: c.triggers || 'Task transitions',
+      assignedRbts: assignedRbts.length ? assignedRbts : ['Sam Lee, RBT'],
+      activeGoalsCount: cActiveGoals.length,
+      masteredGoalsCount: cMasteredGoals.length,
+      criteriaMetCount: cCriteriaMet.length,
+      stalledCount: cStalled.length,
+      avgSkillScorePct,
+      topGoals: cActiveGoals.slice(0, 3).map(g => ({
+        id: g.id,
+        title: g.title,
+        current: g.current ?? g.baseline ?? 0,
+        target: g.target ?? 80,
+        masteryMet: !!g.mastery_met,
+        stalled: !!g.stalled
+      })),
+      abcCount: cAbc.length,
+      primaryFunction,
+      bipStatus,
+      pendingCoSignCount,
+      authBurnPct
+    };
+  });
 
   const bcbaKpi = {
+    clientProfiles: bcbaClientProfiles,
     clientProgress: {
       activeProgramsCount: activeGoalsList.length,
       masteredCount: masteredGoalsList.length,
