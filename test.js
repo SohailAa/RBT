@@ -638,6 +638,14 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(admScheduleCreate.s === 200 && admScheduleCreate.j.id && admScheduleCreate.j.role === 'RBT',
      'Administrator (ADMIN) can schedule RBT appointments and auto-assign RBT to client');
 
+  // 29. Mobile Navigation Responsiveness & Scroll Unblocking
+  const styleCssText = await (await fetch(`http://127.0.0.1:${port}/style.css`)).text();
+  const appJsText = await (await fetch(`http://127.0.0.1:${port}/app.js`)).text();
+  ok(styleCssText.includes('@media (max-width: 960px)') && styleCssText.includes('position: relative !important') && styleCssText.includes('height: auto !important'),
+     'Mobile CSS overrides nav:not(.site-nav) sticky/100vh positioning so top green nav bar never covers screen or blocks scrolling');
+  ok(appJsText.includes('mobile-nav-toggle') && appJsText.includes('nav-collapsible-drawer'),
+     'Mobile shell renders compact horizontal nav strip with collapsible Role/Account drawer');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

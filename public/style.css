@@ -170,6 +170,39 @@ nav::-webkit-scrollbar-thumb {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
+.mobile-nav-toggle {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  background: rgba(4, 36, 46, 0.82) !important;
+  color: #ecfeff !important;
+  border: 1px solid rgba(94, 234, 212, 0.45) !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mobile-nav-role-pill {
+  background: linear-gradient(135deg, #10b981, #0284c7);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.nav-collapsible-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
 .brand-logo {
   display: flex;
   align-items: center;
@@ -2236,13 +2269,99 @@ tbody tr:hover td {
   .layout {
     grid-template-columns: 1fr;
   }
+  nav:not(.site-nav),
   nav {
-    height: auto;
-    position: relative;
-    padding: 14px;
+    position: relative !important;
+    top: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 10px 12px;
+    gap: 8px;
+    border-right: none;
+    border-bottom: 1px solid rgba(45, 212, 191, 0.35);
+    box-shadow: 0 4px 12px rgba(3, 24, 31, 0.12);
+  }
+  .brand-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 11px;
+  }
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+  .brand-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+  .brand-title {
+    font-size: 0.94rem;
+  }
+  .brand-sub {
+    font-size: 0.58rem;
+    margin-top: 1px;
+  }
+  .mobile-nav-toggle {
+    display: inline-flex;
+  }
+  .nav-menu-section .sidebar-section-label {
+    display: none;
+  }
+  .nav-links {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+  nav a {
+    padding: 7px 11px;
+    gap: 7px;
+    flex-shrink: 0;
+    border-radius: 9px;
+  }
+  nav a:hover {
+    transform: none;
+  }
+  .nav-ic-emblem {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+  .nav-ic-emblem svg {
+    width: 14px;
+    height: 14px;
+  }
+  .nav-item-title {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .nav-item-sub {
+    display: none;
+  }
+  .nav-collapsible-drawer {
+    display: none;
+  }
+  .nav-collapsible-drawer.open {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(94, 234, 212, 0.22);
+  }
+  .nav-user {
+    margin-top: 0;
   }
   main {
-    padding: 18px 16px;
+    padding: 14px 12px;
   }
   .first-then-grid,
   .fba-charts-row,

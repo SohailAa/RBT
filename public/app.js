@@ -41,6 +41,7 @@ let activeAgreementDoc = 'msa';
 let selectedAgreementLicId = null;
 let showIssueLicenseForm = false;
 let lastLicensingData = null;
+let mobileNavOpen = false;
 
 const KID_THEMES = {
   space: {
@@ -441,9 +442,13 @@ function shell(content, route) {
             <div class="brand-sub">ABA Practice & Data Tracker</div>
           </div>
         </div>
+        <button type="button" class="mobile-nav-toggle" onclick="act.toggleMobileNav()" aria-label="Toggle Role & Account Menu">
+          <span class="mobile-nav-role-pill">${esc(me.role)}</span>
+          <span>${mobileNavOpen ? '✕ Close' : '☰ Role / Menu'}</span>
+        </button>
       </div>
 
-      <div>
+      <div class="nav-menu-section">
         <div class="sidebar-section-label">
           <span>Main Menu</span>
         </div>
@@ -460,24 +465,26 @@ function shell(content, route) {
         </div>
       </div>
 
-      ${caseloadWidget}
+      <div class="nav-collapsible-drawer ${mobileNavOpen ? 'open' : ''}">
+        ${caseloadWidget}
 
-      <div class="nav-user">
-        <div class="nav-user-header">
-          <div class="user-avatar">${userInitials}</div>
-          <div style="flex:1;min-width:0;overflow:hidden">
-            <div class="user-info-name" title="${esc(me.name)}">${esc(me.name)}</div>
-            <span class="user-role-badge">${esc(me.role)}</span>
+        <div class="nav-user">
+          <div class="nav-user-header">
+            <div class="user-avatar">${userInitials}</div>
+            <div style="flex:1;min-width:0;overflow:hidden">
+              <div class="user-info-name" title="${esc(me.name)}">${esc(me.name)}</div>
+              <span class="user-role-badge">${esc(me.role)}</span>
+            </div>
           </div>
+          <div style="font-size:0.68rem;color:#99f6e4;font-weight:600;margin-top:2px">Switch Role (1-Click):</div>
+          <div class="sidebar-role-switcher" style="grid-template-columns: repeat(4, 1fr); gap: 4px;">
+            <button class="role-switch-btn ${me.role === 'OWNER' ? 'active' : ''}" onclick="act.demoLogin('owner@eba.test')">Owner</button>
+            <button class="role-switch-btn ${me.role === 'BCBA' ? 'active' : ''}" onclick="act.demoLogin('bcba@eba.test')">BCBA</button>
+            <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
+            <button class="role-switch-btn ${me.role === 'ADMIN' ? 'active' : ''}" onclick="act.demoLogin('admin@eba.test')">Admin</button>
+          </div>
+          <a class="nav-logout" onclick="act.logout()">Sign Out</a>
         </div>
-        <div style="font-size:0.68rem;color:#99f6e4;font-weight:600;margin-top:2px">Switch Role (1-Click):</div>
-        <div class="sidebar-role-switcher" style="grid-template-columns: repeat(4, 1fr); gap: 4px;">
-          <button class="role-switch-btn ${me.role === 'OWNER' ? 'active' : ''}" onclick="act.demoLogin('owner@eba.test')">Owner</button>
-          <button class="role-switch-btn ${me.role === 'BCBA' ? 'active' : ''}" onclick="act.demoLogin('bcba@eba.test')">BCBA</button>
-          <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
-          <button class="role-switch-btn ${me.role === 'ADMIN' ? 'active' : ''}" onclick="act.demoLogin('admin@eba.test')">Admin</button>
-        </div>
-        <a class="nav-logout" onclick="act.logout()">Sign Out</a>
       </div>
     </nav>
     <main>
@@ -488,7 +495,10 @@ function shell(content, route) {
   ${activeModal ? renderModal() : ''}`;
 }
 
-window.go = (r, id) => { location.hash = id ? `${r}/${id}` : r; };
+window.go = (r, id) => {
+  mobileNavOpen = false;
+  location.hash = id ? `${r}/${id}` : r;
+};
 
 // ---------- Views ----------
 
@@ -7050,6 +7060,10 @@ function renderModal() {
 
 // ---------- Actions ----------
 const act = {
+  toggleMobileNav: () => {
+    mobileNavOpen = !mobileNavOpen;
+    render();
+  },
   openScheduleRbtModal: safe(async (clientId = null, clientName = '') => {
     const [staffList, clientList] = await Promise.all([api('GET', '/api/staff'), api('GET', '/api/clients')]);
     activeModal = { type: 'schedule_rbt', clientId, clientName: clientName || '', staffList, clientList };
@@ -7122,6 +7136,7 @@ const act = {
     try {
       me = await api('POST', '/api/login', { email, password: 'password' });
       kpiPersona = null;
+      mobileNavOpen = false;
       location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
       render();
     } catch (e) {
@@ -7132,7 +7147,7 @@ const act = {
       }
     }
   }),
-  logout: safe(async () => { await api('POST', '/api/logout'); me = null; kpiPersona = null; location.hash = ''; render(); }),
+  logout: safe(async () => { await api('POST', '/api/logout'); me = null; kpiPersona = null; mobileNavOpen = false; location.hash = ''; render(); }),
   setKpiPersona: (p) => {
     kpiPersona = p;
     render();
