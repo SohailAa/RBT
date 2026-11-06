@@ -42,6 +42,81 @@ let selectedAgreementLicId = null;
 let showIssueLicenseForm = false;
 let lastLicensingData = null;
 let mobileNavOpen = false;
+let openBehMenuId = null;
+let showArchivedBehaviors = false;
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    if (openBehMenuId !== null && !e.target.closest('.beh-menu-wrap')) {
+      openBehMenuId = null;
+      render();
+    }
+  });
+}
+
+function renderBehaviorCardThreeDotMenu(bp, cid, sid = null) {
+  const isArchived = bp.status === 'archived';
+  const ver = bp.version || (Array.isArray(bp.version_history) ? bp.version_history.length : 1) || 1;
+  const isOpen = Number(openBehMenuId) === Number(bp.id);
+  return `
+    <div class="beh-menu-wrap" style="position:relative;display:inline-flex;align-items:center;gap:4px">
+      <button type="button" class="sec" style="padding:3px 8px;font-size:0.74rem;font-weight:700" title="Edit Target Behavior" onclick="event.stopPropagation();act.openEditBehaviorModal(${bp.id}, 'all')">
+        ✏️ Edit
+      </button>
+      <button type="button" class="beh-dots-btn ${isOpen ? 'active' : ''}" title="Target Behavior Actions (⋮)" aria-label="Target Behavior Actions" onclick="event.stopPropagation();act.toggleBehMenu(${bp.id})">
+        ⋮
+      </button>
+      ${isOpen ? `
+        <div class="beh-dropdown-menu" onclick="event.stopPropagation()">
+          <div class="beh-dropdown-hdr">${esc(bp.name)} · v${ver}</div>
+          <button type="button" class="beh-dropdown-item" onclick="act.openEditBehaviorModal(${bp.id}, 'behavior')">
+            <span>✏️</span>
+            <div>
+              <b>Edit Behavior</b>
+              <small>Name, definition, onset/offset, examples, function</small>
+            </div>
+          </button>
+          <button type="button" class="beh-dropdown-item" onclick="act.openEditBehaviorModal(${bp.id}, 'measurement')">
+            <span>📏</span>
+            <div>
+              <b>Edit Measurement</b>
+              <small>Method (${esc((bp.measurement_type || 'frequency').replace('_', ' '))}), intensity & baseline data</small>
+            </div>
+          </button>
+          <button type="button" class="beh-dropdown-item" onclick="act.openEditBehaviorModal(${bp.id}, 'goals')">
+            <span>🎯</span>
+            <div>
+              <b>Edit Goals</b>
+              <small>Reduction goal, replacement skill & mastery criteria</small>
+            </div>
+          </button>
+          <button type="button" class="beh-dropdown-item" onclick="act.openBehaviorHistoryModal(${bp.id})">
+            <span>🕓</span>
+            <div>
+              <b>View History (v${ver})</b>
+              <small>Previous vs. updated definitions, clinician & timestamps</small>
+            </div>
+          </button>
+          <div class="beh-dropdown-divider"></div>
+          <button type="button" class="beh-dropdown-item" onclick="act.toggleArchiveBehavior(${bp.id}, '${isArchived ? 'archived' : 'active'}')">
+            <span>${isArchived ? '♻️' : '📦'}</span>
+            <div>
+              <b>${isArchived ? 'Restore Behavior' : 'Archive Behavior'}</b>
+              <small>${isArchived ? 'Return to active data collection' : 'Retire from active collection; keep for clinical review'}</small>
+            </div>
+          </button>
+          <button type="button" class="beh-dropdown-item danger" onclick="act.openDeleteBehaviorModal(${bp.id})">
+            <span>🗑️</span>
+            <div>
+              <b>Delete Behavior</b>
+              <small>With confirmation & historical data safeguards</small>
+            </div>
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
 
 const KID_THEMES = {
   space: {
@@ -208,12 +283,29 @@ function mergeAndSummarizeBehaviorEvents(serverEvents = [], clientId = null, ses
     const mType = ev.measurement_type || 'frequency';
     const bId = ev.behavior_id || ev.behavior_program_id || null;
     const bName = ev.behavior_name || ev.behavior || (bId && bpNameMap[bId]) || 'Target Behavior';
-    const mapKey = bName;
+    const mapKey = bId ? `id_${bId}` : bName;
     if (!byBeh[mapKey]) {
-      byBeh[mapKey] = { behaviorId: bId, name: bName, frequency: 0, totalDurationSec: 0, durationEpisodes: 0, totalLatencySec: 0, latencyEpisodes: 0, intervalOccurred: 0, intervalTotal: 0 };
-    } else if (bId && !byBeh[mapKey].behaviorId) {
-      byBeh[mapKey].behaviorId = bId;
+      byBeh[mapKey] = {
+        behaviorId: bId,
+        name: bName,
+        historicalNames: [bName],
+        frequency: 0,
+        totalDurationSec: 0,
+        durationEpisodes: 0,
+        totalLatencySec: 0,
+        latencyEpisodes: 0,
+        intervalOccurred: 0,
+        intervalTotal: 0,
+        byMeasurementType: {}
+      };
+    } else {
+      if (bId && !byBeh[mapKey].behaviorId) byBeh[mapKey].behaviorId = bId;
+      if (bName && !byBeh[mapKey].historicalNames.includes(bName)) {
+        byBeh[mapKey].historicalNames.push(bName);
+        byBeh[mapKey].name = bName;
+      }
     }
+    byBeh[mapKey].byMeasurementType[mType] = (byBeh[mapKey].byMeasurementType[mType] || 0) + 1;
 
     if (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts') {
       const iTot = Math.max(0, Number(ev.interval_total) || 1);
@@ -273,6 +365,9 @@ function mergeAndSummarizeBehaviorEvents(serverEvents = [], clientId = null, ses
       intervalNumDenom: `${b.intervalOccurred}/${b.intervalTotal}`
     };
     byBehavior[b.name] = item;
+    if (Array.isArray(b.historicalNames)) {
+      b.historicalNames.forEach((hn) => { byBehavior[hn] = item; });
+    }
     if (b.behaviorId) byBehavior[`id_${b.behaviorId}`] = item;
   });
 
@@ -2376,15 +2471,28 @@ async function clientView(id) {
 
     <!-- Target Behavior Operational Definitions & 9-Method Measurement Suite (Build Spec §2 & §5) -->
     <div class="card">
+      ${(() => {
+        const activeBps = behaviorPrograms.filter((bp) => bp.status !== 'archived');
+        const archivedBps = behaviorPrograms.filter((bp) => bp.status === 'archived');
+        const displayedBps = showArchivedBehaviors ? behaviorPrograms : activeBps;
+        return `
       <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <h3 style="margin:0">Target Behavior Operational Definitions & 9-Method Measurement Suite</h3>
             <span class="badge p">Frequency · Rate · Duration · Latency · IRT · Partial/Whole Interval · MTS · ABC</span>
+            <span class="tag approved">${activeBps.length} Active</span>
+            ${archivedBps.length ? `<span class="tag draft">${archivedBps.length} Archived</span>` : ''}
           </div>
-          <p style="font-size:0.84rem;color:var(--slate-500);margin:3px 0 0">Individualized operational definitions per client with automatic continuous and discontinuous interval calculations.</p>
+          <p style="font-size:0.84rem;color:var(--slate-500);margin:3px 0 0">
+            Click <b>✏️ Edit</b> or the <b>⋮</b> menu on any behavior card to update its operational definition, onset/offset, examples, measurement method, or goals with automatic version history and historical data protection.
+          </p>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="sec" style="font-size:0.78rem;padding:6px 12px" onclick="act.toggleShowArchivedBehaviors()">
+            📦 ${showArchivedBehaviors ? 'Hide Archived Behaviors' : `View Archived (${archivedBps.length})`}
+          </button>
+          <button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.openBehaviorProgramModal(${c.id})">+ Define Target Behavior</button>
           <button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.openBehaviorEventModal(${c.id})">+ Log Continuous / Interval Data</button>
           <button class="ok" style="font-size:0.8rem;padding:6px 12px" onclick="act.openAbcModal(${c.id})">+ Log ABC Incident</button>
         </div>
@@ -2420,30 +2528,79 @@ async function clientView(id) {
       </div>
 
       <!-- Individualized Target Behavior Cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px">
-        ${behaviorPrograms.map((bp) => {
-          const bpStats = (bSum.byBehavior && (bSum.byBehavior[`id_${bp.id}`] || bSum.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px">
+        ${displayedBps.map((bp) => {
+          const bpStats = (bSum.byBehavior && (bSum.byBehavior[`id_${bp.id}`] || bSum.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0', byMeasurementType: {} };
+          const isArchived = bp.status === 'archived';
+          const ver = bp.version || (Array.isArray(bp.version_history) ? bp.version_history.length : 1) || 1;
+          const histMeasList = Object.keys(bpStats.byMeasurementType || {});
           return `
-            <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:14px">
-              <div class="flex-between" style="gap:8px;flex-wrap:wrap">
-                <div>
-                  <b style="font-family:var(--font-serif);font-size:1rem;color:var(--slate-900)">${esc(bp.name)}</b>
-                  <span class="badge ${bp.function_hypothesis ? bp.function_hypothesis.toLowerCase().slice(0,3) : 'esc'}" style="margin-left:6px">${esc(bp.function_hypothesis || 'Escape')}</span>
+            <div class="beh-program-card ${isArchived ? 'archived' : ''}" style="background:${isArchived ? '#f8fafc' : '#ffffff'};border:1.5px solid ${isArchived ? 'var(--slate-300)' : 'var(--slate-200)'};border-top:4px solid ${isArchived ? 'var(--slate-400)' : 'var(--primary)'};border-radius:12px;padding:14px;box-shadow:var(--shadow-sm);opacity:${isArchived ? '0.88' : '1'}">
+              <div class="flex-between" style="gap:8px;align-items:flex-start">
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <b style="font-family:var(--font-serif);font-size:1.04rem;color:var(--slate-900)">${esc(bp.name)}</b>
+                    <span class="badge ${bp.function_hypothesis ? bp.function_hypothesis.toLowerCase().slice(0,3) : 'esc'}">${esc(bp.function_hypothesis || 'Escape')}</span>
+                    <span class="badge p" style="text-transform:uppercase">${esc((bp.measurement_type || 'frequency').replace('_', ' '))}</span>
+                    <button type="button" class="beh-ver-pill" title="Click to View Version History" onclick="act.openBehaviorHistoryModal(${bp.id})">
+                      🕓 v${ver}${ver > 1 ? ' · Edited' : ''}
+                    </button>
+                    ${isArchived ? `<span class="tag draft">📦 ARCHIVED (Clinical Review)</span>` : ''}
+                  </div>
                 </div>
-                <span class="badge p" style="text-transform:uppercase">${esc((bp.measurement_type || 'frequency').replace('_', ' '))}</span>
+                ${renderBehaviorCardThreeDotMenu(bp, c.id)}
               </div>
-              <div style="font-size:0.81rem;color:var(--slate-700);margin:6px 0">
-                <b>Operational Definition:</b> ${esc(bp.operational_definition || 'Defined per BIP protocol.')}
+
+              <div style="font-size:0.82rem;color:var(--slate-800);margin:8px 0 6px;line-height:1.45;background:var(--slate-50);padding:8px 10px;border-radius:8px;border:1px solid var(--slate-200)">
+                <b style="color:var(--primary-dark)">Operational Definition:</b> ${esc(bp.operational_definition || bp.definition || 'Defined per BIP protocol.')}
               </div>
-              ${bp.non_examples ? `<div style="font-size:0.76rem;color:var(--slate-500);margin-bottom:6px"><b>Non-Examples:</b> ${esc(bp.non_examples)}</div>` : ''}
+
+              ${(bp.onset_criteria || bp.offset_criteria) ? `
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:6px;margin-bottom:6px;font-size:0.76rem;color:var(--slate-600)">
+                  ${bp.onset_criteria ? `<div style="background:#f8fafc;padding:5px 8px;border-radius:6px;border:1px solid var(--slate-200)"><b>▶ Onset:</b> ${esc(bp.onset_criteria)}</div>` : ''}
+                  ${bp.offset_criteria ? `<div style="background:#f8fafc;padding:5px 8px;border-radius:6px;border:1px solid var(--slate-200)"><b>⏹ Offset:</b> ${esc(bp.offset_criteria)}</div>` : ''}
+                </div>
+              ` : ''}
+
+              ${(bp.examples || bp.non_examples) ? `
+                <div style="font-size:0.76rem;color:var(--slate-600);margin-bottom:6px;line-height:1.4">
+                  ${bp.examples ? `<div style="margin-bottom:2px"><b style="color:#0f766e">✓ Examples:</b> ${esc(bp.examples)}</div>` : ''}
+                  ${bp.non_examples ? `<div><b style="color:#be123c">✕ Non-Examples:</b> ${esc(bp.non_examples)}</div>` : ''}
+                </div>
+              ` : ''}
+
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:0.75rem;color:#14532d;line-height:1.4">
+                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+                  <span><b>Baseline:</b> ${esc(bp.baseline_data || (bp.baseline_rate ? `${bp.baseline_rate}/hr` : 'Recorded'))}</span>
+                  ${bp.mastery_criteria ? `<span><b>Mastery Criteria:</b> ${esc(bp.mastery_criteria)}</span>` : ''}
+                </div>
+                ${bp.reduction_goal ? `<div style="margin-top:2px"><b>📉 Reduction Goal:</b> ${esc(bp.reduction_goal)}</div>` : ''}
+                ${bp.replacement_skill_goal ? `<div style="margin-top:2px"><b>🎯 Replacement / Skill Goal:</b> ${esc(bp.replacement_skill_goal)}</div>` : ''}
+              </div>
+
+              ${(ver > 1 || histMeasList.length > 1) ? `
+                <div style="font-size:0.72rem;color:var(--slate-500);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span>🛡️ Historical data preserved (${bpStats.frequency} events${histMeasList.length > 1 ? ` across ${histMeasList.join(', ')}` : ''})</span>
+                  <a href="javascript:void(0)" style="font-weight:700;color:var(--primary)" onclick="act.openBehaviorHistoryModal(${bp.id})">View ${ver} Versions →</a>
+                </div>
+              ` : ''}
+
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px dashed var(--slate-200);font-family:var(--font-mono);font-size:0.75rem">
                 <span>Freq: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}</span>
-                <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id})">+1 Tally</button>
+                <div style="display:flex;gap:6px;align-items:center">
+                  ${isArchived ? `
+                    <button class="sec" style="padding:4px 10px;font-size:0.74rem" onclick="act.toggleArchiveBehavior(${bp.id}, 'archived')">♻️ Restore to Active</button>
+                  ` : `
+                    <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id})">+1 Tally</button>
+                  `}
+                </div>
               </div>
             </div>
           `;
-        }).join('') || '<div style="color:var(--slate-400)">No individualized target behavior definitions yet.</div>'}
+        }).join('') || `<div style="color:var(--slate-400);padding:12px">No ${showArchivedBehaviors ? '' : 'active '}target behavior definitions found.${archivedBps.length && !showArchivedBehaviors ? ` <a href="javascript:void(0)" onclick="act.toggleShowArchivedBehaviors()">View ${archivedBps.length} archived behavior(s) →</a>` : ''}</div>`}
       </div>
+        `;
+      })()}
     </div>
 
     <div class="card">
@@ -3507,16 +3664,24 @@ async function sessionView(id) {
       ` : ''}
     </div>
 
-    ${!ended && behaviorPrograms.length ? `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:10px;margin-top:12px">
-        ${behaviorPrograms.map((bp) => {
+    ${!ended && behaviorPrograms.filter((bp) => bp.status !== 'archived').length ? `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(285px,1fr));gap:10px;margin-top:12px">
+        ${behaviorPrograms.filter((bp) => bp.status !== 'archived').map((bp) => {
           const bpStats = (behaviorSummary.byBehavior && (behaviorSummary.byBehavior[`id_${bp.id}`] || behaviorSummary.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, intervalPct: null, intervalNumDenom: '0/0' };
           const runningTimer = behTimers[bp.id];
+          const ver = bp.version || 1;
           return `
             <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:10px;padding:10px 12px">
-              <div class="flex-between" style="gap:6px;margin-bottom:4px">
-                <b style="font-size:0.9rem;color:var(--slate-900)" title="${esc(bp.operational_definition)}">${esc(bp.name)}</b>
-                <span class="badge p" style="font-size:0.68rem">${esc(bp.measurement_type)}</span>
+              <div class="flex-between" style="gap:6px;margin-bottom:4px;align-items:flex-start">
+                <div style="min-width:0;flex:1">
+                  <b style="font-size:0.9rem;color:var(--slate-900)" title="${esc(bp.operational_definition)}">${esc(bp.name)}</b>
+                  <span class="badge p" style="font-size:0.68rem;margin-left:4px">${esc(bp.measurement_type)}</span>
+                  <span style="font-size:0.68rem;color:var(--slate-500);margin-left:4px">v${ver}</span>
+                </div>
+                ${renderBehaviorCardThreeDotMenu(bp, client.id, s.id)}
+              </div>
+              <div style="font-size:0.74rem;color:var(--slate-600);margin-bottom:6px;line-height:1.35">
+                ${esc(bp.operational_definition || bp.definition || '')}
               </div>
               <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--slate-600);margin-bottom:8px">
                 Count: <b style="color:${bpStats.frequency > 0 ? 'var(--bad)' : 'var(--slate-900)'};font-size:0.84rem">${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}
@@ -6132,63 +6297,309 @@ function renderModal() {
     </div>`;
   }
   if (activeModal.type === 'behavior_program') {
-    const cid = activeModal.clientId;
+    const bp = activeModal.behavior || null;
+    const isEdit = !!bp;
+    const cid = activeModal.clientId || (bp && bp.client_id) || 1;
+    const focus = activeModal.focusSection || 'all';
+    const ver = bp ? (bp.version || 1) : 1;
+    const histCount = bp ? (bp.historical_event_count || 0) : 0;
+    const mType = bp ? (bp.measurement_type || 'frequency') : 'frequency';
+    const fnHyp = bp ? (bp.function_hypothesis || 'Escape') : 'Escape';
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:640px;width:95%">
-        <div class="flex-between">
+      <div class="modal-card" style="max-width:740px;width:96%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--slate-200)">
           <div>
-            <span class="badge p">Behavior Reduction Operational Definition</span>
-            <h3 style="margin:4px 0 0">Define Client Target Behavior</h3>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="badge p">${isEdit ? `Edit Target Behavior · Version v${ver} → v${ver + 1}` : 'New Target Behavior Definition'}</span>
+              ${isEdit ? `<button type="button" class="beh-ver-pill" onclick="act.openBehaviorHistoryModal(${bp.id})">🕓 View History (${ver} version${ver === 1 ? '' : 's'})</button>` : ''}
+            </div>
+            <h3 style="margin:4px 0 0">${isEdit ? `Update Target Behavior: ${esc(bp.name)}` : 'Define Client Target Behavior'}</h3>
           </div>
           <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
         </div>
-        <div class="row" style="margin-top:12px">
-          <div>
-            <label>Target Behavior Name</label>
-            <input id="bp_name" placeholder="e.g. Vocal Protest / Screaming" value="Vocal Protest / Screaming">
+
+        ${isEdit ? `
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-left:4px solid var(--ok);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:0.78rem;color:#14532d">
+            <b>🛡️ Historical Clinical Data Protected:</b> Saving changes creates <b>Version v${ver + 1}</b> and logs the author, timestamp, and diff. Previously collected data (<b>${histCount} observation${histCount === 1 ? '' : 's'}</b>) will <b>NOT</b> be erased or recalculated, and remains permanently associated with the definition & measurement method used at the time of collection.
           </div>
-          <div>
-            <label>Primary Measurement Method</label>
-            <select id="bp_method">
-              <option value="frequency">Frequency / Event Recording</option>
-              <option value="rate">Rate per Unit of Time</option>
-              <option value="duration">Duration Recording</option>
-              <option value="latency">Latency Recording</option>
-              <option value="irt">Inter-Response Time (IRT)</option>
-              <option value="partial_interval">Partial-Interval Recording</option>
-              <option value="whole_interval">Whole-Interval Recording</option>
-              <option value="mts">Momentary Time Sampling (MTS)</option>
-              <option value="abc">ABC Narrative Recording</option>
-            </select>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+            <button type="button" class="fba-chip ${focus === 'all' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('all')">All Editable Fields</button>
+            <button type="button" class="fba-chip ${focus === 'behavior' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('behavior')">✏️ 1. Behavior, Definition, Onset/Offset & Examples</button>
+            <button type="button" class="fba-chip ${focus === 'measurement' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('measurement')">📏 2. Measurement Method & Baseline</button>
+            <button type="button" class="fba-chip ${focus === 'goals' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('goals')">🎯 3. Acquisition/Reduction Goals & Mastery</button>
+          </div>
+        ` : ''}
+
+        <!-- SECTION 1: Behavior Name, Function, Operational Definition, Onset/Offset, Examples & Non-Examples -->
+        <div style="margin-top:12px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'behavior' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'behavior' ? '#f0fdfa' : '#ffffff'}">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            1. Behavior Name, Function, Operational Definition, Onset/Offset & Examples
+          </div>
+          <div class="row">
+            <div style="flex:2">
+              <label>Behavior Name</label>
+              <input id="bp_name" placeholder="e.g. Screaming / Vocal Protest" value="${esc(bp ? bp.name : 'Vocal Protest / Screaming')}">
+            </div>
+            <div style="flex:1">
+              <label>Behavioral Function</label>
+              <select id="bp_fn">
+                <option value="Escape" ${fnHyp === 'Escape' ? 'selected' : ''}>Escape / Avoidance</option>
+                <option value="Attention" ${fnHyp === 'Attention' ? 'selected' : ''}>Attention Seeking</option>
+                <option value="Tangible" ${fnHyp === 'Tangible' ? 'selected' : ''}>Access to Tangible</option>
+                <option value="Sensory" ${fnHyp === 'Sensory' ? 'selected' : ''}>Automatic / Sensory</option>
+              </select>
+            </div>
+          </div>
+
+          <label>Operational Definition (Objective, Observable & Measurable)</label>
+          <textarea id="bp_def" rows="2" placeholder="Any vocalization above conversational volume lasting ≥ 3 seconds...">${esc(bp ? (bp.operational_definition || bp.definition || '') : '')}</textarea>
+
+          <div class="row">
+            <div>
+              <label>Onset Criteria (When episode begins)</label>
+              <input id="bp_onset" placeholder="e.g. Begins immediately after 3s of loud vocalization" value="${esc(bp ? (bp.onset_criteria || '') : '')}">
+            </div>
+            <div>
+              <label>Offset Criteria (When episode ends)</label>
+              <input id="bp_offset" placeholder="e.g. Ends after 5 consecutive seconds of calm voice" value="${esc(bp ? (bp.offset_criteria || '') : '')}">
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Examples (Topographies included)</label>
+              <input id="bp_examples" placeholder="e.g. High-pitched yelling when presented with clean-up cue" value="${esc(bp ? (bp.examples || '') : '')}">
+            </div>
+            <div>
+              <label>Non-Examples (Excluded from counting)</label>
+              <input id="bp_non" placeholder="e.g. Laughing or cheering during gross-motor play" value="${esc(bp ? (bp.non_examples || '') : '')}">
+            </div>
           </div>
         </div>
-        <label>Objective Operational Definition (Observable & Measurable)</label>
-        <textarea id="bp_def" rows="2" placeholder="Any vocalization above conversational volume lasting 3+ seconds..."></textarea>
-        <label>Non-Examples (What is excluded from counting?)</label>
-        <input id="bp_non" placeholder="e.g. Laughing or cheering during gross-motor play">
-        <div class="row">
-          <div>
-            <label>Hypothesized Function</label>
-            <select id="bp_fn">
-              <option value="Escape">Escape / Avoidance</option>
-              <option value="Attention">Attention Seeking</option>
-              <option value="Tangible">Access to Tangible</option>
-              <option value="Sensory">Automatic / Sensory</option>
-            </select>
+
+        <!-- SECTION 2: Measurement Method, Intensity Criteria & Baseline Data -->
+        <div style="margin-top:10px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'measurement' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'measurement' ? '#f0fdfa' : '#ffffff'}">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            2. Measurement Method & Baseline Data
           </div>
-          <div>
-            <label>Baseline Rate (per day/hr)</label>
-            <input id="bp_base" type="number" step="0.1" value="3.0">
+          <div class="row">
+            <div>
+              <label>Measurement Method (9 ABA Methods)</label>
+              <select id="bp_method">
+                <option value="frequency" ${mType === 'frequency' ? 'selected' : ''}>Frequency / Event Recording</option>
+                <option value="rate" ${mType === 'rate' ? 'selected' : ''}>Rate (per Hour / Minute)</option>
+                <option value="duration" ${mType === 'duration' ? 'selected' : ''}>Duration Recording</option>
+                <option value="latency" ${mType === 'latency' ? 'selected' : ''}>Latency Recording</option>
+                <option value="irt" ${mType === 'irt' ? 'selected' : ''}>Inter-Response Time (IRT)</option>
+                <option value="partial_interval" ${mType === 'partial_interval' ? 'selected' : ''}>Partial-Interval Recording</option>
+                <option value="whole_interval" ${mType === 'whole_interval' ? 'selected' : ''}>Whole-Interval Recording</option>
+                <option value="mts" ${mType === 'mts' ? 'selected' : ''}>Momentary Time Sampling (MTS)</option>
+                <option value="abc" ${mType === 'abc' ? 'selected' : ''}>ABC Continuous Recording</option>
+              </select>
+            </div>
+            <div>
+              <label>Baseline Numeric Rate / Value</label>
+              <input id="bp_base" type="number" step="0.1" value="${bp && bp.baseline_rate !== undefined ? bp.baseline_rate : 3.0}">
+            </div>
+            <div>
+              <label>Baseline Data Description</label>
+              <input id="bp_baseline_data" placeholder="e.g. 4.2 episodes/hr across 3 baseline sessions" value="${esc(bp ? (bp.baseline_data || '') : '3.0 episodes/hr across 3 baseline sessions')}">
+            </div>
           </div>
-          <div>
-            <label>Target Criterion Rate</label>
-            <input id="bp_target" type="number" step="0.1" value="0.5">
+          <label>Intensity Criteria (Mild / Moderate / Severe)</label>
+          <input id="bp_intensity" placeholder="Mild: <15s; Moderate: 15s–2m; Severe: >2m" value="${esc(bp ? (bp.intensity_criteria || '') : 'Mild: Whining <15s; Moderate: 15s–2m; Severe: >2m')}">
+        </div>
+
+        <!-- SECTION 3: Behavior Reduction Goal, Skill Acquisition / Replacement Goal & Mastery Criteria -->
+        <div style="margin-top:10px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'goals' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'goals' ? '#f0fdfa' : '#ffffff'}">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            3. Skill Acquisition, Behavior Reduction Goals & Mastery Criteria
+          </div>
+          <div class="row">
+            <div style="flex:2">
+              <label>Behavior Reduction Goal</label>
+              <input id="bp_reduction_goal" placeholder="e.g. Decrease behavior from 4.2/hr baseline to ≤ 0.5/hr across settings" value="${esc(bp ? (bp.reduction_goal || '') : '')}">
+            </div>
+            <div style="flex:1">
+              <label>Target Criterion Rate</label>
+              <input id="bp_target" type="number" step="0.1" value="${bp && bp.target_rate !== undefined ? bp.target_rate : 0.5}">
+            </div>
+          </div>
+          <label>Skill Acquisition & Functional Replacement Behavior Goal (FCT)</label>
+          <input id="bp_replacement_goal" placeholder="e.g. Independently exchange 'Break Please' FCT card on ≥ 85% of transitions" value="${esc(bp ? (bp.replacement_skill_goal || '') : '')}">
+
+          <div class="row">
+            <div style="flex:2">
+              <label>Mastery Criteria</label>
+              <input id="bp_mastery" placeholder="e.g. ≤ 0.5 episodes/hr across 3 consecutive sessions with 0 severe episodes" value="${esc(bp ? (bp.mastery_criteria || '') : '≤ 0.5 episodes/hr across 3 consecutive sessions')}">
+            </div>
+            <div style="flex:1">
+              <label>Clinical Status</label>
+              <select id="bp_status">
+                <option value="active" ${(!bp || bp.status !== 'archived') ? 'selected' : ''}>Active (In Treatment)</option>
+                <option value="archived" ${(bp && bp.status === 'archived') ? 'selected' : ''}>Archived (Clinical Review Only)</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+
+        ${isEdit ? `
+          <div style="margin-top:10px">
+            <label>Clinical Modification Note (Optional — auto-summarized in Version History if left blank)</label>
+            <input id="bp_change_summary" placeholder="e.g. Refined onset criteria to 3s and updated measurement method after FBA review">
+          </div>
+        ` : ''}
+
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid var(--slate-200)">
+          <div>
+            ${isEdit ? `
+              <button type="button" class="sec" style="font-size:0.78rem" onclick="act.openBehaviorHistoryModal(${bp.id})">🕓 View Version History (v${ver})</button>
+            ` : ''}
+          </div>
+          <div style="display:flex;gap:10px">
+            <button class="sec" onclick="act.closeModal()">Cancel</button>
+            <button class="ok" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
+              ✓ ${isEdit ? `Save Changes (Record Version v${ver + 1})` : 'Save Target Behavior Definition'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'behavior_history') {
+    const bp = activeModal.behavior || {};
+    const history = Array.isArray(bp.version_history) ? [...bp.version_history].reverse() : [];
+    const histCount = bp.historical_event_count || 0;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:760px;width:96%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--slate-200)">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="badge p">Target Behavior Version History</span>
+              <span class="tag approved">Current: v${bp.version || history.length || 1}</span>
+              <span class="badge att">🛡️ ${histCount} Historical Observation${histCount === 1 ? '' : 's'} Protected</span>
+            </div>
+            <h3 style="margin:4px 0 0">${esc(bp.name || 'Target Behavior')} — Audit & Definition History</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="background:#f8fafc;border:1px solid var(--slate-200);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:0.8rem;color:var(--slate-700)">
+          <b>Historical Data Integrity Guarantee:</b> Every modification to a target behavior automatically records the previous and updated definitions, date and time of modification, clinician name, and a description of what changed. Historical observations remain associated with the definition and measurement method active at the time of collection.
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
+          ${history.map((entry, idx) => {
+            const dtStr = entry.ts ? new Date(entry.ts).toLocaleString() : 'Recorded';
+            const changes = Array.isArray(entry.changes) ? entry.changes : [];
+            const isLatest = idx === 0;
+            return `
+              <div style="background:#fff;border:1.5px solid ${isLatest ? 'var(--primary)' : 'var(--slate-200)'};border-left:4px solid ${isLatest ? 'var(--primary)' : 'var(--slate-400)'};border-radius:10px;padding:12px 14px">
+                <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:6px">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="badge ${isLatest ? 'p' : 'att'}">Version v${entry.version || (history.length - idx)}</span>
+                    <b style="font-size:0.88rem;color:var(--slate-900)">👤 ${esc(entry.modified_by || 'Dr. Dana Rivera, BCBA')}</b>
+                    ${entry.modified_by_role ? `<span class="tag approved" style="font-size:0.68rem">${esc(entry.modified_by_role)}</span>` : ''}
+                  </div>
+                  <span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--slate-500)">🕒 ${esc(dtStr)}</span>
+                </div>
+
+                <div style="font-size:0.83rem;font-weight:700;color:var(--primary-dark);margin-bottom:8px">
+                  📝 What Changed: ${esc(entry.change_summary || 'Updated target behavior definition')}
+                </div>
+
+                ${(entry.previous_definition || entry.updated_definition) ? `
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-bottom:8px;font-size:0.78rem">
+                    ${entry.previous_definition ? `
+                      <div style="background:#fff1f2;border:1px solid #fecdd3;padding:8px 10px;border-radius:6px">
+                        <div style="font-weight:700;color:#be123c;margin-bottom:2px">Previous Operational Definition:</div>
+                        <div style="color:var(--slate-700)">${esc(entry.previous_definition)}</div>
+                      </div>
+                    ` : ''}
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:8px 10px;border-radius:6px">
+                      <div style="font-weight:700;color:#15803d;margin-bottom:2px">${entry.previous_definition ? 'Updated Operational Definition:' : 'Initial Operational Definition (v1):'}</div>
+                      <div style="color:var(--slate-800)">${esc(entry.updated_definition || bp.operational_definition || '')}</div>
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${changes.length ? `
+                  <div style="overflow-x:auto">
+                    <table style="width:100%;font-size:0.76rem;border-collapse:collapse">
+                      <thead>
+                        <tr style="background:var(--slate-50);text-align:left">
+                          <th style="padding:5px 8px">Field</th>
+                          <th style="padding:5px 8px">Previous Value</th>
+                          <th style="padding:5px 8px">Updated Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${changes.map((ch) => `
+                          <tr style="border-top:1px solid var(--slate-100)">
+                            <td style="padding:5px 8px;font-weight:700;color:var(--slate-700)">${esc(ch.label || ch.field)}</td>
+                            <td style="padding:5px 8px;color:#be123c">${esc(ch.previous || '—')}</td>
+                            <td style="padding:5px 8px;color:#15803d;font-weight:600">${esc(ch.updated || '—')}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('') || '<div style="color:var(--slate-400)">No version history entries found.</div>'}
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--slate-200)">
+          <button class="sec" onclick="act.openEditBehaviorModal(${bp.id}, 'all')">✏️ Edit This Behavior</button>
+          <button class="ok" onclick="act.closeModal()">Close History</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'behavior_delete') {
+    const bp = activeModal.behavior || {};
+    const histCount = bp.historical_event_count || 0;
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:560px;width:95%">
+        <div class="flex-between" style="padding-bottom:10px;border-bottom:1px solid var(--slate-200)">
+          <div>
+            <span class="badge esc">Clinical Data Protection Safeguard</span>
+            <h3 style="margin:4px 0 0">Delete or Archive Target Behavior</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="margin:14px 0;font-size:0.88rem;line-height:1.5;color:var(--slate-800)">
+          You selected <b>Delete Behavior</b> for <b>"${esc(bp.name)}"</b> (Version v${bp.version || 1}).
+        </div>
+
+        ${histCount > 0 ? `
+          <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-left:4px solid var(--warn);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.82rem;color:#78350f">
+            <b>⚠️ Clinical Safeguard Active (${histCount} Historical Observation${histCount === 1 ? '' : 's'} Linked):</b><br>
+            This behavior has <b>${histCount} recorded clinical observation(s)</b>. To comply with clinical record-retention standards and protect historical data:
+            <ul style="margin:6px 0 0 18px;padding:0">
+              <li><b>Recommended:</b> Archive this behavior so it is retired from active RBT session cards while remaining accessible for clinical review.</li>
+              <li>Even if you force-remove the behavior card, all <b>${histCount} historical data points are permanently preserved</b> in the client's clinical log.</li>
+            </ul>
+          </div>
+        ` : `
+          <div style="background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.82rem;color:var(--slate-600)">
+            No historical clinical observations have been logged for <b>"${esc(bp.name)}"</b> yet. You may safely delete this behavior card or archive it for future reference.
+          </div>
+        `}
+
+        <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--slate-200)">
           <button class="sec" onclick="act.closeModal()">Cancel</button>
-          <button class="ok" onclick="act.submitBehaviorProgramModal(${cid})">✓ Save Target Behavior Definition</button>
+          <button class="ok" onclick="act.confirmArchiveFromDeleteModal(${bp.id})">
+            📦 Archive Behavior Instead (Recommended)
+          </button>
+          <button class="bad" onclick="act.confirmDeleteBehavior(${bp.id}, ${histCount > 0 ? 'true' : 'false'})">
+            🗑️ ${histCount > 0 ? `Remove Card (Preserve ${histCount} Events)` : 'Confirm Delete Behavior'}
+          </button>
         </div>
       </div>
     </div>`;
@@ -7324,17 +7735,87 @@ const act = {
   },
   toggleCrisis: () => { showCrisis = !showCrisis; render(); },
   openAbcModal: (cid, sid = null) => { activeModal = { type: 'abc', clientId: cid, sessionId: sid }; render(); },
-  openBehaviorProgramModal: (cid) => { activeModal = { type: 'behavior_program', clientId: cid }; render(); },
-  submitBehaviorProgramModal: safe(async (cid) => {
-    await api('POST', `/api/clients/${cid}/behaviors`, {
+  toggleBehMenu: (bpId) => {
+    openBehMenuId = Number(openBehMenuId) === Number(bpId) ? null : bpId;
+    render();
+  },
+  toggleShowArchivedBehaviors: () => {
+    showArchivedBehaviors = !showArchivedBehaviors;
+    render();
+  },
+  openBehaviorProgramModal: (cid) => {
+    openBehMenuId = null;
+    activeModal = { type: 'behavior_program', clientId: cid, behavior: null, focusSection: 'all' };
+    render();
+  },
+  openEditBehaviorModal: safe(async (bpId, focusSection = 'all') => {
+    openBehMenuId = null;
+    const bp = await api('GET', `/api/behaviors/${bpId}`);
+    activeModal = { type: 'behavior_program', clientId: bp.client_id, behavior: bp, focusSection };
+    render();
+  }),
+  setBehaviorModalFocus: (focusSection) => {
+    if (activeModal && activeModal.type === 'behavior_program') {
+      activeModal.focusSection = focusSection;
+      render();
+    }
+  },
+  submitBehaviorProgramModal: safe(async (cid, bpId = null) => {
+    const payload = {
       name: val('bp_name'),
       measurement_type: val('bp_method'),
       operational_definition: val('bp_def'),
+      definition: val('bp_def'),
+      onset_criteria: val('bp_onset'),
+      offset_criteria: val('bp_offset'),
+      examples: val('bp_examples'),
       non_examples: val('bp_non'),
       function_hypothesis: val('bp_fn'),
+      intensity_criteria: val('bp_intensity'),
       baseline_rate: +val('bp_base') || 0,
-      target_rate: +val('bp_target') || 0
-    });
+      baseline_data: val('bp_baseline_data'),
+      target_rate: +val('bp_target') || 0,
+      reduction_goal: val('bp_reduction_goal'),
+      replacement_skill_goal: val('bp_replacement_goal'),
+      mastery_criteria: val('bp_mastery'),
+      status: val('bp_status') || 'active',
+      change_summary: val('bp_change_summary')
+    };
+    if (bpId) {
+      await api('PUT', `/api/behaviors/${bpId}`, payload);
+    } else {
+      await api('POST', `/api/clients/${cid}/behaviors`, payload);
+    }
+    activeModal = null;
+    render();
+  }),
+  openBehaviorHistoryModal: safe(async (bpId) => {
+    openBehMenuId = null;
+    const bp = await api('GET', `/api/behaviors/${bpId}`);
+    activeModal = { type: 'behavior_history', behavior: bp };
+    render();
+  }),
+  toggleArchiveBehavior: safe(async (bpId, currentStatus) => {
+    openBehMenuId = null;
+    const nextStatus = currentStatus === 'archived' ? 'active' : 'archived';
+    await api('POST', `/api/behaviors/${bpId}/archive`, { status: nextStatus });
+    if (nextStatus === 'archived') showArchivedBehaviors = true;
+    render();
+  }),
+  openDeleteBehaviorModal: safe(async (bpId) => {
+    openBehMenuId = null;
+    const bp = await api('GET', `/api/behaviors/${bpId}`);
+    activeModal = { type: 'behavior_delete', behavior: bp };
+    render();
+  }),
+  confirmArchiveFromDeleteModal: safe(async (bpId) => {
+    await api('POST', `/api/behaviors/${bpId}/archive`, { status: 'archived', reason: 'Archived via delete safeguard to preserve historical clinical data.' });
+    showArchivedBehaviors = true;
+    activeModal = null;
+    render();
+  }),
+  confirmDeleteBehavior: safe(async (bpId, force = false) => {
+    await api('DELETE', `/api/behaviors/${bpId}${force ? '?force=1' : ''}`, { force: Boolean(force) });
     activeModal = null;
     render();
   }),

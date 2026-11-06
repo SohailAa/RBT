@@ -646,6 +646,118 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(appJsText.includes('mobile-nav-toggle') && appJsText.includes('nav-collapsible-drawer'),
      'Mobile shell renders compact horizontal nav strip with collapsible Role/Account drawer');
 
+  // 30. Edit Target Behaviors (Three-Dot Menu ⋮, 10 Editable Fields, Version History & Historical Data Protection)
+  ok(appJsText.includes('renderBehaviorCardThreeDotMenu') &&
+     appJsText.includes('Edit Behavior') &&
+     appJsText.includes('Edit Measurement') &&
+     appJsText.includes('Edit Goals') &&
+     appJsText.includes('View History') &&
+     appJsText.includes('Archive Behavior') &&
+     appJsText.includes('Delete Behavior'),
+     'Frontend behavior card three-dot menu (⋮) includes all 6 required actions');
+
+  const createBehRes = await b('POST', '/api/clients/1/behaviors', {
+    name: 'Property Destruction / Throwing Items',
+    operational_definition: 'Throwing or swiping instructional materials > 12 inches from tabletop.',
+    onset_criteria: 'Begins when object leaves hand or table edge.',
+    offset_criteria: 'Ends after 5s with hands on table or lap.',
+    examples: 'Throwing flashcards across room; sweeping token board onto floor.',
+    non_examples: 'Rolling ball during structured turn-taking game; accidentally dropping pencil.',
+    function_hypothesis: 'Escape',
+    measurement_type: 'frequency',
+    baseline_rate: 3.5,
+    baseline_data: '3.5 occurrences/hr across 3 baseline sessions',
+    target_rate: 0.5,
+    reduction_goal: 'Decrease throwing items from 3.5/hr to <= 0.5/hr',
+    replacement_skill_goal: 'Hand over "Break Please" card independently on >= 85% of trials',
+    mastery_criteria: '<= 0.5/hr across 3 consecutive sessions'
+  });
+  ok(createBehRes.s === 200 && createBehRes.j.id && createBehRes.j.behavior.version === 1,
+     'POST /api/clients/:id/behaviors creates target behavior with all clinical fields and Version v1');
+  const testBehId = createBehRes.j.id;
+
+  // Log a historical behavior observation under v1 (frequency)
+  const evV1 = await b('POST', '/api/clients/1/behavior-events', {
+    behavior_id: testBehId,
+    behavior_name: 'Property Destruction / Throwing Items',
+    measurement_type: 'frequency',
+    count: 2,
+    notes: 'Collected under v1 frequency definition'
+  });
+  ok(evV1.s === 200 && evV1.j.definition_version === 1,
+     'Behavior observation records definition_version used at time of collection');
+
+  // Update behavior definition, onset/offset, examples, function, measurement method, baseline, goals, mastery
+  const editBehRes = await b('PUT', `/api/behaviors/${testBehId}`, {
+    name: 'Property Destruction / Swiping Materials',
+    operational_definition: 'Forcefully throwing, sweeping, or pushing materials > 6 inches off desk.',
+    onset_criteria: 'Begins immediately upon forceful contact with materials.',
+    offset_criteria: 'Ends after 10 consecutive seconds of calm seated posture.',
+    examples: 'Swiping worksheet off table; throwing bin.',
+    non_examples: 'Handing card to RBT; placing toy in bin during clean-up.',
+    function_hypothesis: 'Tangible',
+    measurement_type: 'duration',
+    baseline_rate: 120,
+    baseline_data: '120s average episode duration across baseline',
+    target_rate: 15,
+    reduction_goal: 'Reduce episode duration from 120s to <= 15s',
+    replacement_skill_goal: 'Request "My Turn" or "Help" via AAC/PECS on >= 85% of opportunities',
+    mastery_criteria: '<= 15s duration across 4 consecutive sessions',
+    change_summary: 'Refined operational definition & switched measurement from frequency to duration after FBA review'
+  });
+  ok(editBehRes.s === 200 &&
+     editBehRes.j.version === 2 &&
+     editBehRes.j.behavior.name === 'Property Destruction / Swiping Materials' &&
+     editBehRes.j.behavior.measurement_type === 'duration' &&
+     editBehRes.j.behavior.function_hypothesis === 'Tangible' &&
+     editBehRes.j.behavior.onset_criteria.includes('forceful contact') &&
+     editBehRes.j.behavior.mastery_criteria.includes('4 consecutive sessions'),
+     'PUT /api/behaviors/:id updates all editable fields and increments to Version v2');
+
+  const getBehRes = await b('GET', `/api/behaviors/${testBehId}`);
+  const vHist = getBehRes.j.version_history || [];
+  const latestV = vHist[vHist.length - 1];
+  ok(getBehRes.s === 200 &&
+     vHist.length === 2 &&
+     latestV.version === 2 &&
+     latestV.previous_definition.includes('12 inches') &&
+     latestV.updated_definition.includes('6 inches') &&
+     latestV.modified_by &&
+     latestV.ts &&
+     latestV.change_summary.includes('FBA review') &&
+     Array.isArray(latestV.changes) && latestV.changes.length >= 8,
+     'Version history automatically records previous and updated definitions, timestamp, clinician name, and field-level diff');
+
+  // Verify historical data protection: v1 event was NOT erased and was NOT recalculated to duration
+  const clientAfterEdit = (await b('GET', '/api/clients/1')).j;
+  const preservedEvent = (clientAfterEdit.behaviorEvents || []).find((e) => e.id === evV1.j.id);
+  ok(preservedEvent &&
+     preservedEvent.measurement_type === 'frequency' &&
+     preservedEvent.count === 2 &&
+     preservedEvent.definition_version === 1 &&
+     preservedEvent.definition_snapshot.includes('12 inches'),
+     'Historical data remains intact and associated with the v1 definition & measurement method used at collection');
+
+  // Test Delete Safeguard: cannot permanently delete behavior with historical events without force flag
+  const blockedDelete = await b('DELETE', `/api/behaviors/${testBehId}`);
+  ok(blockedDelete.s === 409 && blockedDelete.j.error.includes('historical'),
+     'DELETE /api/behaviors/:id blocks destructive deletion (HTTP 409) when historical clinical data exists');
+
+  // Test Archive Behavior: archived behavior remains accessible for clinical review
+  const archiveRes = await b('POST', `/api/behaviors/${testBehId}/archive`, { status: 'archived' });
+  ok(archiveRes.s === 200 && archiveRes.j.status === 'archived' && archiveRes.j.behavior.version === 3,
+     'POST /api/behaviors/:id/archive archives behavior and logs Version v3');
+  const clientWithArchived = (await b('GET', '/api/clients/1')).j;
+  const archivedInList = (clientWithArchived.behaviorPrograms || []).find((bp) => bp.id === testBehId);
+  ok(archivedInList && archivedInList.status === 'archived' && archivedInList.historical_event_count >= 1,
+     'Archived behavior remains accessible for clinical review with all historical data preserved');
+
+  // Test deleting a newly created behavior that has 0 historical events
+  const emptyBeh = await b('POST', '/api/clients/1/behaviors', { name: 'Temporary Duplicate Behavior' });
+  const cleanDelete = await b('DELETE', `/api/behaviors/${emptyBeh.j.id}`);
+  ok(cleanDelete.s === 200 && cleanDelete.j.deleted === true,
+     'DELETE /api/behaviors/:id cleanly deletes a behavior when 0 historical events exist');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

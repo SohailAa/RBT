@@ -2475,3 +2475,129 @@ tbody tr:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================
+   TARGET BEHAVIOR THREE-DOT MENU (⋮) & VERSION HISTORY PILLS
+   ============================================================================ */
+.beh-dots-btn {
+  background: #f1f5f9 !important;
+  color: var(--slate-800) !important;
+  border: 1px solid var(--slate-300) !important;
+  width: 30px;
+  height: 28px;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  font-size: 1.15rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+}
+
+.beh-dots-btn:hover,
+.beh-dots-btn.active {
+  background: var(--primary-light) !important;
+  color: var(--primary-dark) !important;
+  border-color: var(--primary) !important;
+}
+
+.beh-ver-pill {
+  background: #f0f9ff !important;
+  color: #0369a1 !important;
+  border: 1px solid #bae6fd !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  font-family: var(--font-mono) !important;
+  box-shadow: none !important;
+}
+
+.beh-ver-pill:hover {
+  background: #e0f2fe !important;
+  border-color: #0284c7 !important;
+}
+
+.beh-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 265px;
+  background: #ffffff;
+  border: 1.5px solid var(--slate-200);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(4, 29, 36, 0.18);
+  z-index: 250;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.beh-dropdown-hdr {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--slate-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--slate-100);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.beh-dropdown-item {
+  width: 100%;
+  background: transparent !important;
+  color: var(--slate-800) !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+}
+
+.beh-dropdown-item:hover {
+  background: #f0fdfa !important;
+  color: var(--primary-dark) !important;
+  transform: none !important;
+}
+
+.beh-dropdown-item b {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.beh-dropdown-item small {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--slate-500);
+  font-weight: 500;
+  line-height: 1.25;
+  margin-top: 1px;
+}
+
+.beh-dropdown-item.danger:hover {
+  background: #fff1f2 !important;
+  color: #be123c !important;
+}
+
+.beh-dropdown-item.danger b {
+  color: #be123c;
+}
+
+.beh-dropdown-divider {
+  height: 1px;
+  background: var(--slate-200);
+  margin: 4px 6px;
+}

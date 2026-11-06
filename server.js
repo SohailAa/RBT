@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, go
 CREATE TABLE IF NOT EXISTS authorizations(id INTEGER PRIMARY KEY, client_id INTEGER, code TEXT, authorized INTEGER, used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT, setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', intensity TEXT DEFAULT 'Moderate', duration_sec INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS supervision_logs(id INTEGER PRIMARY KEY, client_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, session_id INTEGER, ts TEXT, minutes INTEGER, type TEXT, notes TEXT);
-CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, status TEXT DEFAULT 'active');
-CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', baseline_data TEXT DEFAULT '', baseline_rate REAL DEFAULT 0, target_rate REAL DEFAULT 0, reduction_goal TEXT DEFAULT '', replacement_skill_goal TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', version INTEGER DEFAULT 1, version_history_json TEXT DEFAULT '[]', updated_at TEXT DEFAULT '', updated_by TEXT DEFAULT '', status TEXT DEFAULT 'active');
+CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '', definition_version INTEGER DEFAULT 1, definition_snapshot TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, chaining_type TEXT DEFAULT 'Forward Chaining', steps_json TEXT DEFAULT '[]', logs_json TEXT DEFAULT '[]', status TEXT DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS fidelity_ioa_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, ts TEXT, log_type TEXT DEFAULT 'both', fidelity_pct INTEGER DEFAULT 100, ioa_pct INTEGER DEFAULT 100, data_json TEXT DEFAULT '{}', notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id INTEGER, user_name TEXT, client_id INTEGER, session_id INTEGER, entity_type TEXT, entity_id INTEGER, action TEXT, details TEXT);
@@ -57,6 +57,22 @@ try { db.exec("ALTER TABLE abc_logs ADD COLUMN activity TEXT DEFAULT 'Structured
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN people_present TEXT DEFAULT 'RBT, Peer'"); } catch (e) {}
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN intensity TEXT DEFAULT 'Moderate'"); } catch (e) {}
 try { db.exec('ALTER TABLE abc_logs ADD COLUMN duration_sec INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN onset_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN offset_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN examples TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN non_examples TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN baseline_data TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE behavior_programs ADD COLUMN baseline_rate REAL DEFAULT 0'); } catch (e) {}
+try { db.exec('ALTER TABLE behavior_programs ADD COLUMN target_rate REAL DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN reduction_goal TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN replacement_skill_goal TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN mastery_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE behavior_programs ADD COLUMN version INTEGER DEFAULT 1'); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN version_history_json TEXT DEFAULT '[]'"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_by TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE behavior_events ADD COLUMN definition_version INTEGER DEFAULT 1'); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN definition_snapshot TEXT DEFAULT ''"); } catch (e) {}
 
 // ---------- helpers ----------
 const getLocalDate = (d = new Date()) => {
@@ -254,37 +270,120 @@ function seed() {
   seedClinicalModules(el, le, bcba, rbt);
 }
 
+function buildInitialBehaviorHistory(bpObj, authorName = 'Dr. Dana Rivera, BCBA') {
+  const ts = bpObj.updated_at || new Date(Date.now() - 5 * 86400000).toISOString();
+  const def = bpObj.definition || bpObj.operational_definition || '';
+  return [{
+    version: 1,
+    ts,
+    modified_by: authorName,
+    modified_by_role: 'BCBA',
+    change_summary: 'Initial target behavior operational definition, measurement method, and clinical reduction/acquisition goals established.',
+    previous_definition: '',
+    updated_definition: def,
+    previous_measurement_type: '',
+    updated_measurement_type: bpObj.measurement_type || 'frequency',
+    changes: [
+      { field: 'definition', label: 'Operational Definition', previous: 'None (New Behavior)', updated: def },
+      { field: 'measurement_type', label: 'Measurement Method', previous: 'None', updated: bpObj.measurement_type || 'frequency' }
+    ]
+  }];
+}
+
 function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
   if (!get('SELECT COUNT(*) c FROM behavior_programs WHERE client_id=?', el).c) {
-    const bp1 = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
-      el, 'Screaming / Vocal Protest',
-      'Any vocalization above conversational volume lasting ≥ 3 seconds, excluding appropriate cheering during play.',
-      'frequency', 'Escape',
+    const seedTs = new Date(Date.now() - 5 * 86400000).toISOString();
+    const bp1Def = 'Any vocalization above conversational volume lasting ≥ 3 seconds, excluding appropriate cheering during play.';
+    const bp1Hist = JSON.stringify(buildInitialBehaviorHistory({ definition: bp1Def, measurement_type: 'frequency', updated_at: seedTs }));
+    const bp1 = run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el,
+      'Screaming / Vocal Protest',
+      bp1Def,
+      'frequency',
+      'Escape',
       'Mild: Whining <15s; Moderate: Loud screaming 15s–2m; Severe: Screaming >2m with ear-covering',
-      'active').lastInsertRowid;
-    const bp2 = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
-      el, 'Task Refusal / Leaving Tabletop',
-      'Sliding off chair, turning body >90° away from materials, or pushing instructional stimuli >12 inches away within 5 seconds of SD.',
-      'partial_interval', 'Escape',
+      'Begins immediately when vocalization exceeds conversational volume for ≥ 3 consecutive seconds.',
+      'Ends after 5 consecutive seconds of calm vocal tone or silence.',
+      'High-pitched yelling when presented with clean-up cue; screaming "NO!" while covering ears during transitions.',
+      'Laughing or cheering loudly during gross-motor tag or sensory gym play; crying due to physical injury.',
+      '4.2 episodes/hr across 3 baseline observation sessions',
+      4.2,
+      0.5,
+      'Decrease screaming / vocal protest from 4.2/hr baseline to ≤ 0.5/hr across settings.',
+      'Independently exchange "Break Please" or "2 More Minutes" FCT card on ≥ 85% of transition opportunities.',
+      '≤ 0.5 episodes/hr across 3 consecutive sessions across 2 settings with 0 severe episodes',
+      1,
+      bp1Hist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    ).lastInsertRowid;
+
+    const bp2Def = 'Sliding off chair, turning body >90° away from materials, or pushing instructional stimuli >12 inches away within 5 seconds of SD.';
+    const bp2Hist = JSON.stringify(buildInitialBehaviorHistory({ definition: bp2Def, measurement_type: 'partial_interval', updated_at: seedTs }));
+    const bp2 = run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el,
+      'Task Refusal / Leaving Tabletop',
+      bp2Def,
+      'partial_interval',
+      'Escape',
       'Mild: Verbal "no" or turning head; Moderate: Pushing materials away; Severe: Elopement >3 ft from table',
-      'active').lastInsertRowid;
-    run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
-      le, 'Crying / Tangible Protest',
-      'Audible crying with or without tears lasting ≥ 5 seconds following removal or denial of a preferred item.',
-      'duration', 'Tangible',
+      'Begins when client slides hips off seat, turns torso >90° away, or sweeps materials >12 in away within 5s of task presentation.',
+      'Ends when client is seated upright facing materials and complies with a 1-step receptive direction for 10 seconds.',
+      'Pushing flashcards onto floor when asked to match; sliding under table when worksheet is presented.',
+      'Standing up to retrieve a dropped pencil; walking to visual schedule when prompted by RBT.',
+      '40% of 15-min partial intervals (4/10 intervals)',
+      40,
+      10,
+      'Decrease task refusal to ≤ 10% of 15-minute partial intervals during tabletop instruction.',
+      'Use "Help Please" or "First/Then" choice board independently on ≥ 80% of difficult task presentations.',
+      '≤ 10% of intervals across 4 consecutive sessions',
+      1,
+      bp2Hist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    ).lastInsertRowid;
+
+    const bp3Def = 'Audible crying with or without tears lasting ≥ 5 seconds following removal or denial of a preferred item.';
+    const bp3Hist = JSON.stringify(buildInitialBehaviorHistory({ definition: bp3Def, measurement_type: 'duration', updated_at: seedTs }));
+    run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le,
+      'Crying / Tangible Protest',
+      bp3Def,
+      'duration',
+      'Tangible',
       'Mild: Whimpering <30s; Moderate: Crying 30s–2m; Severe: Crying >2m with flopping',
-      'active');
+      'Begins after 5 consecutive seconds of audible crying or whining following denied/removed tangible.',
+      'Ends after 10 consecutive seconds of calm breathing and absence of vocal protest.',
+      'Crying and dropping to knees when train set timer rings; sobbing when peer holds preferred toy.',
+      'Brief (<3s) sigh when turn ends; crying after bumping knee on gym mat.',
+      'Avg 145s per episode (4.8 mins total per session)',
+      145,
+      20,
+      'Reduce average crying episode duration from 145s to ≤ 20s per occurrence.',
+      'Exchange PECS "My Turn Please" or "Wait" card and tolerate 2-minute visual timer on ≥ 80% of opportunities.',
+      'Average duration ≤ 20s across 3 consecutive sessions',
+      1,
+      bp3Hist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    );
 
     // Seed continuous & interval behavior_events for Eleanor across sessions 1, 2, 3
     const t3 = new Date(Date.now() - 3 * 86400000).toISOString();
     const t2 = new Date(Date.now() - 2 * 86400000).toISOString();
     const t1 = new Date(Date.now() - 1 * 86400000).toISOString();
-    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      el, 1, bp1, 'Screaming / Vocal Protest', rbt, t3, 'frequency', 2, 65, 8, 240, 0, 0, 'Moderate', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Used 2-min sand timer; de-escalated');
-    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      el, 2, bp1, 'Screaming / Vocal Protest', rbt, t2, 'duration', 1, 25, 14, 420, 0, 0, 'Mild', 'School', 'LEGO Center Free Play', 'RBT, Peer', 'Prompted "My turn" FCT card');
-    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      el, 3, bp2, 'Task Refusal / Leaving Tabletop', rbt, t1, 'partial_interval', 1, 20, 18, 0, 10, 2, 'Mild', 'School', 'DTT Tabletop Block', 'RBT', '2/10 intervals (20%) occurred during 15-min block');
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 1, bp1, 'Screaming / Vocal Protest', rbt, t3, 'frequency', 2, 65, 8, 240, 0, 0, 'Moderate', 'School', 'Pre-Lunch Clean-Up', 'RBT, Peer', 'Used 2-min sand timer; de-escalated', 1, bp1Def);
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 2, bp1, 'Screaming / Vocal Protest', rbt, t2, 'duration', 1, 25, 14, 420, 0, 0, 'Mild', 'School', 'LEGO Center Free Play', 'RBT, Peer', 'Prompted "My turn" FCT card', 1, bp1Def);
+    run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, 3, bp2, 'Task Refusal / Leaving Tabletop', rbt, t1, 'partial_interval', 1, 20, 18, 0, 10, 2, 'Mild', 'School', 'DTT Tabletop Block', 'RBT', '2/10 intervals (20%) occurred during 15-min block', 1, bp2Def);
   }
 
   if (!get('SELECT COUNT(*) c FROM task_analyses WHERE client_id=?', el).c) {
@@ -358,6 +457,60 @@ function upgradeExistingData() {
   if (el && le) {
     seedClinicalModules(el.id, le.id, 1, 2);
   }
+  const existingBps = all('SELECT * FROM behavior_programs');
+  existingBps.forEach((bp) => {
+    const parsedHist = parse(bp.version_history_json);
+    if (!bp.onset_criteria || !Array.isArray(parsedHist) || !parsedHist.length) {
+      const seedTs = bp.updated_at || new Date(Date.now() - 5 * 86400000).toISOString();
+      const isScream = /scream/i.test(bp.name || '');
+      const isRefusal = /refus|table/i.test(bp.name || '');
+      const onset = bp.onset_criteria || (isScream
+        ? 'Begins immediately when vocalization exceeds conversational volume for ≥ 3 consecutive seconds.'
+        : isRefusal
+          ? 'Begins when client slides hips off seat, turns torso >90° away, or sweeps materials >12 in away within 5s of task presentation.'
+          : 'Begins after 5 consecutive seconds of audible crying or protest following denied/removed tangible.');
+      const offset = bp.offset_criteria || (isScream
+        ? 'Ends after 5 consecutive seconds of calm vocal tone or silence.'
+        : isRefusal
+          ? 'Ends when client is seated upright facing materials and complies with a 1-step direction for 10 seconds.'
+          : 'Ends after 10 consecutive seconds of calm breathing and absence of vocal protest.');
+      const ex = bp.examples || (isScream
+        ? 'High-pitched yelling when presented with clean-up cue; screaming "NO!" while covering ears during transitions.'
+        : isRefusal
+          ? 'Pushing flashcards onto floor when asked to match; sliding under table when worksheet is presented.'
+          : 'Crying and dropping to knees when train set timer rings; sobbing when peer holds preferred toy.');
+      const nonEx = bp.non_examples || (isScream
+        ? 'Laughing or cheering loudly during gross-motor tag or sensory gym play; crying due to physical injury.'
+        : isRefusal
+          ? 'Standing up to retrieve a dropped pencil; walking to visual schedule when prompted by RBT.'
+          : 'Brief (<3s) sigh when turn ends; crying after bumping knee on gym mat.');
+      const bData = bp.baseline_data || (isScream ? '4.2 episodes/hr across 3 baseline sessions' : isRefusal ? '40% of 15-min partial intervals (4/10)' : 'Avg 145s per episode');
+      const bRate = bp.baseline_rate || (isScream ? 4.2 : isRefusal ? 40 : 145);
+      const tRate = bp.target_rate || (isScream ? 0.5 : isRefusal ? 10 : 20);
+      const redGoal = bp.reduction_goal || (isScream
+        ? 'Decrease screaming / vocal protest from 4.2/hr baseline to ≤ 0.5/hr across settings.'
+        : isRefusal
+          ? 'Decrease task refusal to ≤ 10% of 15-minute partial intervals during tabletop instruction.'
+          : 'Reduce average crying episode duration from 145s to ≤ 20s per occurrence.');
+      const repGoal = bp.replacement_skill_goal || (isScream
+        ? 'Independently exchange "Break Please" or "2 More Minutes" FCT card on ≥ 85% of transition opportunities.'
+        : isRefusal
+          ? 'Use "Help Please" or "First/Then" choice board independently on ≥ 80% of difficult task presentations.'
+          : 'Exchange PECS "My Turn Please" or "Wait" card and tolerate 2-minute visual timer on ≥ 80% of opportunities.');
+      const mastCrit = bp.mastery_criteria || (isScream
+        ? '≤ 0.5 episodes/hr across 3 consecutive sessions across 2 settings with 0 severe episodes'
+        : isRefusal
+          ? '≤ 10% of intervals across 4 consecutive sessions'
+          : 'Average duration ≤ 20s across 3 consecutive sessions');
+      const histJson = Array.isArray(parsedHist) && parsedHist.length
+        ? bp.version_history_json
+        : JSON.stringify(buildInitialBehaviorHistory({ ...bp, updated_at: seedTs }));
+      run(
+        'UPDATE behavior_programs SET onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,baseline_data=?,baseline_rate=?,target_rate=?,reduction_goal=?,replacement_skill_goal=?,mastery_criteria=?,version=?,version_history_json=?,updated_at=?,updated_by=? WHERE id=?',
+        onset, offset, ex, nonEx, bData, bRate, tRate, redGoal, repGoal, mastCrit, bp.version || 1, histJson, seedTs, bp.updated_by || 'Dr. Dana Rivera, BCBA', bp.id
+      );
+    }
+  });
   if (!get("SELECT id FROM users WHERE email='owner@eba.test'")) {
     run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Sarah Jenkins', 'owner@eba.test', hash('password'), 'OWNER');
   }
@@ -1996,6 +2149,46 @@ route('GET', '/api/dashboard', (u) => {
   };
 }, {});
 
+function enrichBehaviorProgram(bp, clientEvents = [], clientAbcLogs = []) {
+  if (!bp) return null;
+  let versionHistory = parse(bp.version_history_json);
+  if (!Array.isArray(versionHistory) || !versionHistory.length) {
+    versionHistory = buildInitialBehaviorHistory(bp);
+  }
+  const linkedEvents = (clientEvents || []).filter(
+    (ev) => (ev.behavior_id && Number(ev.behavior_id) === Number(bp.id)) || ev.behavior_name === bp.name || ev.behavior === bp.name
+  );
+  const linkedAbc = (clientAbcLogs || []).filter((l) => l.behavior === bp.name);
+  const histMeasTypes = [...new Set(linkedEvents.map((e) => e.measurement_type || 'frequency'))];
+  return {
+    ...bp,
+    operational_definition: bp.operational_definition || bp.definition || '',
+    definition: bp.definition || bp.operational_definition || '',
+    onset_criteria: bp.onset_criteria || '',
+    offset_criteria: bp.offset_criteria || '',
+    examples: bp.examples || '',
+    non_examples: bp.non_examples || '',
+    function_hypothesis: bp.function_hypothesis || 'Escape',
+    measurement_type: bp.measurement_type || 'frequency',
+    intensity_criteria: bp.intensity_criteria || 'Mild / Moderate / Severe',
+    baseline_data: bp.baseline_data || (bp.baseline_rate ? `${bp.baseline_rate}` : ''),
+    baseline_rate: Number(bp.baseline_rate) || 0,
+    target_rate: Number(bp.target_rate) || 0,
+    reduction_goal: bp.reduction_goal || '',
+    replacement_skill_goal: bp.replacement_skill_goal || '',
+    mastery_criteria: bp.mastery_criteria || '',
+    status: bp.status || 'active',
+    version: Number(bp.version) || versionHistory.length || 1,
+    version_history: versionHistory,
+    updated_at: bp.updated_at || (versionHistory[versionHistory.length - 1] && versionHistory[versionHistory.length - 1].ts) || '',
+    updated_by: bp.updated_by || (versionHistory[versionHistory.length - 1] && versionHistory[versionHistory.length - 1].modified_by) || 'Dr. Dana Rivera, BCBA',
+    historical_event_count: linkedEvents.length,
+    historical_abc_count: linkedAbc.length,
+    total_historical_records: linkedEvents.length + linkedAbc.length,
+    historical_measurement_types: histMeasTypes
+  };
+}
+
 route('GET', '/api/clients', (u) => {
   const list = visibleClients(u);
   if (u.role === 'PARENT') return list;
@@ -2021,14 +2214,13 @@ route('GET', '/api/clients', (u) => {
 
     const cAbc = allAbcList.filter(l => Number(l.client_id) === Number(c.id));
     const abcSum = buildAbcSummary(cAbc);
-    const cBehProgs = allBehPrograms.filter(bp => Number(bp.client_id) === Number(c.id)).map(bp => ({
-      ...bp,
-      operational_definition: bp.operational_definition || bp.definition || ''
-    }));
     const cBehEvs = allBehEvents.filter(ev => Number(ev.client_id) === Number(c.id)).map(ev => ({
       ...ev,
       behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
     }));
+    const cBehProgs = allBehPrograms
+      .filter(bp => Number(bp.client_id) === Number(c.id))
+      .map(bp => enrichBehaviorProgram(bp, cBehEvs, cAbc));
     const cSess = allSessionsList.filter(s => Number(s.client_id) === Number(c.id));
     const totalSessionMins = Math.max(60, cSess.reduce((acc, s) => acc + ((s.units || 4) * 15), 0));
     const behSum = G.summarizeBehaviorEvents(cBehEvs, totalSessionMins);
@@ -2136,14 +2328,13 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
 
   // Target Behavior Programs & Continuous/Interval Measurement Events
-  const behaviorPrograms = isParent ? [] : all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => ({
-    ...bp,
-    operational_definition: bp.operational_definition || bp.definition || ''
-  }));
   const behaviorEvents = isParent ? [] : all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id).map((ev) => ({
     ...ev,
     behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
   }));
+  const behaviorPrograms = isParent ? [] : all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) =>
+    enrichBehaviorProgram(bp, behaviorEvents, rawAbc)
+  );
   const clientSessions = isParent ? [] : all('SELECT * FROM sessions WHERE client_id=?', c.id);
   const totalSessionMins = Math.max(60, clientSessions.reduce((acc, s) => acc + ((s.units || 4) * 15), 0));
   const behaviorSummary = isParent ? null : G.summarizeBehaviorEvents(behaviorEvents, totalSessionMins);
@@ -2315,23 +2506,225 @@ route('POST', '/api/clients/:id/behaviors', (u, b, p) => {
   clientOr403(u, p.id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.name) bad(400, 'Behavior name required');
-  const defText = b.operational_definition || b.definition || 'Observable maladaptive behavior episode';
-  const r = run('INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,status) VALUES(?,?,?,?,?,?,?)',
-    +p.id, b.name, defText, b.measurement_type || 'frequency', b.function_hypothesis || 'Escape', b.intensity_criteria || 'Mild / Moderate / Severe', 'active');
+  const nowIso = new Date().toISOString();
+  const nameVal = String(b.name).trim();
+  const defText = String(b.operational_definition || b.definition || 'Observable maladaptive behavior episode').trim();
+  const measType = b.measurement_type || 'frequency';
+  const fnHyp = b.function_hypothesis || b.behavioral_function || 'Escape';
+  const intCrit = b.intensity_criteria || 'Mild / Moderate / Severe';
+  const onsetCrit = b.onset_criteria ?? b.onset ?? '';
+  const offsetCrit = b.offset_criteria ?? b.offset ?? '';
+  const exVal = b.examples ?? '';
+  const nonExVal = b.non_examples ?? '';
+  const bRate = b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : 0;
+  const bData = b.baseline_data ?? (bRate ? `${bRate}` : '');
+  const tRate = b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : 0;
+  const redGoal = b.reduction_goal ?? (tRate ? `Reduce target behavior to ≤ ${tRate}` : '');
+  const repGoal = b.replacement_skill_goal ?? b.skill_acquisition_goal ?? '';
+  const mastCrit = b.mastery_criteria ?? '';
+  const statusVal = b.status || 'active';
+
+  const initHist = buildInitialBehaviorHistory(
+    { definition: defText, measurement_type: measType, updated_at: nowIso },
+    `${u.name} (${u.role})`
+  );
+
+  const r = run(
+    'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, nameVal, defText, measType, fnHyp, intCrit, onsetCrit, offsetCrit, exVal, nonExVal, bData, bRate, tRate, redGoal, repGoal, mastCrit, 1, JSON.stringify(initHist), nowIso, `${u.name} (${u.role})`, statusVal
+  );
   const bid = Number(r.lastInsertRowid);
-  logAudit(u, { client_id: +p.id, entity_type: 'behavior_program', entity_id: bid, action: 'CREATE_BEHAVIOR_PROGRAM', details: `Defined behavior "${b.name}" (${b.measurement_type || 'frequency'})` });
-  return { id: bid };
+  logAudit(u, { client_id: +p.id, entity_type: 'behavior_program', entity_id: bid, action: 'CREATE_BEHAVIOR_PROGRAM', details: `Defined behavior "${nameVal}" (${measType}, v1)` });
+  const created = get('SELECT * FROM behavior_programs WHERE id=?', bid);
+  return { id: bid, behavior: enrichBehaviorProgram(created, [], []) };
 });
+
+route('GET', '/api/behaviors/:id', (u, b, p) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  return enrichBehaviorProgram(bp, clientEvents, clientAbc);
+});
+
 route('PUT', '/api/behaviors/:id', (u, b, p) => {
   const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
   if (!bp) bad(404, 'Behavior program not found');
   clientOr403(u, bp.client_id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
-  const defText = b.operational_definition || b.definition || bp.definition;
-  run('UPDATE behavior_programs SET name=?,definition=?,measurement_type=?,function_hypothesis=?,intensity_criteria=?,status=? WHERE id=?',
-    b.name || bp.name, defText, b.measurement_type || bp.measurement_type, b.function_hypothesis || bp.function_hypothesis, b.intensity_criteria || bp.intensity_criteria, b.status || bp.status, bp.id);
-  return {};
+
+  const nowIso = new Date().toISOString();
+  const nextName = b.name !== undefined && String(b.name).trim() ? String(b.name).trim() : bp.name;
+  const nextDef = (b.operational_definition !== undefined ? String(b.operational_definition).trim() : (b.definition !== undefined ? String(b.definition).trim() : bp.definition)) || bp.definition;
+  const nextMeas = b.measurement_type || bp.measurement_type || 'frequency';
+  const nextFn = b.function_hypothesis || b.behavioral_function || bp.function_hypothesis || 'Escape';
+  const nextInt = b.intensity_criteria !== undefined ? String(b.intensity_criteria) : (bp.intensity_criteria || '');
+  const nextOnset = b.onset_criteria !== undefined ? String(b.onset_criteria) : (b.onset !== undefined ? String(b.onset) : (bp.onset_criteria || ''));
+  const nextOffset = b.offset_criteria !== undefined ? String(b.offset_criteria) : (b.offset !== undefined ? String(b.offset) : (bp.offset_criteria || ''));
+  const nextEx = b.examples !== undefined ? String(b.examples) : (bp.examples || '');
+  const nextNonEx = b.non_examples !== undefined ? String(b.non_examples) : (bp.non_examples || '');
+  const nextBRate = b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : (Number(bp.baseline_rate) || 0);
+  const nextBData = b.baseline_data !== undefined ? String(b.baseline_data) : (bp.baseline_data || (nextBRate ? `${nextBRate}` : ''));
+  const nextTRate = b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : (Number(bp.target_rate) || 0);
+  const nextRedGoal = b.reduction_goal !== undefined ? String(b.reduction_goal) : (bp.reduction_goal || '');
+  const nextRepGoal = b.replacement_skill_goal !== undefined ? String(b.replacement_skill_goal) : (b.skill_acquisition_goal !== undefined ? String(b.skill_acquisition_goal) : (bp.replacement_skill_goal || ''));
+  const nextMast = b.mastery_criteria !== undefined ? String(b.mastery_criteria) : (bp.mastery_criteria || '');
+  const nextStatus = b.status || bp.status || 'active';
+
+  const FIELD_COMPARISONS = [
+    ['name', 'Behavior Name', bp.name || '', nextName],
+    ['definition', 'Operational Definition', bp.definition || '', nextDef],
+    ['onset_criteria', 'Onset Criteria', bp.onset_criteria || '', nextOnset],
+    ['offset_criteria', 'Offset Criteria', bp.offset_criteria || '', nextOffset],
+    ['examples', 'Examples', bp.examples || '', nextEx],
+    ['non_examples', 'Non-Examples', bp.non_examples || '', nextNonEx],
+    ['function_hypothesis', 'Behavioral Function', bp.function_hypothesis || '', nextFn],
+    ['measurement_type', 'Measurement Method', bp.measurement_type || '', nextMeas],
+    ['intensity_criteria', 'Intensity Criteria', bp.intensity_criteria || '', nextInt],
+    ['baseline_data', 'Baseline Data', bp.baseline_data || '', nextBData],
+    ['baseline_rate', 'Baseline Rate', String(bp.baseline_rate ?? 0), String(nextBRate)],
+    ['target_rate', 'Target Rate', String(bp.target_rate ?? 0), String(nextTRate)],
+    ['reduction_goal', 'Behavior Reduction Goal', bp.reduction_goal || '', nextRedGoal],
+    ['replacement_skill_goal', 'Skill Acquisition / Replacement Goal', bp.replacement_skill_goal || '', nextRepGoal],
+    ['mastery_criteria', 'Mastery Criteria', bp.mastery_criteria || '', nextMast],
+    ['status', 'Clinical Status', bp.status || 'active', nextStatus]
+  ];
+
+  const changes = [];
+  FIELD_COMPARISONS.forEach(([field, label, prevVal, updVal]) => {
+    if (String(prevVal).trim() !== String(updVal).trim()) {
+      changes.push({
+        field,
+        label,
+        previous: String(prevVal).trim() || '—',
+        updated: String(updVal).trim() || '—'
+      });
+    }
+  });
+
+  let existingHistory = parse(bp.version_history_json);
+  if (!Array.isArray(existingHistory) || !existingHistory.length) {
+    existingHistory = buildInitialBehaviorHistory(bp);
+  }
+  const nextVersion = (Number(bp.version) || existingHistory.length || 1) + 1;
+  const autoDesc = changes.length
+    ? `Updated ${changes.map((c) => c.label).join(', ')}`
+    : 'Reviewed and confirmed target behavior parameters';
+  const changeSummary = b.change_summary && String(b.change_summary).trim()
+    ? String(b.change_summary).trim()
+    : autoDesc;
+
+  const newEntry = {
+    version: nextVersion,
+    ts: nowIso,
+    modified_by: u.name,
+    modified_by_role: u.role,
+    change_summary: changeSummary,
+    previous_definition: bp.definition || '',
+    updated_definition: nextDef,
+    previous_measurement_type: bp.measurement_type || 'frequency',
+    updated_measurement_type: nextMeas,
+    changes
+  };
+  const nextHistory = [...existingHistory, newEntry];
+
+  run(
+    'UPDATE behavior_programs SET name=?,definition=?,measurement_type=?,function_hypothesis=?,intensity_criteria=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,baseline_data=?,baseline_rate=?,target_rate=?,reduction_goal=?,replacement_skill_goal=?,mastery_criteria=?,version=?,version_history_json=?,updated_at=?,updated_by=?,status=? WHERE id=?',
+    nextName, nextDef, nextMeas, nextFn, nextInt, nextOnset, nextOffset, nextEx, nextNonEx, nextBData, nextBRate, nextTRate, nextRedGoal, nextRepGoal, nextMast, nextVersion, JSON.stringify(nextHistory), nowIso, `${u.name} (${u.role})`, nextStatus, bp.id
+  );
+
+  logAudit(u, {
+    client_id: bp.client_id,
+    entity_type: 'behavior_program',
+    entity_id: bp.id,
+    action: 'UPDATE_BEHAVIOR_PROGRAM',
+    details: `v${nextVersion} (${u.name}): ${changeSummary}`
+  });
+
+  const updatedRow = get('SELECT * FROM behavior_programs WHERE id=?', bp.id);
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  return { ok: true, id: bp.id, version: nextVersion, behavior: enrichBehaviorProgram(updatedRow, clientEvents, clientAbc) };
 });
+
+route('POST', '/api/behaviors/:id/archive', (u, b, p) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const nowIso = new Date().toISOString();
+  const nextStatus = b.status || (bp.status === 'archived' ? 'active' : 'archived');
+  let existingHistory = parse(bp.version_history_json);
+  if (!Array.isArray(existingHistory) || !existingHistory.length) {
+    existingHistory = buildInitialBehaviorHistory(bp);
+  }
+  const nextVersion = (Number(bp.version) || existingHistory.length || 1) + 1;
+  const summaryText = nextStatus === 'archived'
+    ? (b.reason || 'Archived target behavior — historical observations remain preserved for clinical review.')
+    : 'Restored archived target behavior to active status.';
+
+  existingHistory.push({
+    version: nextVersion,
+    ts: nowIso,
+    modified_by: u.name,
+    modified_by_role: u.role,
+    change_summary: summaryText,
+    previous_definition: bp.definition || '',
+    updated_definition: bp.definition || '',
+    previous_measurement_type: bp.measurement_type || 'frequency',
+    updated_measurement_type: bp.measurement_type || 'frequency',
+    changes: [{ field: 'status', label: 'Clinical Status', previous: bp.status || 'active', updated: nextStatus }]
+  });
+
+  run(
+    'UPDATE behavior_programs SET status=?, version=?, version_history_json=?, updated_at=?, updated_by=? WHERE id=?',
+    nextStatus, nextVersion, JSON.stringify(existingHistory), nowIso, `${u.name} (${u.role})`, bp.id
+  );
+  logAudit(u, {
+    client_id: bp.client_id,
+    entity_type: 'behavior_program',
+    entity_id: bp.id,
+    action: nextStatus === 'archived' ? 'ARCHIVE_BEHAVIOR_PROGRAM' : 'RESTORE_BEHAVIOR_PROGRAM',
+    details: `${nextStatus === 'archived' ? 'Archived' : 'Restored'} behavior "${bp.name}" (v${nextVersion})`
+  });
+
+  const updatedRow = get('SELECT * FROM behavior_programs WHERE id=?', bp.id);
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  return { ok: true, id: bp.id, status: nextStatus, behavior: enrichBehaviorProgram(updatedRow, clientEvents, clientAbc) };
+});
+
+route('DELETE', '/api/behaviors/:id', (u, b, p, ctx) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=?', bp.client_id);
+  const linkedEvents = clientEvents.filter(
+    (ev) => (ev.behavior_id && Number(ev.behavior_id) === Number(bp.id)) || ev.behavior_name === bp.name
+  );
+  const forceDelete = Boolean((b && b.force) || (ctx && ctx.query && ctx.query.force === '1'));
+
+  if (linkedEvents.length > 0 && !forceDelete) {
+    bad(409, `Cannot permanently delete "${bp.name}" because ${linkedEvents.length} historical clinical observation(s) are linked to it. Please archive this behavior instead to protect historical clinical data.`);
+  }
+
+  // Note: Even if forceDelete is true, we NEVER delete rows from behavior_events so historical data is never erased.
+  run('DELETE FROM behavior_programs WHERE id=?', bp.id);
+  logAudit(u, {
+    client_id: bp.client_id,
+    entity_type: 'behavior_program',
+    entity_id: bp.id,
+    action: 'DELETE_BEHAVIOR_PROGRAM',
+    details: `Deleted target behavior "${bp.name}" (${linkedEvents.length} historical events preserved)`
+  });
+  return { ok: true, deleted: true, id: bp.id, preservedEventsCount: linkedEvents.length };
+});
+
 route('POST', '/api/clients/:id/behavior-events', (u, b, p) => {
   clientOr403(u, p.id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
@@ -2344,11 +2737,13 @@ route('POST', '/api/clients/:id/behavior-events', (u, b, p) => {
   const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
   const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
   const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
-  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  const defVer = bp ? (Number(bp.version) || 1) : (Number(b.definition_version) || 1);
+  const defSnap = bp ? (bp.definition || '') : (b.definition_snapshot || '');
+  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     +p.id, b.session_id ? +b.session_id : null, bid ? +bid : null, bName, u.id, ts, mType,
     countVal, durVal, latVal, irtVal,
-    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '');
-  return { id: Number(r.lastInsertRowid) };
+    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '', defVer, defSnap);
+  return { id: Number(r.lastInsertRowid), definition_version: defVer };
 });
 
 // Task Analysis & Chaining Endpoints
@@ -2634,10 +3029,10 @@ function sessionView(u, sid) {
   const stories = all('SELECT * FROM stories WHERE client_id=? AND status IN (\'approved\',\'shared\')', s.client_id).map((x) => ({ ...x, content: parse(x.content) }));
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
   const abcLogs = all('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC', s.id);
-  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', s.client_id).map((bp) => ({
-    ...bp,
-    operational_definition: bp.operational_definition || bp.definition || ''
-  }));
+  const allClientBehEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', s.client_id);
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', s.client_id).map((bp) =>
+    enrichBehaviorProgram(bp, allClientBehEvents, abcLogs)
+  );
   const behaviorEvents = all('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC', s.id).map((ev) => ({
     ...ev,
     behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
@@ -2711,11 +3106,13 @@ route('POST', '/api/sessions/:id/behavior-events', (u, b, p) => {
   const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
   const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
   const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
-  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  const defVer = bp ? (Number(bp.version) || 1) : (Number(b.definition_version) || 1);
+  const defSnap = bp ? (bp.definition || '') : (b.definition_snapshot || '');
+  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
     s.client_id, s.id, bid ? +bid : null, bName, u.id, ts, mType,
     countVal, durVal, latVal, irtVal,
-    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '');
-  return { id: Number(r.lastInsertRowid) };
+    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '', defVer, defSnap);
+  return { id: Number(r.lastInsertRowid), definition_version: defVer };
 });
 route('DELETE', '/api/sessions/:id/behavior-events/last', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
