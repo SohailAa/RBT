@@ -50,8 +50,11 @@ let smartGoalType = 'skill_acquisition';
 let smartGoalDomain = '';
 let smartGoalFindingId = null;
 let smartGoalFindingText = '';
-let assessmentPlannerSubTab = 'smart_builder';
+let assessmentPlannerSubTab = 'report_templates';
 let selectedAssessmentInstrumentId = 'vbmapp';
+let activeReportTemplateId = 'all';
+let reauthModalTab = 'structured_template';
+let assessmentCenterClientId = 1;
 
 const SMART_MEASUREMENT_OPTIONS = [
   { key: 'percentage_of_opportunities', label: 'Percentage of Opportunities (% Independent)' },
@@ -67,6 +70,309 @@ const SMART_MEASUREMENT_OPTIONS = [
   { key: 'abc', label: 'ABC Narrative / Functional Context Recording' },
   { key: 'permanent_product', label: 'Permanent Product Recording' }
 ];
+
+function renderAutoPopulatedReportTemplateSection(c, data, isModal = false) {
+  const repTpl = (data && data.reportTemplate) || (activeModal && activeModal.report && activeModal.report.reportTemplate) || {};
+  const availableTemplates = repTpl.availableTemplates || [
+    { id: 'vbmapp', name: 'VB-MAPP', fullName: 'Verbal Behavior Milestones Assessment and Placement Program', category: 'Developmental / Verbal Behavior Milestone Assessment', phaseStatus: 'Phase 1 Supported', domainCount: 13 },
+    { id: 'abllsr', name: 'ABLLS-R', fullName: 'Assessment of Basic Language and Learning Skills – Revised', category: 'Criterion-Referenced Skill Tracking Assessment', phaseStatus: 'Phase 1 Supported', domainCount: 11 },
+    { id: 'afls', name: 'AFLS', fullName: 'Assessment of Functional Living Skills', category: 'Functional & Adaptive Living Skills Assessment', phaseStatus: 'Phase 1 Supported', domainCount: 6 },
+    { id: 'efl', name: 'Essential for Living (EFL)', fullName: 'Essential for Living — Functional Communication & Behavior Curriculum', category: 'Functional Communication & Essential Life Skills Assessment', phaseStatus: 'Phase 1 Supported', domainCount: 9 },
+    { id: 'vineland3', name: 'Vineland-3', fullName: 'Vineland Adaptive Behavior Scales, Third Edition', category: 'Standardized Adaptive Behavior Measure', phaseStatus: 'Phase 1 Supported', domainCount: 5 },
+    { id: 'peak', name: 'PEAK', fullName: 'Promoting the Emergence of Advanced Knowledge', category: 'Derived Relational Responding (Later Phase)', phaseStatus: 'Later Phase / Future Expansion', domainCount: 4 }
+  ];
+  const allRows = repTpl.domainRows || [];
+  const filteredRows = activeReportTemplateId === 'all'
+    ? allRows
+    : allRows.filter(r => r.instrumentId === activeReportTemplateId);
+  const populatedRows = filteredRows.filter(r => r.evidenceStatus === 'clinician_entered');
+  const unpopulatedRows = filteredRows.filter(r => r.evidenceStatus !== 'clinician_entered');
+  const canApprove = me && ['BCBA', 'OWNER'].includes(me.role);
+  const canPopulate = me && ['BCBA', 'OWNER', 'ADMIN'].includes(me.role);
+  const selectedTplMeta = availableTemplates.find(t => t.id === activeReportTemplateId);
+  const populateTargetId = activeReportTemplateId === 'all' ? 'vbmapp' : activeReportTemplateId;
+  const populateTargetName = selectedTplMeta ? selectedTplMeta.name : 'VB-MAPP';
+
+  return `
+    <!-- Document-Style Header Banner (Matching Uploaded RBT Sepia PDFs #113f59 / #0f766e) -->
+    <div class="card" style="padding:0;overflow:hidden;border:1.5px solid #0f766e;margin-bottom:16px">
+      <div style="background:linear-gradient(135deg,#113f59 0%,#0f5c59 100%);color:#fff;padding:18px 22px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+          <div>
+            <div style="font-size:0.74rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#99f6e4;margin-bottom:4px">
+              RBT SEPIA · AUTO-POPULATED ASSESSMENT & CLINICAL PROGRESS REPORT TEMPLATE
+            </div>
+            <h3 style="margin:0;color:#fff;font-size:1.28rem">
+              📊 ${esc(c.name)} — Multi-Domain Assessment-to-Goal & Measurement Report
+            </h3>
+            <div style="font-size:0.83rem;color:#e2e8f0;margin-top:4px">
+              Auto-populates domains from <b>VB-MAPP</b>, <b>ABLLS-R</b>, <b>AFLS</b>, <b>Essential for Living (EFL)</b>, and <b>Vineland-3</b> with traceable <b>Operational Definitions</b>, <b>Primary & Secondary Measurement Systems</b>, and separated <b>Raw Data vs. Calculated Metrics vs. AI Narrative</b>.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            ${canPopulate && activeReportTemplateId !== 'peak' ? `
+              <button type="button" class="ok" style="background:#10b981;border-color:#059669;padding:9px 15px;font-size:0.82rem;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,0.2)" onclick="act.populateReportTemplateDomains(${c.id}, '${populateTargetId}')">
+                ✨ 1-Click Auto-Populate All ${esc(populateTargetName)} Domains
+              </button>
+            ` : ''}
+            ${!isModal ? `
+              <button type="button" class="sec" style="background:rgba(255,255,255,0.14);color:#fff;border-color:rgba(255,255,255,0.3);padding:8px 14px;font-size:0.8rem" onclick="act.openReauthReportModal(${c.id})">
+                🖨️ Open Printable Full Packet
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Template Selector Pills -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.18)">
+          <span style="font-size:0.75rem;font-weight:700;color:#cbd5e1;align-self:center;margin-right:4px">Filter / Select Template:</span>
+          <button type="button" class="${activeReportTemplateId === 'all' ? 'ok' : 'sec'}" style="padding:5px 12px;font-size:0.78rem;${activeReportTemplateId !== 'all' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.22)' : ''}" onclick="act.selectReportTemplate(${c.id}, 'all')">
+            🗂️ All Frameworks (${allRows.length} Domains)
+          </button>
+          ${availableTemplates.map(t => `
+            <button type="button" class="${activeReportTemplateId === t.id ? 'ok' : 'sec'}" style="padding:5px 12px;font-size:0.78rem;${activeReportTemplateId !== t.id ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.22)' : ''}" onclick="act.selectReportTemplate(${c.id}, '${t.id}')">
+              ${t.id === 'peak' ? '⏳ ' : '📋 '}${esc(t.name)} (${t.domainCount})
+            </button>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Summary Status Strip -->
+      <div style="background:#f8fafc;padding:12px 20px;border-bottom:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;font-size:0.82rem">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <span><b>Selected Template:</b> <span class="badge p">${esc(selectedTplMeta ? `${selectedTplMeta.name} — ${selectedTplMeta.fullName}` : 'Consolidated Multi-Framework Clinical Report')}</span></span>
+          <span><b>Clinician-Populated Domains:</b> <span class="tag approved">${populatedRows.length} Active / Documented</span></span>
+          ${unpopulatedRows.length ? `<span><b>Remaining Template Domains:</b> <span class="tag draft">${unpopulatedRows.length} Ready to Auto-Populate</span></span>` : ''}
+        </div>
+        <div style="font-size:0.76rem;color:#0f766e;font-weight:700">
+          🛡️ Zero Fabricated Scores · 100% Traceable to Clinician Evidence · BCBA Sign-Off Required
+        </div>
+      </div>
+
+      <!-- SECTION 1 TABLE: ASSESSMENT-TO-GOAL MAPPING & AUTO-POPULATED DOMAIN MATRIX (PDF Page 2 Style) -->
+      <div style="padding:18px 20px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div>
+            <h4 style="margin:0;color:#113f59;font-size:1.05rem">1. Auto-Populated Assessment-to-Goal & Domain Matrix</h4>
+            <p style="margin:2px 0 0;font-size:0.8rem;color:var(--slate-600)">
+              Maps each assessment domain to its clinician-entered area of need, operational definition (onset/offset/exclusions), primary + secondary measurement system, and separated raw vs. calculated progress metrics.
+            </p>
+          </div>
+          ${canPopulate && unpopulatedRows.length && activeReportTemplateId !== 'peak' ? `
+            <button type="button" class="ok" style="padding:6px 12px;font-size:0.78rem" onclick="act.populateReportTemplateDomains(${c.id}, '${populateTargetId}')">
+              + Auto-Populate Remaining ${unpopulatedRows.length} Domain(s)
+            </button>
+          ` : ''}
+        </div>
+
+        <div class="table-responsive">
+          <table style="border:1px solid #cbd5e1;border-collapse:collapse">
+            <thead>
+              <tr style="background:#113f59;color:#fff">
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:15%">Assessment & Domain</th>
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:19%">Documented Area of Need (Clinician-Entered)</th>
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:23%">Draft / Active Goal & Operational Definition</th>
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:18%">Recommended Measurement & Data Fields</th>
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:16%">Progress Monitoring (Raw vs. Calculated vs. AI)</th>
+                <th style="background:#113f59;color:#fff;padding:10px 12px;font-size:0.76rem;text-transform:uppercase;letter-spacing:0.04em;width:9%">Status / Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredRows.map((row, idx) => {
+                const isPopulated = row.evidenceStatus === 'clinician_entered';
+                const rowBg = idx % 2 === 1 ? '#f8fafc' : '#fff';
+                return `
+                  <tr style="background:${rowBg};vertical-align:top;border-bottom:1px solid #e2e8f0">
+                    <td style="padding:10px 12px">
+                      <div style="font-weight:800;color:#113f59;font-size:0.86rem">${esc(row.instrumentName)}</div>
+                      <div style="font-weight:700;color:var(--slate-900);font-size:0.84rem;margin-top:2px">${esc(row.domain)}</div>
+                      <div style="font-size:0.72rem;color:var(--slate-500);margin-top:3px">${esc(row.domainGroup || '')}</div>
+                      <span class="badge" style="margin-top:5px;font-size:0.68rem">${row.goalType === 'behavior_reduction' ? '📉 Behavior Reduction' : '🎯 Skill Acquisition'}</span>
+                    </td>
+                    <td style="padding:10px 12px;font-size:0.81rem">
+                      <div style="margin-bottom:5px">
+                        <span class="tag ${isPopulated ? 'approved' : 'draft'}" style="font-size:0.68rem">
+                          ${isPopulated ? '✓ Clinician-Entered' : '⚡ Template Ready'}
+                        </span>
+                        <span class="badge tan" style="font-size:0.68rem;margin-left:4px">${esc(row.scoreOrLevel || 'Pending')}</span>
+                      </div>
+                      <div style="color:var(--slate-800);line-height:1.45">${esc(row.documentedFinding)}</div>
+                      <div style="font-size:0.72rem;color:var(--slate-500);margin-top:4px">
+                        <b>Source:</b> ${esc(row.evidenceSource)} · <b>Setting:</b> ${esc(row.context || 'Clinic')}
+                      </div>
+                    </td>
+                    <td style="padding:10px 12px;font-size:0.81rem">
+                      <div style="font-weight:700;color:#0f5c59;line-height:1.4;margin-bottom:5px">${esc(row.goalStatement)}</div>
+                      <div style="font-size:0.77rem;color:var(--slate-700);line-height:1.4">
+                        <b>Operational Definition:</b> ${esc(row.operationalDefinition?.summary || '')}
+                      </div>
+                      <div style="font-size:0.73rem;color:var(--slate-600);margin-top:4px;background:#f1f5f9;padding:5px 8px;border-radius:6px">
+                        <div><b>Onset:</b> ${esc(row.operationalDefinition?.onsetCriteria || '—')}</div>
+                        <div><b>Offset:</b> ${esc(row.operationalDefinition?.offsetCriteria || '—')}</div>
+                        <div><b>Exclusion:</b> ${esc((row.operationalDefinition?.exclusions || [])[0] || 'Prompted responses tracked separately')}</div>
+                      </div>
+                    </td>
+                    <td style="padding:10px 12px;font-size:0.8rem">
+                      <div style="margin-bottom:4px">
+                        <span class="badge p" style="font-size:0.72rem">Primary: ${esc(row.measurementPlan?.primaryLabel || row.measurementPlan?.primaryKey || '')}</span>
+                      </div>
+                      ${row.measurementPlan?.secondaryLabel ? `
+                        <div style="margin-bottom:5px">
+                          <span class="badge" style="font-size:0.71rem">Additional: ${esc(row.measurementPlan.secondaryLabel)}</span>
+                        </div>
+                      ` : ''}
+                      <div style="font-size:0.75rem;color:var(--slate-700);line-height:1.35;margin-bottom:5px">
+                        <b>Why it fits:</b> ${esc(row.measurementPlan?.rationale || '')}
+                      </div>
+                      <div style="font-size:0.72rem;color:var(--slate-600)">
+                        <b>Data Fields:</b> ${esc((row.measurementPlan?.dataFields || []).join(', '))}
+                      </div>
+                    </td>
+                    <td style="padding:10px 12px;font-size:0.77rem">
+                      <div style="background:#eff6ff;border-left:3px solid #2563eb;padding:5px 7px;border-radius:4px;margin-bottom:5px">
+                        <b style="color:#1e40af;font-size:0.69rem;text-transform:uppercase">1. Raw Observations:</b>
+                        <div style="color:var(--slate-800);margin-top:1px">${esc(row.progressMonitoring?.rawObservations || '')}</div>
+                      </div>
+                      <div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:5px 7px;border-radius:4px;margin-bottom:5px">
+                        <b style="color:#166534;font-size:0.69rem;text-transform:uppercase">2. Calculated Metric (Num/Denom):</b>
+                        <div style="color:var(--slate-800);margin-top:1px">${esc(row.progressMonitoring?.calculatedMetrics || '')}</div>
+                      </div>
+                      <div style="background:#fffbeb;border-left:3px solid #d97706;padding:5px 7px;border-radius:4px">
+                        <b style="color:#92400e;font-size:0.69rem;text-transform:uppercase">3. AI Narrative Draft:</b>
+                        <div style="color:var(--slate-700);margin-top:1px">${esc(row.progressMonitoring?.aiNarrativeDraft || '')}</div>
+                      </div>
+                    </td>
+                    <td style="padding:10px 12px;text-align:right">
+                      <div style="margin-bottom:6px">
+                        <span class="tag ${row.goalStatus === 'active' || row.goalStatus === 'approved' ? 'approved' : 'draft'}" style="font-size:0.69rem">
+                          ${esc(row.progressMonitoring?.clinicianReviewStatus || row.goalStatus)}
+                        </span>
+                      </div>
+                      <div style="display:flex;flex-direction:column;gap:5px">
+                        ${!isPopulated && canPopulate && row.instrumentId !== 'peak' ? `
+                          <button type="button" class="ok" style="padding:5px 8px;font-size:0.72rem" onclick="act.populateSingleTemplateDomain(${c.id}, '${row.instrumentId}', '${row.domainCode}')">
+                            + Auto-Populate Domain
+                          </button>
+                        ` : ''}
+                        <button type="button" class="sec" style="padding:5px 8px;font-size:0.72rem" onclick="act.loadSmartGoalPreset(${c.id}, ${JSON.stringify(row.goalStatement).replace(/"/g, '&quot;')}, '${row.goalType}', ${JSON.stringify(row.domain).replace(/"/g, '&quot;')});act.setAssessmentSubTab('smart_builder');if(activeModal)act.closeModal();">
+                          ✏️ Customize in Builder
+                        </button>
+                        ${row.draftId && canApprove && row.goalStatus !== 'approved' ? `
+                          <button type="button" class="ok" style="padding:5px 8px;font-size:0.72rem" onclick="act.approveSmartGoalDraft(${row.draftId})">
+                            ✓ BCBA Approve
+                          </button>
+                        ` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 2: INDIVIDUAL SMART GOAL BUILDER & OPERATIONAL DEFINITION PLAN SHEETS (PDF Page 1 Exact Layout) -->
+      <div style="padding:0 20px 20px">
+        <div style="border-top:2px solid #e2e8f0;padding-top:16px;margin-bottom:12px">
+          <h4 style="margin:0;color:#113f59;font-size:1.05rem">
+            2. Operational Definition & Data-Collection Plan Sheets (Smart Goal Builder Template Format)
+          </h4>
+          <p style="margin:2px 0 0;font-size:0.8rem;color:var(--slate-600)">
+            Structured 2-column operational definition & measurement sheets with sample session recording tables (matching <i>RBT Sepia Smart Goal Builder</i> specification).
+          </p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:16px">
+          ${(populatedRows.length ? populatedRows : filteredRows.slice(0, 4)).map(row => {
+            const sampleRows = row.measurementPlan?.sampleRows || [];
+            return `
+              <div style="border:1.5px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 6px rgba(15,23,42,0.04)">
+                <div style="background:#e6f4f1;border-left:5px solid #0f766e;padding:10px 14px;border-bottom:1px solid #cbd5e1">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="badge p" style="font-size:0.7rem">${esc(row.instrumentName)} · ${esc(row.domain)}</span>
+                    <span class="tag ${row.goalStatus === 'active' || row.goalStatus === 'approved' ? 'approved' : 'draft'}" style="font-size:0.68rem">
+                      ${esc(row.progressMonitoring?.clinicianReviewStatus || 'Draft Plan')}
+                    </span>
+                  </div>
+                  <div style="font-weight:800;color:#113f59;font-size:0.92rem;margin-top:4px">
+                    Goal: "${esc(row.goalStatement)}"
+                  </div>
+                </div>
+
+                <!-- 2-Column PDF-Style Specification Table -->
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+                  <thead>
+                    <tr style="background:#113f59;color:#fff">
+                      <th style="background:#113f59;color:#fff;padding:7px 12px;width:34%;font-size:0.73rem">Plan Element</th>
+                      <th style="background:#113f59;color:#fff;padding:7px 12px;font-size:0.73rem">Recommended Clinical Specification</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Operational definition</td>
+                      <td style="padding:8px 12px;color:#334155">
+                        ${esc(row.operationalDefinition?.summary || '')}
+                        <div style="font-size:0.74rem;color:#475569;margin-top:3px">
+                          <b>Onset:</b> ${esc(row.operationalDefinition?.onsetCriteria || '—')} · <b>Offset:</b> ${esc(row.operationalDefinition?.offsetCriteria || '—')}
+                        </div>
+                      </td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Measurement</td>
+                      <td style="padding:8px 12px;color:#0f766e;font-weight:700">${esc(row.measurementPlan?.primaryLabel || '')}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Additional measure</td>
+                      <td style="padding:8px 12px;color:#334155">${esc(row.measurementPlan?.secondaryLabel || 'Tracked via session prompt hierarchy')}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Data fields</td>
+                      <td style="padding:8px 12px;color:#334155">${esc((row.measurementPlan?.dataFields || []).join(', '))}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Possible exclusion</td>
+                      <td style="padding:8px 12px;color:#334155">${esc((row.operationalDefinition?.exclusions || [])[0] || 'Prompted responses tracked separately and excluded from independent mastery numerator')}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0">
+                      <td style="padding:8px 12px;font-weight:700;background:#f8fafc;color:#1e293b">Mastery criterion</td>
+                      <td style="padding:8px 12px;color:#334155"><b>${esc(row.masteryCriteria || '80% across 3 consecutive sessions')}</b> <i>(Baseline: ${esc(row.baselineData || 'Pending')})</i></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                ${sampleRows.length ? `
+                  <div style="padding:10px 12px;background:#f8fafc;border-top:1px solid #cbd5e1">
+                    <div style="font-size:0.72rem;font-weight:800;color:#113f59;text-transform:uppercase;margin-bottom:6px">
+                      Sample Data-Collection Recording Sheet:
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;background:#fff">
+                      <thead>
+                        <tr style="background:#0f5c59;color:#fff">
+                          ${Object.keys(sampleRows[0]).map(k => `<th style="background:#0f5c59;color:#fff;padding:5px 8px;font-size:0.7rem">${esc(k.replace(/([A-Z])/g, ' $1').replace(/^./, ch => ch.toUpperCase()))}</th>`).join('')}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${sampleRows.slice(0, 5).map(sr => `
+                          <tr style="border-bottom:1px solid #e2e8f0">
+                            ${Object.values(sr).map(v => `<td style="padding:4px 8px">${esc(String(v))}</td>`).join('')}
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                    <div style="margin-top:6px;background:#e6f4f1;border-left:4px solid #0f766e;padding:6px 10px;font-size:0.76rem;color:#065f46">
+                      <b>Summary:</b> ${esc(row.measurementPlan?.sampleSummary || '')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 function renderSmartPlannerAndAssessmentsTab(c, data, B) {
   const {
@@ -185,19 +491,24 @@ function renderSmartPlannerAndAssessmentsTab(c, data, B) {
       </div>
     </div>
 
-    <!-- 3 Sub-Navigation Pills -->
+    <!-- 4 Sub-Navigation Pills -->
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.15)">
+      <button type="button" class="${assessmentPlannerSubTab === 'report_templates' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'report_templates' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('report_templates')">
+        📊 1. Auto-Populated Domain Report Templates (VB-MAPP · ABLLS-R · AFLS · EFL · Vineland-3)
+      </button>
       <button type="button" class="${assessmentPlannerSubTab === 'smart_builder' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'smart_builder' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('smart_builder')">
-        ✨ 1. Smart Goal, Definition & Measurement Assistant
+        ✨ 2. Smart Goal, Definition & Measurement Assistant
       </button>
       <button type="button" class="${assessmentPlannerSubTab === 'findings' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'findings' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('findings')">
-        📋 2. Assessment Findings & Traceable Skill-Gap Suggestions (${assessmentFindings.length})
+        📋 3. Assessment Findings & Skill-Gap Mapping (${assessmentFindings.length})
       </button>
       <button type="button" class="${assessmentPlannerSubTab === 'library' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'library' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('library')">
-        📚 3. ABA Assessment Reference Library (VB-MAPP · ABLLS-R · AFLS · EFL · Vineland-3 · PEAK)
+        📚 4. ABA Assessment Reference Library
       </button>
     </div>
   </div>
+
+  ${assessmentPlannerSubTab === 'report_templates' ? renderAutoPopulatedReportTemplateSection(c, data, false) : ''}
 
   ${assessmentPlannerSubTab === 'smart_builder' ? `
     <!-- SUB-TAB 1: SMART GOAL BUILDER, OPERATIONAL DEFINITION & MEASUREMENT ASSISTANT -->
@@ -1114,6 +1425,7 @@ const safe = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert
 const NAV_ICONS = {
   dashboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>`,
   clients: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  assessments: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
   schedule: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
   notes: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
   supervision: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>`,
@@ -1125,6 +1437,7 @@ const NAV = {
   OWNER: [
     ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Business Performance & Revenue'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
+    ['assessments', NAV_ICONS.assessments, 'ABA Assessment Center', 'Report Templates & Smart Planner'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'SOAP Notes & Billing Sign-Off'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking']
@@ -1132,6 +1445,7 @@ const NAV = {
   BCBA: [
     ['dashboard', NAV_ICONS.dashboard, 'KPI Dashboard', 'Clients & Assigned Sessions'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles, 360 Records & Snapshots'],
+    ['assessments', NAV_ICONS.assessments, 'ABA Assessment Center', 'Report Templates & Smart Planner'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Live Sessions'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Review & Co-Sign Notes'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Tracking']
@@ -1140,6 +1454,7 @@ const NAV = {
     ['dashboard', NAV_ICONS.dashboard, 'My Daily Dashboard', 'Tasks, Data Quotas & Training'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', '1-Tap Start Session'],
     ['clients', NAV_ICONS.clients, 'My Clients', 'Goals, Trials & ABC Logs'],
+    ['assessments', NAV_ICONS.assessments, 'ABA Assessment Center', 'Definitions & Measurement Plans'],
     ['notes', NAV_ICONS.notes, 'Session Notes', 'Draft Session Notes'],
     ['supervision', NAV_ICONS.supervision, 'My Supervision', '5% Progress & Feedback']
   ],
@@ -1148,6 +1463,7 @@ const NAV = {
     ['notes', NAV_ICONS.notes, 'Notes & Billing', 'Missing Notes & Ready Claims'],
     ['schedule', NAV_ICONS.schedule, 'Schedule', 'Appointments & Attendance'],
     ['clients', NAV_ICONS.clients, 'Clients', 'Profiles & Insurance Auths'],
+    ['assessments', NAV_ICONS.assessments, 'ABA Assessment Center', 'Report Templates & Progress Packets'],
     ['supervision', NAV_ICONS.supervision, 'Supervision', 'BACB 5% Compliance']
   ],
   PARENT: [
@@ -7465,24 +7781,41 @@ function renderModal() {
   }
   if (activeModal.type === 'reauth_report') {
     const report = activeModal.report;
+    const cid = activeModal.clientId || (report.reportTemplate && report.reportTemplate.clientId) || 1;
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:820px;width:95%;max-height:90vh;overflow-y:auto">
-        <div class="flex-between">
+      <div class="modal-card" style="max-width:1180px;width:96%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px">
           <div>
-            <span class="badge p">CPT 97151 / 97155 Insurance Progress Report</span>
+            <span class="badge p">CPT 97151 / 97155 Insurance Progress & Auto-Populated Assessment Report</span>
             <h3 style="margin:4px 0 0">${esc(report.title)}</h3>
             <div style="font-size:0.85rem;color:var(--slate-500)">Client: <b>${esc(report.client_name)}</b> · Date: ${esc(report.date)}</div>
           </div>
-          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button type="button" class="${reauthModalTab === 'structured_template' ? 'ok' : 'sec'}" style="padding:6px 12px;font-size:0.78rem" onclick="reauthModalTab='structured_template';render()">
+              📊 Auto-Populated Domain Tables (PDF Template)
+            </button>
+            <button type="button" class="${reauthModalTab === 'narrative' ? 'ok' : 'sec'}" style="padding:6px 12px;font-size:0.78rem" onclick="reauthModalTab='narrative';render()">
+              📄 5-Section Insurance Narrative Text
+            </button>
+            <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          </div>
         </div>
 
-        <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin:14px 0">
-          <div style="font-weight:700;color:#065f46">🎯 Clinical Progress Summary:</div>
-          <div style="font-size:0.85rem;color:#047857">${report.masteredCount} of ${report.totalGoals} skill acquisition targets have reached mastery or criteria-met during this 6-month period.</div>
+        <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:10px 14px;border-radius:var(--radius-md);margin:14px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:700;color:#065f46">🎯 Clinical Progress Summary:</div>
+            <div style="font-size:0.85rem;color:#047857">${report.masteredCount} of ${report.totalGoals} skill acquisition targets have reached mastery or criteria-met during this 6-month period.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec" style="padding:6px 12px;font-size:0.78rem" onclick="act.copyReport()">📋 Copy Narrative Text</button>
+            <button class="ok" style="padding:6px 12px;font-size:0.78rem" onclick="window.print()">🖨️ Print / Save as PDF</button>
+          </div>
         </div>
 
-        <div class="report-content" id="report_text_body" style="background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:16px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap;font-family:system-ui;color:var(--slate-800)">${esc(report.text)}</div>
+        ${reauthModalTab === 'structured_template' ? renderAutoPopulatedReportTemplateSection({ id: cid, name: report.client_name }, { reportTemplate: report.reportTemplate }, true) : ''}
+
+        <div class="report-content" id="report_text_body" style="${reauthModalTab === 'structured_template' ? 'margin-top:16px;' : ''}background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:16px;font-size:0.88rem;line-height:1.6;white-space:pre-wrap;font-family:system-ui;color:var(--slate-800)">${esc(report.text)}</div>
 
         <div style="display:flex;gap:10px;margin-top:16px;justify-content:space-between;align-items:center;flex-wrap:wrap">
           <div style="font-size:0.8rem;color:var(--slate-500)">
@@ -9204,9 +9537,46 @@ const act = {
   setSessionMode: (m) => { sessionMode = m; render(); },
   openReauthReportModal: safe(async (cid) => {
     const report = await api('GET', `/api/clients/${cid}/reauth-report`);
-    activeModal = { type: 'reauth_report', report };
+    activeModal = { type: 'reauth_report', clientId: cid, report };
     render();
   }),
+  selectReportTemplate: safe(async (cid, tplId) => {
+    activeReportTemplateId = tplId || 'all';
+    if (activeModal && activeModal.type === 'reauth_report') {
+      const report = await api('GET', `/api/clients/${cid}/reauth-report`);
+      activeModal = { type: 'reauth_report', clientId: cid, report };
+    }
+    render();
+  }),
+  populateReportTemplateDomains: safe(async (cid, tplId) => {
+    const targetTpl = (!tplId || tplId === 'all') ? 'vbmapp' : tplId;
+    const res = await api('POST', `/api/clients/${cid}/progress-report-template/populate`, {
+      templateId: targetTpl
+    });
+    activeReportTemplateId = targetTpl;
+    if (activeModal && activeModal.type === 'reauth_report') {
+      const report = await api('GET', `/api/clients/${cid}/reauth-report`);
+      activeModal = { type: 'reauth_report', clientId: cid, report };
+    }
+    alert(`✓ Auto-Populated ${res.populatedCount || 0} New Domain(s) for ${targetTpl.toUpperCase()} with Traceable Findings, Operational Definitions & Smart Measurement Plans!`);
+    render();
+  }),
+  populateSingleTemplateDomain: safe(async (cid, tplId, domainCode) => {
+    const res = await api('POST', `/api/clients/${cid}/progress-report-template/populate`, {
+      templateId: tplId,
+      domainCode
+    });
+    if (activeModal && activeModal.type === 'reauth_report') {
+      const report = await api('GET', `/api/clients/${cid}/reauth-report`);
+      activeModal = { type: 'reauth_report', clientId: cid, report };
+    }
+    alert(`✓ Auto-Populated Domain (${res.populatedCount || 1}) with Operational Definition & Smart Measurement Plan!`);
+    render();
+  }),
+  selectAssessmentCenterClient: (cid) => {
+    assessmentCenterClientId = Number(cid) || 1;
+    render();
+  },
   copyReport: () => {
     if (activeModal && activeModal.report) {
       navigator.clipboard.writeText(activeModal.report.text);
@@ -10011,6 +10381,40 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft' && pitchSlide > 0) act.setPitchSlide(pitchSlide - 1);
 });
 
+async function assessmentCenterView(id) {
+  const clients = await api('GET', '/api/clients');
+  const cid = Number(id) || assessmentCenterClientId || (clients[0] && clients[0].id) || 1;
+  assessmentCenterClientId = cid;
+  const data = await api('GET', `/api/clients/${cid}`);
+  const c = data.client;
+  const B = ['BCBA', 'OWNER'].includes(me.role);
+  return `
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;background:#f8fafc;border-left:5px solid #0f766e">
+      <div class="flex-between" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <span class="badge p">ABA Assessment Center · Auto-Populated Report Templates & Smart Goal Builder</span>
+          <h2 style="margin:4px 0 2px;font-size:1.35rem;color:#113f59">🧠 ABA Assessment & Clinical Planning Center</h2>
+          <div style="font-size:0.83rem;color:var(--slate-600)">
+            Select a learner below to view or auto-populate their <b>VB-MAPP</b>, <b>ABLLS-R</b>, <b>AFLS</b>, <b>Essential for Living (EFL)</b>, and <b>Vineland-3</b> domain report templates, build operational definitions, or generate measurement plans.
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:0.78rem;font-weight:700;color:var(--slate-500)">Active Learner:</span>
+          ${clients.map(cl => `
+            <button type="button" class="${Number(cl.id) === Number(cid) ? 'ok' : 'sec'}" style="padding:6px 12px;font-size:0.82rem" onclick="act.selectAssessmentCenterClient(${cl.id})">
+              ${cl.id === 1 ? '👧' : '👦'} ${esc(cl.name)}
+            </button>
+          `).join('')}
+          <button type="button" class="sec" style="padding:6px 12px;font-size:0.8rem" onclick="go('client', ${cid})">
+            Open Full Client 360 Record →
+          </button>
+        </div>
+      </div>
+    </div>
+    ${renderSmartPlannerAndAssessmentsTab(c, data, B)}
+  `;
+}
+
 async function render() {
   const rawRoute = (location.hash.slice(1) || '').split('/')[0];
   if (rawRoute === 'website' || rawRoute === 'marketing') {
@@ -10030,6 +10434,7 @@ async function render() {
     if (route === 'dashboard') html = await dashboardView();
     else if (route === 'clients') html = await clientsView();
     else if (route === 'client') html = await clientView(id);
+    else if (route === 'assessments') html = await assessmentCenterView(id);
     else if (route === 'schedule') html = await scheduleView();
     else if (route === 'session') html = await sessionView(id);
     else if (route === 'notes') html = await notesView();

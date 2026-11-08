@@ -2572,6 +2572,19 @@ route('GET', '/api/clients/:id', (u, b, p) => {
     clarity: parse(d.clarity_json) || {}
   }));
 
+  const reportTemplate = isParent ? null : G.generateAssessmentReportTemplate({
+    client: c,
+    templateId: 'all',
+    goals,
+    assessments: clientAssessments,
+    assessmentFindings,
+    smartGoalDrafts,
+    behaviorPrograms,
+    behaviorEvents,
+    abcLogs: rawAbc,
+    auths
+  });
+
   return {
     client: isParent ? { id: c.id, name: c.name } : c,
     goals,
@@ -2592,7 +2605,8 @@ route('GET', '/api/clients/:id', (u, b, p) => {
     clientAssessments,
     assessmentFindings,
     skillGapAnalysis,
-    smartGoalDrafts
+    smartGoalDrafts,
+    reportTemplate
   };
 });
 route('GET', '/api/clients/:id/billing-snapshot', (u, b, p) => {
@@ -2622,7 +2636,9 @@ route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
   const auths = all('SELECT * FROM authorizations WHERE client_id=?', c.id);
   const assessments = all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
   const assessmentFindings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
-  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => enrichBehaviorProgram(bp, [], abcLogs));
+  const smartGoalDrafts = all('SELECT * FROM smart_goal_drafts WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => enrichBehaviorProgram(bp, behaviorEvents, abcLogs));
   const monthPrefix = getLocalDate().slice(0, 7);
   const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
   const rbtSessions = all('SELECT * FROM sessions WHERE start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
@@ -2632,7 +2648,183 @@ route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
   const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
   const supervision = { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5 };
 
-  return G.generateReauthReport({ client: c, goals, abcLogs, auths, supervision, assessments, assessmentFindings, behaviorPrograms });
+  const baseReport = G.generateReauthReport({ client: c, goals, abcLogs, auths, supervision, assessments, assessmentFindings, behaviorPrograms });
+  const reportTemplate = G.generateAssessmentReportTemplate({
+    client: c,
+    templateId: 'all',
+    goals,
+    assessments,
+    assessmentFindings,
+    smartGoalDrafts,
+    behaviorPrograms,
+    behaviorEvents,
+    abcLogs,
+    auths,
+    supervision
+  });
+  return { ...baseReport, reportTemplate };
+});
+
+route('GET', '/api/clients/:id/progress-report-template', (u, b, p, ctx) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const templateId = (ctx && ctx.query && ctx.query.template) || 'all';
+  const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
+  const abcLogs = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+  const auths = all('SELECT * FROM authorizations WHERE client_id=?', c.id);
+  const assessments = all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
+  const assessmentFindings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
+  const smartGoalDrafts = all('SELECT * FROM smart_goal_drafts WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => enrichBehaviorProgram(bp, behaviorEvents, abcLogs));
+  return G.generateAssessmentReportTemplate({
+    client: c,
+    templateId,
+    goals,
+    assessments,
+    assessmentFindings,
+    smartGoalDrafts,
+    behaviorPrograms,
+    behaviorEvents,
+    abcLogs,
+    auths
+  });
+});
+
+route('POST', '/api/clients/:id/progress-report-template/populate', (u, b, p) => {
+  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const templateId = String(b.template_id || b.templateId || 'vbmapp').toLowerCase();
+  const tmpl = G.ASSESSMENT_DOMAIN_TEMPLATES[templateId] || G.ASSESSMENT_DOMAIN_TEMPLATES.vbmapp;
+  const targetDomain = b.domain ? String(b.domain).trim() : null;
+  const targetDomainCode = b.domainCode ? String(b.domainCode).trim().toLowerCase() : null;
+  const nowIso = new Date().toISOString();
+  const todayDate = getLocalDate();
+
+  // Ensure a client_assessment record exists for this instrument
+  let ca = all('SELECT * FROM client_assessments WHERE client_id=?', c.id).find(
+    (a) => String(a.assessment_ref_id || '').toLowerCase() === tmpl.id || String(a.assessment_name || '').toLowerCase().includes(tmpl.name.toLowerCase().split(' ')[0])
+  );
+  if (!ca) {
+    const caId = Number(run(
+      'INSERT INTO client_assessments(client_id,assessment_ref_id,assessment_name,edition,assessor_name,assessor_role,assessment_date,report_date,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      c.id, tmpl.id, tmpl.name, 'Domain Report Template', u.name, u.role, todayDate, todayDate, 'In Review (Clinician Populated)',
+      `Auto-populated domain template for ${tmpl.fullName} — awaiting BCBA verification and approval.`, nowIso
+    ).lastInsertRowid);
+    ca = get('SELECT * FROM client_assessments WHERE id=?', caId);
+  }
+
+  const existingFindings = all('SELECT * FROM assessment_findings WHERE client_id=?', c.id);
+  const domainsToPopulate = targetDomain
+    ? tmpl.domains.filter((d) => d.domain === targetDomain)
+    : targetDomainCode
+      ? tmpl.domains.filter((d, idx) => String(d.domain || `dom_${idx}`).toLowerCase().replace(/[^a-z0-9]+/g, '_') === targetDomainCode)
+      : tmpl.domains;
+
+  let addedFindings = 0;
+  let addedDrafts = 0;
+
+  domainsToPopulate.forEach((td) => {
+    const alreadyExists = existingFindings.some(
+      (ef) => String(ef.domain || '').toLowerCase() === td.domain.toLowerCase() &&
+              String(ef.assessment_name || '').toLowerCase().includes(tmpl.name.toLowerCase().split(' ')[0])
+    );
+    if (alreadyExists && !targetDomain && !targetDomainCode) return;
+
+    const findingText = b.finding_text || td.defaultFindingPrompt;
+    const resultVal = b.result_value || td.defaultResult;
+    const fRes = run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      c.id, ca.id, tmpl.name, td.domain, findingText, resultVal,
+      'Clinician-Selected Assessment Domain Template', 'Clinic / School / Home',
+      'Baseline repertoire documented', 'Target measurable skill acquisition / behavior reduction', '',
+      'priority_goal', `${u.name} (${u.role})`, nowIso
+    );
+    const fid = Number(fRes.lastInsertRowid);
+    addedFindings++;
+
+    const sampleGoalText = (b.goal_text || td.sampleGoal).replace(/\{client\}/g, c.name);
+    const analysis = G.analyzeSmartGoal({
+      rawGoalText: sampleGoalText,
+      goalType: td.goalType,
+      domain: td.domain,
+      clientName: c.name,
+      communicationModality: c.communication || 'Vocal / AAC / PECS',
+      findingId: fid,
+      findingText
+    });
+
+    run(
+      'INSERT INTO smart_goal_drafts(client_id,finding_id,goal_type,raw_goal_text,refined_goal_text,domain,operational_definition,onset_criteria,offset_criteria,episode_rule,examples,non_examples,exclusions,primary_measurement,secondary_measurement,measurement_rationale,data_fields_json,sample_rows_json,clarity_json,baseline_data,mastery_criteria,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      c.id,
+      fid,
+      analysis.goalType,
+      sampleGoalText,
+      analysis.clarityCheck.refinedGoalText,
+      td.domain,
+      analysis.operationalDefinition.summary,
+      analysis.operationalDefinition.onsetCriteria,
+      analysis.operationalDefinition.offsetCriteria,
+      analysis.operationalDefinition.episodeRule,
+      (analysis.operationalDefinition.examples || []).join('; '),
+      (analysis.operationalDefinition.nonExamples || []).join('; '),
+      (analysis.operationalDefinition.exclusions || []).join('; '),
+      analysis.measurementPlan.primaryMeasurement,
+      analysis.measurementPlan.secondaryMeasurement || '',
+      analysis.measurementPlan.rationale,
+      JSON.stringify(analysis.dataCollectionPlan.dataFields),
+      JSON.stringify(analysis.dataCollectionPlan.sampleRows),
+      JSON.stringify(analysis.clarityCheck),
+      analysis.masteryRecommendation.suggestedBaseline,
+      analysis.masteryRecommendation.suggestedCriterion,
+      'draft',
+      `${u.name} (${u.role})`,
+      nowIso
+    );
+    addedDrafts++;
+  });
+
+  logAudit(u, {
+    client_id: c.id,
+    entity_type: 'progress_report_template',
+    entity_id: ca.id,
+    action: 'POPULATE_ASSESSMENT_DOMAINS',
+    details: `Auto-populated ${addedFindings} domain finding(s) and ${addedDrafts} Smart Goal draft(s) from ${tmpl.name} template`
+  });
+
+  const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
+  const abcLogs = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
+  const auths = all('SELECT * FROM authorizations WHERE client_id=?', c.id);
+  const assessments = all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
+  const assessmentFindings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
+  const smartGoalDrafts = all('SELECT * FROM smart_goal_drafts WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => enrichBehaviorProgram(bp, behaviorEvents, abcLogs));
+
+  return {
+    ok: true,
+    populatedCount: addedFindings,
+    addedFindings,
+    addedDrafts,
+    templateId: tmpl.id,
+    templateName: tmpl.name,
+    reportTemplate: G.generateAssessmentReportTemplate({
+      client: c,
+      templateId: tmpl.id,
+      goals,
+      assessments,
+      assessmentFindings,
+      smartGoalDrafts,
+      behaviorPrograms,
+      behaviorEvents,
+      abcLogs,
+      auths
+    })
+  };
 });
 route('PUT', '/api/clients/:id', (u, b, p) => {
   need(u, 'BCBA');

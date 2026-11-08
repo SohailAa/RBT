@@ -889,8 +889,31 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(reauthWithDomains.s === 200 &&
      Array.isArray(reauthWithDomains.j.domainMatrix) &&
      reauthWithDomains.j.domainMatrix.length >= 1 &&
+     reauthWithDomains.j.reportTemplate &&
+     Array.isArray(reauthWithDomains.j.reportTemplate.domainRows) &&
      reauthWithDomains.j.text.includes('2. AUTO-POPULATED ASSESSMENT INSTRUMENTS & DOMAIN MATRIX'),
-     'GET /api/clients/:id/reauth-report auto-populates Section 2 Assessment Instruments & Domain Matrix from assessment findings, skill goals, and behavior programs');
+     'GET /api/clients/:id/reauth-report auto-populates Section 2 Assessment Instruments & Domain Matrix and structured reportTemplate');
+
+  // 32. Auto-Populated Multi-Domain Assessment & Progress Report Templates (VB-MAPP, ABLLS-R, AFLS, EFL, Vineland-3)
+  const tplGetVbmapp = await b('GET', '/api/clients/1/progress-report-template?template=vbmapp');
+  ok(tplGetVbmapp.s === 200 &&
+     tplGetVbmapp.j.selectedTemplateId === 'vbmapp' &&
+     Array.isArray(tplGetVbmapp.j.domainRows) &&
+     tplGetVbmapp.j.domainRows.length >= 6 &&
+     tplGetVbmapp.j.domainRows.every(r => r.operationalDefinition && r.measurementPlan && r.progressMonitoring && r.progressMonitoring.rawObservations && r.progressMonitoring.calculatedMetrics && r.progressMonitoring.aiNarrativeDraft),
+     'GET /api/clients/1/progress-report-template?template=vbmapp returns VB-MAPP domains with operational definitions, primary/secondary measurement, and separated raw/calculated/AI narrative fields');
+
+  const tplPopulateVineland = await b('POST', '/api/clients/1/progress-report-template/populate', {
+    templateId: 'vineland3'
+  });
+  ok(tplPopulateVineland.s === 200 &&
+     tplPopulateVineland.j.populatedCount >= 1 &&
+     tplPopulateVineland.j.reportTemplate &&
+     tplPopulateVineland.j.reportTemplate.domainRows.filter(r => r.instrumentId === 'vineland3' && r.evidenceStatus === 'clinician_entered').length >= 5,
+     'POST /api/clients/1/progress-report-template/populate auto-populates all 5 Vineland-3 domains with clinician-reviewable findings and Smart Goal drafts');
+
+  ok(appJsText.includes('ABA Assessment Center') && appJsText.includes('renderAutoPopulatedReportTemplateSection'),
+     'Frontend includes top-level ABA Assessment Center sidebar navigation and Auto-Populated Domain Report Template view');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
