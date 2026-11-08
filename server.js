@@ -87,6 +87,9 @@ try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_at TEXT DEFAULT 
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_by TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec('ALTER TABLE behavior_events ADD COLUMN definition_version INTEGER DEFAULT 1'); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_events ADD COLUMN definition_snapshot TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN configured_prompts TEXT DEFAULT 'I,V,G'"); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN breaks_count INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE sessions ADD COLUMN break_started_at TEXT DEFAULT ''"); } catch (e) {}
 
 // ---------- helpers ----------
 const getLocalDate = (d = new Date()) => {
@@ -360,6 +363,87 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
       'Dr. Dana Rivera, BCBA',
       'active'
     ).lastInsertRowid;
+
+    const bpElLeaveDef = 'Leaving the designated instructional area (> 3 feet from assigned seat or activity mat) without prior request or adult permission.';
+    const bpElLeaveHist = JSON.stringify(buildInitialBehaviorHistory({ definition: bpElLeaveDef, measurement_type: 'duration', updated_at: seedTs }));
+    run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el,
+      'Leaving designated area',
+      bpElLeaveDef,
+      'duration',
+      'Escape',
+      'Mild: Stepping 3–5 ft away; Moderate: Walking across classroom; Severe: Attempting to exit classroom door',
+      'Begins when both feet cross > 3 feet beyond the designated tabletop or activity area boundary without permission.',
+      'Ends when client returns within 3 feet of designated instructional area for 10 consecutive seconds.',
+      'Walking away from desk to window when presented with sorting task; running to beanbag without asking for a break.',
+      'Walking to bathroom or sensory corner after exchanging "Break Please" card.',
+      'Avg 65s per episode across 3 baseline sessions',
+      65,
+      10,
+      'Reduce average duration of leaving designated area from 65s to ≤ 10s per episode.',
+      'Exchange "Break Please" card and wait for RBT acknowledgment before leaving seat on ≥ 85% of opportunities.',
+      '≤ 10s average duration across 3 consecutive sessions',
+      1,
+      bpElLeaveHist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    );
+
+    const bpLeScreamDef = 'Any vocalization above conversational volume lasting ≥ 3 seconds following task demand or transition cue.';
+    const bpLeScreamHist = JSON.stringify(buildInitialBehaviorHistory({ definition: bpLeScreamDef, measurement_type: 'frequency', updated_at: seedTs }));
+    run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le,
+      'Screaming / vocal protest',
+      bpLeScreamDef,
+      'frequency',
+      'Escape',
+      'Mild: Loud whining <10s; Moderate: Screaming 10s–1m; Severe: Screaming >1m',
+      'Begins when vocalization exceeds conversational volume for ≥ 3 seconds.',
+      'Ends after 5 consecutive seconds of calm vocal volume.',
+      'Yelling when visual timer signals end of train play.',
+      'Vocalizing excitedly while pushing toy train on tracks.',
+      '3.0 episodes/hr across baseline sessions',
+      3.0,
+      0.5,
+      'Decrease screaming / vocal protest to ≤ 0.5 episodes/hr.',
+      'Exchange PECS "Wait" or "Break" card independently on ≥ 80% of transitions.',
+      '≤ 0.5 episodes/hr across 3 consecutive sessions',
+      1,
+      bpLeScreamHist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    );
+
+    const bpLeLeaveDef = 'Leaving the designated play or table work area (> 3 feet) without adult permission during structured activities.';
+    const bpLeLeaveHist = JSON.stringify(buildInitialBehaviorHistory({ definition: bpLeLeaveDef, measurement_type: 'duration', updated_at: seedTs }));
+    run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le,
+      'Leaving designated area',
+      bpLeLeaveDef,
+      'duration',
+      'Escape',
+      'Mild: Walking to couch; Moderate: Leaving room; Severe: Bolting toward hallway',
+      'Begins when learner moves > 3 feet away from designated instructional area without permission.',
+      'Ends when learner returns to designated area and remains for 10 seconds.',
+      'Walking away from table to couch when transition cue is delivered.',
+      'Transitioning to play mat after completing token board.',
+      'Avg 75s per episode across baseline',
+      75,
+      15,
+      'Reduce episode duration of leaving designated area to ≤ 15s.',
+      'Request a break using PECS card on ≥ 80% of opportunities.',
+      'Average duration ≤ 15s across 3 consecutive sessions',
+      1,
+      bpLeLeaveHist,
+      seedTs,
+      'Dr. Dana Rivera, BCBA',
+      'active'
+    );
 
     const bp3Def = 'Audible crying with or without tears lasting ≥ 5 seconds following removal or denial of a preferred item.';
     const bp3Hist = JSON.stringify(buildInitialBehaviorHistory({ definition: bp3Def, measurement_type: 'duration', updated_at: seedTs }));
@@ -911,12 +995,17 @@ function goalProgress(goal) {
     recommendation = `⚠️ Target Stalled (${current}% [${currentNumDenom}] vs ${goal.baseline}% baseline). Recommend reviewing prompt hierarchy (${goal.prompt_strategy || 'Least-to-Most'}) or environmental adaptations.`;
   }
 
+  const rawConfigPrompts = String(goal.configured_prompts || 'I,V,G').trim();
+  const configuredPromptsList = rawConfigPrompts.split(',').map((s) => s.trim()).filter(Boolean);
+
   return {
     ...goal,
     domain: goal.domain || 'DTT / Skill Acquisition',
     prompt_strategy: goal.prompt_strategy || 'Least-to-Most',
     scoring_rule: scoringRule,
     mastery_sessions: reqSessions,
+    configured_prompts: rawConfigPrompts || 'I,V,G',
+    configuredPrompts: configuredPromptsList.length ? configuredPromptsList : ['I', 'V', 'G'],
     series,
     current,
     currentNumDenom,
@@ -2852,13 +2941,14 @@ route('POST', '/api/clients/:id/goals', (u, b, p) => {
   const linkedFindingId = b.linked_finding_id ? Number(b.linked_finding_id) : null;
   const approvedBy = u.role === 'BCBA' || u.role === 'OWNER' ? `${u.name} (${u.role})` : '';
   const approvedAt = approvedBy ? new Date().toISOString() : '';
+  const cfgPrompts = Array.isArray(b.configured_prompts) ? b.configured_prompts.join(',') : (Array.isArray(b.configuredPrompts) ? b.configuredPrompts.join(',') : String(b.configured_prompts || b.configuredPrompts || 'I,V,G').trim());
 
   const r = run(
-    'INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions,operational_definition,onset_criteria,offset_criteria,examples,non_examples,measurement_type,secondary_measurement,data_fields_json,linked_finding_id,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, dataFieldsJson, linkedFindingId, approvedBy, approvedAt
+    'INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions,operational_definition,onset_criteria,offset_criteria,examples,non_examples,measurement_type,secondary_measurement,data_fields_json,linked_finding_id,approved_by,approved_at,configured_prompts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, dataFieldsJson, linkedFindingId, approvedBy, approvedAt, cfgPrompts || 'I,V,G'
   );
   const gid = Number(r.lastInsertRowid);
-  logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Measure: ${measType}, Target: ${+b.target || 80}% across ${masterySessions} sessions)` });
+  logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Measure: ${measType}, Target: ${+b.target || 80}% across ${masterySessions} sessions, Prompts: ${cfgPrompts || 'I,V,G'})` });
   const g = get('SELECT * FROM goals WHERE id=?', gid);
   return { id: gid, goal: g ? goalProgress(g) : null };
 });
@@ -2901,11 +2991,14 @@ route('PUT', '/api/goals/:id', (u, b, p) => {
   const nonExamples = b.non_examples !== undefined ? String(b.non_examples).trim() : (g.non_examples || '');
   const measType = b.measurement_type !== undefined ? String(b.measurement_type).trim() : (g.measurement_type || 'trial_by_trial');
   const secMeas = b.secondary_measurement !== undefined ? String(b.secondary_measurement).trim() : (g.secondary_measurement || '');
+  const cfgPrompts = b.configured_prompts !== undefined || b.configuredPrompts !== undefined
+    ? (Array.isArray(b.configured_prompts) ? b.configured_prompts.join(',') : (Array.isArray(b.configuredPrompts) ? b.configuredPrompts.join(',') : String(b.configured_prompts || b.configuredPrompts || 'I,V,G').trim()))
+    : (g.configured_prompts || 'I,V,G');
   run(
-    'UPDATE goals SET title=?,baseline=?,target=?,status=?,domain=?,prompt_strategy=?,scoring_rule=?,mastery_sessions=?,operational_definition=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,measurement_type=?,secondary_measurement=? WHERE id=?',
-    title, baseline, target, status, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, g.id
+    'UPDATE goals SET title=?,baseline=?,target=?,status=?,domain=?,prompt_strategy=?,scoring_rule=?,mastery_sessions=?,operational_definition=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,measurement_type=?,secondary_measurement=?,configured_prompts=? WHERE id=?',
+    title, baseline, target, status, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, cfgPrompts || 'I,V,G', g.id
   );
-  logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'UPDATE_GOAL', details: `Updated goal "${title}" -> Status: ${status}, Target: ${target}%, Measure: ${measType}` });
+  logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'UPDATE_GOAL', details: `Updated goal "${title}" -> Status: ${status}, Target: ${target}%, Measure: ${measType}, Prompts: ${cfgPrompts || 'I,V,G'}` });
   const updated = get('SELECT * FROM goals WHERE id=?', g.id);
   return goalProgress(updated);
 });
@@ -3831,10 +3924,55 @@ function sessionView(u, sid) {
     pct: goals.length ? Math.round((goalsWithData / goals.length) * 100) : 100,
     numDenom: `${goalsWithData}/${goals.length}`
   };
+  const totalSkillTrials = goals.reduce((acc, g) => acc + ((g.summary && g.summary.rawTotal) || 0), 0);
+  const totalBehaviorsToday = (behaviorSummary && behaviorSummary.totalEvents) || behaviorEvents.reduce((acc, ev) => acc + (Number(ev.count) || 1), 0);
+  const breaksCount = Number(s.breaks_count) || 0;
+  const breakActive = Boolean(s.break_started_at);
 
-  return { session: s, client, goals, allGoals, plans, stories, appt, abcLogs, behaviorPrograms, behaviorEvents, behaviorSummary, taskAnalyses, auditLogs, dataCompleteness };
+  return {
+    session: s,
+    client,
+    goals,
+    allGoals,
+    plans,
+    stories,
+    appt,
+    abcLogs,
+    behaviorPrograms,
+    behaviorEvents,
+    behaviorSummary,
+    taskAnalyses,
+    auditLogs,
+    dataCompleteness,
+    totalSkillTrials,
+    totalBehaviorsToday,
+    breaksCount,
+    breakActive,
+    breakStartedAt: s.break_started_at || ''
+  };
 }
 route('GET', '/api/sessions/:id', (u, b, p) => { if (u.role === 'PARENT') bad(403, 'Not allowed'); return sessionView(u, p.id); });
+route('POST', '/api/sessions/:id/breaks', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const action = String(b.action || 'start').toLowerCase();
+  const nowIso = new Date().toISOString();
+  let nextCount = Number(s.breaks_count) || 0;
+  let nextStartedAt = s.break_started_at || '';
+  if (action === 'end' || action === 'stop') {
+    const durSec = nextStartedAt ? Math.max(1, Math.round((Date.now() - new Date(nextStartedAt).getTime()) / 1000)) : 0;
+    if (nextCount === 0) nextCount = 1;
+    nextStartedAt = '';
+    run('UPDATE sessions SET breaks_count=?, break_started_at=? WHERE id=?', nextCount, nextStartedAt, s.id);
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'END_BREAK', details: `Ended session break${durSec ? ` (${durSec}s duration)` : ''} · Total breaks: ${nextCount}` });
+  } else {
+    nextCount += 1;
+    nextStartedAt = nowIso;
+    run('UPDATE sessions SET breaks_count=?, break_started_at=? WHERE id=?', nextCount, nextStartedAt, s.id);
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'START_BREAK', details: `Started session break #${nextCount} at ${nowIso.slice(11, 19)}` });
+  }
+  return { ok: true, breaks_count: nextCount, break_active: Boolean(nextStartedAt), break_started_at: nextStartedAt };
+});
 route('PUT', '/api/sessions/:id/meta', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
   clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');

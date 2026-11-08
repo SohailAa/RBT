@@ -55,6 +55,21 @@ let selectedAssessmentInstrumentId = 'vbmapp';
 let activeReportTemplateId = 'all';
 let reauthModalTab = 'structured_template';
 let assessmentCenterClientId = 1;
+let rbtFullClinicalView = false;
+let showSessionNotesBox = false;
+
+const PROMPT_SHORT_LABELS = {
+  I: 'IND',
+  V: 'VERB',
+  G: 'GEST',
+  Vi: 'VIS',
+  M: 'MOD',
+  PP: 'PART',
+  P: 'PHYS',
+  INC: 'ERR',
+  N: 'REF',
+  NA: 'N/A'
+};
 
 const SMART_MEASUREMENT_OPTIONS = [
   { key: 'percentage_of_opportunities', label: 'Percentage of Opportunities (% Independent)' },
@@ -2271,13 +2286,13 @@ function renderRbtKpi(d) {
 
   return `
   <!-- Clear Role Focus Bar -->
-  <div class="card" style="padding:14px 18px;margin-bottom:16px;background:#f0fdfa;border-top:none;border-left:4px solid #059669">
+  <div style="padding:16px 20px;margin-bottom:16px;background:#dff1f3;border:2px solid #7fb7be;border-radius:16px">
     <div class="flex-between" style="flex-wrap:wrap;gap:10px">
       <div>
-        <div style="font-size:0.75rem;font-weight:700;color:#047857;text-transform:uppercase">RBT View</div>
-        <div style="font-size:0.98rem;font-weight:700;color:var(--slate-900)">Assigned Tasks, Data Collection Requirements & Training Progress</div>
+        <div style="font-size:1.25rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">RBT SEPIA | DASHBOARD</div>
+        <div style="font-size:0.92rem;font-weight:600;color:#334155;margin-top:2px">Same visual style • fewer decisions • faster data entry — Click "▶ Start Session" below to open the Simplified RBT Session Screen</div>
       </div>
-      <button class="ok" style="padding:6px 12px;font-size:0.8rem" onclick="go('schedule')">Open Full Schedule →</button>
+      <button class="ok" style="padding:8px 14px;font-size:0.82rem;background:#0d7a68" onclick="go('schedule')">Open Full Schedule →</button>
     </div>
   </div>
 
@@ -4371,7 +4386,9 @@ async function sessionView(id) {
         const bEl = document.getElementById(`beh_timer_${bpId}`);
         if (bEl && tInfo && tInfo.startMs) {
           const sec = Math.max(1, Math.round((Date.now() - tInfo.startMs) / 1000));
-          bEl.textContent = `⏹ Stop ${tInfo.mode === 'latency' ? 'Latency' : 'Duration'} (${sec}s)`;
+          bEl.textContent = rbtFullClinicalView
+            ? `⏹ Stop ${tInfo.mode === 'latency' ? 'Latency' : 'Duration'} (${sec}s)`
+            : (tInfo.mode === 'latency' ? `⏹ MARK RESPONSE (${sec}s)` : `⏹ STOP EPISODE (${sec}s)`);
         }
       });
     }, 1000);
@@ -4437,13 +4454,410 @@ async function sessionView(id) {
     </div>`;
   };
 
+  // Counters for Simplified RBT Session Dashboard (Page 2 of PDF Spec)
+  const totalBehaviorsCount = (behaviorSummary.frequencyCount || 0) + abcLogs.length;
+  const totalSkillTrialsCount = goals.reduce((acc, g) => acc + ((g.summary && (g.summary.rawTotal ?? g.summary.total)) || 0), 0);
+  const breaksCount = v.breaksCount || (s && s.breaks_count) || 0;
+  const breakActive = Boolean(v.breakActive || (s && s.break_started_at));
+  const activeBehPrograms = behaviorPrograms.filter((bp) => bp.status !== 'archived');
+
+  if (!rbtFullClinicalView) {
+    return `
+    <div class="rbt-simplified-session" style="max-width:1080px;margin:0 auto">
+      <!-- Top Header Card (RBT SEPIA | SESSION) -->
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:18px;padding:16px 22px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+        <div>
+          <div style="font-size:1.38rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">RBT SEPIA | SESSION</div>
+          <div style="font-size:0.96rem;color:#334155;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <span>Client: <b style="color:#0f172a">${esc(client.name)}</b></span>
+            <span>Session: <b style="color:${ended ? '#0d7a68' : (breakActive ? '#d97706' : '#0f4c5c')}">${ended ? 'Completed' : (breakActive ? 'On Break' : 'Active')}</b></span>
+            <span id="clock" style="font-family:var(--font-mono);font-weight:800;font-size:0.88rem;color:#0f4c5c;background:#ffffff;border:1.5px solid #8abec4;padding:2px 9px;border-radius:8px">${ended ? `${s.units} units` : '00:00:00'}</span>
+            <span id="calc_units" style="font-family:var(--font-mono);font-size:0.78rem;color:#475569">${ended ? `${s.units} × 15-min units (${s.units * 15} mins)` : '0 units · CMS 8-Minute Rule'}</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <button type="button" class="sec" style="padding:4px 10px;font-size:0.75rem;background:#ffffff;border-color:#8abec4;color:#0f4c5c;font-weight:700" onclick="act.toggleKidMode()">
+              ★ ${showKidMode ? 'Hide Kid Mode' : 'Kid Mode'}
+            </button>
+            <button type="button" class="sec" style="padding:4px 10px;font-size:0.75rem;background:#ffffff;border-color:#8abec4;color:#0f4c5c;font-weight:700" onclick="go('client', ${client.id})">
+              👧 Client Profile
+            </button>
+            <button type="button" class="sec" style="padding:4px 10px;font-size:0.75rem;background:#ffffff;border-color:#8abec4;color:#0f4c5c;font-weight:700" onclick="rbtFullClinicalView=true;render()">
+              ⚙️ BCBA Full Clinical Controls
+            </button>
+          </div>
+        </div>
+        <div>
+          ${ended
+            ? `<div style="background:#0d7a68;color:#ffffff;font-weight:800;font-size:0.9rem;padding:12px 20px;border-radius:12px">✓ SESSION ENDED (${s.units} UNITS)</div>`
+            : `<button type="button" style="background:#b91c47;color:#ffffff;border:none;border-radius:12px;padding:13px 26px;font-size:0.98rem;font-weight:800;letter-spacing:0.02em;cursor:pointer;box-shadow:0 2px 6px rgba(185,28,71,0.25)" onclick="act.endSession(${s.id})">END SESSION</button>`
+          }
+        </div>
+      </div>
+
+      <!-- 3 KPI Counter Cards Row (Behaviors | Skill trials | Breaks) -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+        <div style="background:#ffffff;border:2px solid #8abec4;border-radius:14px;padding:12px 18px;display:flex;align-items:baseline;gap:12px">
+          <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(totalBehaviorsCount).padStart(2, '0')}</span>
+          <span style="font-size:0.96rem;color:#334155;font-weight:600">Behaviors</span>
+        </div>
+        <div style="background:#ffffff;border:2px solid #8abec4;border-radius:14px;padding:12px 18px;display:flex;align-items:baseline;gap:12px">
+          <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(totalSkillTrialsCount).padStart(2, '0')}</span>
+          <span style="font-size:0.96rem;color:#334155;font-weight:600">Skill trials</span>
+        </div>
+        <div style="background:#ffffff;border:2px solid #8abec4;border-radius:14px;padding:12px 18px;display:flex;align-items:baseline;gap:12px">
+          <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(breaksCount).padStart(2, '0')}</span>
+          <span style="font-size:0.96rem;color:#334155;font-weight:600">Breaks${breakActive ? ' <span class="badge tan" style="font-size:0.7rem;margin-left:6px">Active</span>' : ''}</span>
+        </div>
+      </div>
+
+      ${showKidMode ? `
+        <div class="kid-playground" style="margin-bottom:18px">
+          <div class="kid-top-controls">
+            <div class="kid-theme-pills">
+              ${Object.values(KID_THEMES).map((th) => `
+                <button class="kid-theme-btn ${kidTheme === th.id ? 'active' : ''}" onclick="act.setKidTheme('${th.id}')">${th.name}</button>
+              `).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div class="kid-schedule-pills">
+                ${[3, 5, 10].map((num) => `
+                  <button class="kid-sched-btn ${targetTokens === num ? 'active' : ''}" onclick="act.setTargetTokens(${num})">FR-${num} (${num} ${theme.tokenEarned})</button>
+                `).join('')}
+              </div>
+              <button class="sec" style="font-size:0.78rem;padding:6px 10px;border-radius:999px" onclick="act.toggleKidAutoToken()">
+                ${kidAutoToken ? '⚡ Auto-Token: ON' : '⚪ Auto-Token: OFF'}
+              </button>
+              <button class="sec" style="font-size:0.78rem;padding:6px 10px;border-radius:999px" onclick="act.resetTokens()">🔄 Reset</button>
+            </div>
+          </div>
+          <div class="token-track">
+            ${Array.from({ length: targetTokens }).map((_, idx) => {
+              const isEarned = idx < tokenCount;
+              return `
+                <div class="token-slot ${isEarned ? 'earned' : ''}" onclick="act.toggleToken(${idx}, '${esc(client.name)}', '${esc(activeRewardObj.label)}')">
+                  <div class="token-slot-num">#${idx + 1}</div>
+                  <div class="token-slot-ic">${isEarned ? theme.tokenEarned : theme.tokenEmpty}</div>
+                  <div class="token-slot-lbl">${isEarned ? 'EARNED!' : 'Tap Me'}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Section 1: 1. BEHAVIOR TRACKING | BCBA-assigned measures -->
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">1. BEHAVIOR TRACKING</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:0.88rem;color:#334155;font-weight:600">BCBA-assigned measures</span>
+          ${!ended && (behaviorSummary.frequencyCount || 0) > 0 ? `<button type="button" class="sec" style="padding:3px 9px;font-size:0.73rem;background:#fff;border-color:#8abec4;color:#0f4c5c" onclick="act.undoBehaviorEvent(${s.id})">↩ Undo</button>` : ''}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:18px">
+        ${activeBehPrograms.map((bp) => {
+          const bpStats = (behaviorSummary.byBehavior && (behaviorSummary.byBehavior[`id_${bp.id}`] || behaviorSummary.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          const runningTimer = behTimers[bp.id];
+          const mType = String(bp.measurement_type || 'frequency').toLowerCase();
+          let pillLabel = 'FREQUENCY';
+          let pillBg = '#f3d6ce';
+          let pillColor = '#8c2d19';
+          if (mType === 'duration' || mType === 'irt') {
+            pillLabel = 'FREQUENCY + DURATION';
+            pillBg = '#d6eff2';
+            pillColor = '#0f4c5c';
+          } else if (mType === 'latency') {
+            pillLabel = 'LATENCY';
+            pillBg = '#d6eff2';
+            pillColor = '#0f4c5c';
+          } else if (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts') {
+            pillLabel = 'INTERVAL';
+            pillBg = '#e0e7ff';
+            pillColor = '#1e40af';
+          } else if (mType === 'abc') {
+            pillLabel = 'ABC RECORD';
+            pillBg = '#fef3c7';
+            pillColor = '#92400e';
+          }
+
+          let primaryControlHtml = '';
+          if (mType === 'duration' || mType === 'irt') {
+            primaryControlHtml = `
+              <button id="beh_timer_${bp.id}" type="button" style="width:100%;background:${runningTimer ? '#b91c47' : '#0d6e6e'};color:#ffffff;border:none;border-radius:12px;padding:13px 16px;font-size:0.96rem;font-weight:800;cursor:pointer"
+                onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'duration')" ${ended ? 'disabled' : ''}>
+                ${runningTimer ? 'STOP EPISODE' : 'START EPISODE'}
+              </button>
+            `;
+          } else if (mType === 'latency') {
+            primaryControlHtml = `
+              <button id="beh_timer_${bp.id}" type="button" style="width:100%;background:${runningTimer ? '#b91c47' : '#0d6e6e'};color:#ffffff;border:none;border-radius:12px;padding:13px 16px;font-size:0.96rem;font-weight:800;cursor:pointer"
+                onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'latency')" ${ended ? 'disabled' : ''}>
+                ${runningTimer ? 'MARK RESPONSE' : 'START AT CUE'}
+              </button>
+            `;
+          } else if (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts') {
+            primaryControlHtml = `
+              <div style="display:flex;gap:8px">
+                <button type="button" style="flex:2;background:#0d6e6e;color:#ffffff;border:none;border-radius:12px;padding:13px 12px;font-size:0.86rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, 1)" ${ended ? 'disabled' : ''}>
+                  MARK OCCURRENCE FOR INTERVAL
+                </button>
+                <button type="button" style="flex:1;background:#64748b;color:#ffffff;border:none;border-radius:12px;padding:13px 10px;font-size:0.82rem;font-weight:700;cursor:pointer"
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, 0)" ${ended ? 'disabled' : ''}>
+                  NO (−)
+                </button>
+              </div>
+            `;
+          } else if (mType === 'abc') {
+            primaryControlHtml = `
+              <button type="button" style="width:100%;background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:13px 16px;font-size:0.96rem;font-weight:800;cursor:pointer"
+                onclick="act.openAbcModal(${client.id}, ${s.id})" ${ended ? 'disabled' : ''}>
+                ADD ABC RECORD
+              </button>
+            `;
+          } else {
+            primaryControlHtml = `
+              <button type="button" style="width:100%;background:#b91c47;color:#ffffff;border:none;border-radius:12px;padding:13px 16px;font-size:0.96rem;font-weight:800;cursor:pointer"
+                onclick="act.quickTallyBehavior(${client.id}, ${s.id}, ${bp.id})" ${ended ? 'disabled' : ''}>
+                +1 RECORD
+              </button>
+            `;
+          }
+
+          return `
+            <div style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+                  <div style="font-size:1.08rem;font-weight:800;color:#0f172a;line-height:1.3" title="${esc(bp.operational_definition || bp.definition || '')}">
+                    ${esc(bp.name)}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                    <span style="background:${pillBg};color:${pillColor};font-size:0.72rem;font-weight:800;padding:4px 10px;border-radius:999px;letter-spacing:0.03em">
+                      ${pillLabel}
+                    </span>
+                    ${renderBehaviorCardThreeDotMenu(bp, client.id, s.id)}
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+                  <div>
+                    <div style="font-size:0.84rem;color:#475569">Count today</div>
+                    <div style="font-size:2rem;font-weight:900;color:${bpStats.frequency > 0 && (mType === 'frequency' || mType === 'rate') ? '#b91c47' : '#0f4c5c'};font-family:var(--font-mono);line-height:1.1;margin-top:2px">
+                      ${bpStats.frequency || 0}
+                    </div>
+                  </div>
+                  <div style="text-align:right;font-family:var(--font-mono);font-size:0.76rem;color:#475569">
+                    ${mType === 'duration' || mType === 'irt'
+                      ? `Avg duration: <b>${bpStats.avgDurationSec || 0}s</b>`
+                      : mType === 'latency'
+                        ? `Avg latency: <b>${bpStats.avgLatencySec || 0}s</b>`
+                        : (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts')
+                          ? `Intervals: <b>${bpStats.intervalPct ?? 0}% (${bpStats.intervalNumDenom || '0/0'})</b>`
+                          : `Auto rate: <b>${bpStats.ratePerHour || 0}/hr</b>`}
+                  </div>
+                </div>
+              </div>
+              <div>
+                ${primaryControlHtml}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Section 2: 2. SKILL ACQUISITION | NET / DTT -->
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">2. SKILL ACQUISITION</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:0.88rem;color:#334155;font-weight:600">NET / DTT</span>
+          ${!ended && totalSkillTrialsCount > 0 ? `<button type="button" class="sec" style="padding:3px 9px;font-size:0.73rem;background:#fff;border-color:#8abec4;color:#0f4c5c" onclick="act.undo(${s.id})">↩ Undo Trial</button>` : ''}
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:18px">
+        ${goals.map((g) => {
+          const rawTotal = g.summary ? (g.summary.rawTotal ?? g.summary.total ?? 0) : 0;
+          const scoredTotal = g.summary ? (g.summary.total ?? 0) : 0;
+          const indepPct = g.summary && g.summary.pct ? (g.summary.pct.I ?? 0) : 0;
+          const indepND = g.summary ? (g.summary.indepNumDenom || `${g.summary.counts?.I || 0}/${scoredTotal}`) : '0/0';
+          const promptedPct = g.summary ? (g.summary.promptedPct ?? 0) : 0;
+          const promptND = g.summary ? (g.summary.promptedNumDenom || `${g.summary.promptedCount || 0}/${scoredTotal}`) : '0/0';
+          const cfgPrompts = Array.isArray(g.configuredPrompts) && g.configuredPrompts.length
+            ? g.configuredPrompts
+            : String(g.configured_prompts || 'I,V,G').split(',').map((x) => x.trim()).filter(Boolean);
+
+          return `
+            <div style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+                  <div style="font-size:1.08rem;font-weight:800;color:#0f172a;cursor:pointer;line-height:1.3" onclick="act.openGoalModal(${g.id})" title="Click to review or configure prompt levels">
+                    ${esc(g.title)}
+                  </div>
+                  ${g.mastery_met ? `<span class="tag approved" style="font-size:0.68rem;flex-shrink:0">Mastery Met</span>` : ''}
+                </div>
+                <div style="font-size:0.84rem;color:#475569;margin-top:6px">Session trials</div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 12px">
+                  <div>
+                    <span style="font-size:1.95rem;font-weight:900;color:#0d7a68;font-family:var(--font-mono)">${rawTotal} / 10</span>
+                    ${rawTotal > 0 ? `
+                      <div style="font-family:var(--font-mono);font-size:0.74rem;color:#475569;margin-top:2px">
+                        Indep: <b style="color:#0d7a68">${indepPct}% (${esc(indepND)})</b> · Prompted: <b>${promptedPct}% (${esc(promptND)})</b>
+                      </div>
+                    ` : ''}
+                  </div>
+                  <span style="font-size:0.92rem;color:#475569;font-weight:600">${g.target || 80}% target</span>
+                </div>
+              </div>
+              <div>
+                <div style="display:grid;grid-template-columns:repeat(${Math.max(1, cfgPrompts.length)},1fr);gap:10px">
+                  ${cfgPrompts.map((code) => {
+                    const pLbl = PROMPT_SHORT_LABELS[code] || code;
+                    const pBg = code === 'I' ? '#0d7a68' : (code === 'INC' ? '#b91c47' : '#1d5d90');
+                    const cnt = (g.summary && g.summary.counts && g.summary.counts[code]) || 0;
+                    return `
+                      <button type="button" style="background:${pBg};color:#ffffff;border:none;border-radius:12px;padding:12px 8px;font-size:0.94rem;font-weight:800;cursor:pointer"
+                        onclick="act.trial(${s.id}, ${g.id}, '${code}')" ${ended ? 'disabled' : ''}>
+                        ${pLbl}${cnt > 0 ? ` (${cnt})` : ''}
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+                ${!ended ? `
+                  <details style="margin-top:8px">
+                    <summary style="font-size:0.74rem;color:#64748b;cursor:pointer;user-select:none">
+                      + Other response / Error / N/A (record every eligible opportunity)
+                    </summary>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+                      ${Object.keys(LV).filter((k) => !cfgPrompts.includes(k)).map((k) => `
+                        <button type="button" class="sec" style="padding:5px 9px;font-size:0.73rem" onclick="act.trial(${s.id}, ${g.id}, '${k}')">
+                          ${PROMPT_SHORT_LABELS[k] || k} (${LV[k].label.split(' ')[0]})
+                        </button>
+                      `).join('')}
+                    </div>
+                  </details>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Section 3: 3. SESSION TOOLS -->
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">3. SESSION TOOLS</span>
+        <span style="font-size:0.88rem;color:#334155;font-weight:600">${breakActive ? '⏸ Break Currently Active' : 'Breaks • ABC • Session notes'}</span>
+      </div>
+
+      <!-- 2x2 Action Buttons Grid (START BREAK, END BREAK, ADD ABC, SESSION NOTES) -->
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px">
+        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+          onclick="act.sessionBreak(${s.id}, 'start')" ${ended ? 'disabled' : ''}>
+          START BREAK
+        </button>
+        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+          onclick="act.sessionBreak(${s.id}, 'end')" ${ended ? 'disabled' : ''}>
+          END BREAK
+        </button>
+        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+          onclick="act.openAbcModal(${client.id}, ${s.id})" ${ended ? 'disabled' : ''}>
+          ADD ABC
+        </button>
+        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+          onclick="act.openSessionNotesSection(${s.id})">
+          SESSION NOTES
+        </button>
+      </div>
+
+      <!-- SESSION DOCUMENTATION Card -->
+      <div id="session_doc_card" style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:18px 20px;margin-bottom:18px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:6px">
+          <div>
+            <div style="font-size:1.05rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">
+              SESSION DOCUMENTATION
+              <span class="tag ${s.note_status === 'none' ? 'draft' : s.note_status}" style="margin-left:8px">
+                ${s.note_status === 'pending_approval' ? 'Pending BCBA Co-Signature' : s.note_status}
+              </span>
+            </div>
+            <div style="font-size:0.92rem;color:#334155;margin-top:6px">
+              Attendance: <b>${esc((s.attendance_status || 'Present').replace('Present - Full Session', 'Present'))}</b> &nbsp;|&nbsp; Barriers: <b>${esc(s.barriers || 'None reported')}</b>
+            </div>
+            <div style="font-size:0.9rem;color:#475569;margin-top:4px">
+              ABC entries and notes are available for therapist completion.
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            ${!ended ? `
+              <button type="button" class="sec" style="font-size:0.78rem;padding:6px 12px" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>
+              <button type="button" class="sec" style="font-size:0.78rem;padding:6px 12px" onclick="act.undoBehaviorEvent(${s.id})">↩ Undo Last Behavior</button>
+            ` : ''}
+            ${s.note_status !== 'signed' ? `
+              <button type="button" class="ok" style="font-size:0.8rem;padding:7px 14px;background:#0d7a68" onclick="act.genNote(${s.id})">
+                🤖 Auto-Draft Clinical Note
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        ${abcLogs.length ? `
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin:10px 0">
+            <div style="font-size:0.8rem;font-weight:800;color:#92400e;margin-bottom:4px">Recorded ABC Observations (${abcLogs.length}) — Organized for BCBA Review:</div>
+            ${abcLogs.map((a) => `
+              <div style="font-size:0.82rem;color:#78350f;margin-bottom:3px">
+                • <b>${esc(a.behavior)}</b>: Antecedent: ${esc(a.antecedent)} → Consequence: ${esc(a.consequence)}
+                <span class="badge" style="font-size:0.68rem;margin-left:4px">${esc(a.perceived_function || 'Pending BCBA Review')}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <details ${ended || showSessionNotesBox || s.note ? 'open' : ''} style="margin-top:10px">
+          <summary style="cursor:pointer;font-weight:700;font-size:0.86rem;color:#0f4c5c">
+            📝 Edit Attendance, Barriers & Session SOAP Note
+          </summary>
+          <div class="row" style="margin-top:10px">
+            <div>
+              <label>Attendance Status</label>
+              <select id="sess_attendance" onchange="act.saveSessionMeta(${s.id})" ${s.note_status === 'signed' ? 'disabled' : ''}>
+                ${['Present - Full Session', 'Late Arrival', 'Early Departure', 'Cancelled - Client Sick', 'No Show'].map((opt) => `
+                  <option value="${opt}" ${(s.attendance_status || 'Present - Full Session') === opt ? 'selected' : ''}>${opt}</option>
+                `).join('')}
+              </select>
+            </div>
+            <div>
+              <label>Barriers (Sleep, Illness, Meds, Schedule Change)</label>
+              <input id="sess_barriers" value="${esc(s.barriers || 'None reported')}" onchange="act.saveSessionMeta(${s.id})" ${s.note_status === 'signed' ? 'disabled' : ''}>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:0.78rem;color:#475569">
+            <b>Clinical Verification Safeguard:</b> Auto-compiled or AI-assisted session observations remain pending therapist verification and BCBA co-signature until confirmed under the agency's workflow. Independent and prompted responses are reported separately.
+          </div>
+
+          <label>Session Narrative (Trials + Behavior Rates/Duration + ABC Observations)</label>
+          <textarea id="note" rows="8" placeholder="Click '🤖 Auto-Draft Clinical Note' above or type session observations..." ${s.note_status === 'signed' ? 'disabled' : ''}>${esc(s.note || '')}</textarea>
+
+          ${s.submitted_by ? `<div style="font-size:0.84rem;color:var(--slate-600);margin:6px 0"><b>RBT Verification:</b> ${esc(s.submitted_by)} ${s.rbt_signed_at ? `(${fmtT(s.rbt_signed_at)})` : ''}</div>` : ''}
+          ${s.signed_by ? `<div style="font-size:0.84rem;color:var(--ok);font-weight:700;margin:6px 0">✓ BCBA Co-Signer: ${esc(s.signed_by)} ${s.bcba_signed_at ? `(${fmtT(s.bcba_signed_at)})` : ''}</div>` : ''}
+
+          ${s.note_status !== 'signed' ? `
+            <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
+              <button type="button" class="sec" onclick="act.saveNote(${s.id})">💾 Save Draft</button>
+              ${me.role === 'RBT' ? `<button type="button" class="ok" style="background:#0d7a68" onclick="act.submitNote(${s.id})">📤 Confirm & Submit Note for BCBA Review</button>` : ''}
+              ${me.role === 'BCBA' ? `<button type="button" class="ok" style="background:#0d7a68" onclick="act.signNote(${s.id})">✍️ BCBA Co-Sign & Approve Note</button>` : ''}
+            </div>
+          ` : `<div style="color:var(--ok);font-weight:700;margin-top:10px">✓ Clinical note finalized, co-signed by BCBA, and units deducted from authorization.</div>`}
+        </details>
+      </div>
+    </div>`;
+  }
+
   return `
   <div class="page-header">
     <div>
-      <h1>Active Session Cockpit</h1>
-      <p class="page-sub">Client: <b>${esc(client.name)}</b> · 1-Tap Trial Recording, 9-Method Behavior Tracker & Interactive Kid Mode</p>
+      <h1>Active Session Cockpit (BCBA Full Clinical Controls)</h1>
+      <p class="page-sub">Client: <b>${esc(client.name)}</b> · Full 9-Method Behavior Suite & 10-Level Prompt Hierarchy</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ok" style="background:#0f4c5c" onclick="rbtFullClinicalView=false;render()">✨ Switch to Simplified RBT View</button>
       <button class="ok" onclick="act.openCreateGoalModal(${client.id})">+ Create New Goal</button>
       <button class="sec" onclick="go('client', ${client.id})">👧 Client 360 Record</button>
     </div>
@@ -7990,6 +8404,15 @@ function renderModal() {
               </select>
             </div>
           </div>
+          <div style="margin:6px 0 12px">
+            <label>BCBA-Configured Prompt Levels Shown to RBT in Session (Comma-Separated Codes or Preset)</label>
+            <input id="edit_g_prompts" value="${esc(g.configured_prompts || 'I,V,G')}" placeholder="e.g. I,V,G">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+              <button type="button" class="sec" style="padding:3px 8px;font-size:0.72rem" onclick="document.getElementById('edit_g_prompts').value='I,V,G'">Simplified Default: IND, VERB, GEST (I,V,G)</button>
+              <button type="button" class="sec" style="padding:3px 8px;font-size:0.72rem" onclick="document.getElementById('edit_g_prompts').value='I,V,G,M,P'">5-Level (I,V,G,M,P)</button>
+              <button type="button" class="sec" style="padding:3px 8px;font-size:0.72rem" onclick="document.getElementById('edit_g_prompts').value='I,V,G,Vi,M,PP,P,INC,N,NA'">All 10 Levels</button>
+            </div>
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
             <button class="ok" onclick="act.masterAndAddNext(${g.id}, ${g.client_id}, ${JSON.stringify(g.title).replace(/"/g, '&quot;')})">
               ✓ Master This Goal & Create Next Progression Target →
@@ -8123,6 +8546,10 @@ function renderModal() {
           <div>
             <label>Consecutive Sessions</label>
             <input id="new_g_sess" type="number" min="1" max="10" value="3">
+          </div>
+          <div>
+            <label>RBT Prompt Buttons Shown</label>
+            <input id="new_g_prompts" value="I,V,G" title="Comma-separated prompt codes shown on RBT session card (e.g. I,V,G)">
           </div>
         </div>
 
@@ -9132,9 +9559,20 @@ const act = {
     const prompt_strategy = val('edit_g_strategy');
     const scoring_rule = val('edit_g_scoring');
     const mastery_sessions = +val('edit_g_sess') || 3;
-    await api('PUT', `/api/goals/${gid}`, { title, baseline, target, status, domain, prompt_strategy, scoring_rule, mastery_sessions });
+    const configured_prompts = val('edit_g_prompts') || 'I,V,G';
+    await api('PUT', `/api/goals/${gid}`, { title, baseline, target, status, domain, prompt_strategy, scoring_rule, mastery_sessions, configured_prompts });
     activeModal = null;
     render();
+  }),
+  sessionBreak: safe(async (sid, action = 'start') => {
+    await api('POST', `/api/sessions/${sid}/breaks`, { action });
+    render();
+  }),
+  openSessionNotesSection: safe(async (sid) => {
+    showSessionNotesBox = true;
+    await render();
+    const el = document.getElementById('session_doc_card');
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth' });
   }),
   quickMasterGoal: safe(async (gid) => {
     await api('PUT', `/api/goals/${gid}`, { status: 'mastered' });
@@ -9181,9 +9619,10 @@ const act = {
     const non_examples = val('new_g_non') || '';
     const measurement_type = val('new_g_mtype') || 'percentage_of_opportunities';
     const secondary_measurement = val('new_g_sec_mtype') || '';
+    const configured_prompts = val('new_g_prompts') || 'I,V,G';
     await api('POST', `/api/clients/${cid}/goals`, {
       title, baseline, target, domain, prompt_strategy, scoring_rule, mastery_sessions,
-      operational_definition, onset_criteria, offset_criteria, examples, non_examples, measurement_type, secondary_measurement
+      operational_definition, onset_criteria, offset_criteria, examples, non_examples, measurement_type, secondary_measurement, configured_prompts
     });
     activeModal = null;
     render();

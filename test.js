@@ -915,6 +915,39 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(appJsText.includes('ABA Assessment Center') && appJsText.includes('renderAutoPopulatedReportTemplateSection'),
      'Frontend includes top-level ABA Assessment Center sidebar navigation and Auto-Populated Domain Report Template view');
 
+  // 33. Simplified RBT Session Dashboard (BCBA-Assigned Single Behavior Controls, Configured Prompt Levels & Session Breaks)
+  const cfgGoalRes = await b('PUT', '/api/goals/1', { configured_prompts: 'I,V,G' });
+  ok(cfgGoalRes.s === 200 &&
+     cfgGoalRes.j.configured_prompts === 'I,V,G' &&
+     Array.isArray(cfgGoalRes.j.configuredPrompts) &&
+     cfgGoalRes.j.configuredPrompts.length === 3 &&
+     cfgGoalRes.j.configuredPrompts[0] === 'I',
+     'BCBA can configure goal-specific prompt levels (I,V,G -> IND, VERB, GEST) shown to RBT during session');
+
+  const breakStartRes = await r('POST', `/api/sessions/${sess2.id}/breaks`, { action: 'start' });
+  ok(breakStartRes.s === 200 && breakStartRes.j.breaks_count === 1 && breakStartRes.j.break_active === true,
+     'RBT can start a session break via POST /api/sessions/:id/breaks and increment session breaks counter');
+
+  const breakEndRes = await r('POST', `/api/sessions/${sess2.id}/breaks`, { action: 'end' });
+  const sessWithBreak = await r('GET', `/api/sessions/${sess2.id}`);
+  ok(breakEndRes.s === 200 &&
+     breakEndRes.j.breaks_count === 1 &&
+     breakEndRes.j.break_active === false &&
+     sessWithBreak.j.breaksCount === 1 &&
+     typeof sessWithBreak.j.totalSkillTrials === 'number',
+     'RBT can end a session break and sessionView returns breaksCount, breakActive, and totalSkillTrials');
+
+  ok(appJsText.includes('RBT SEPIA | SESSION') &&
+     appJsText.includes('1. BEHAVIOR TRACKING') &&
+     appJsText.includes('2. SKILL ACQUISITION') &&
+     appJsText.includes('3. SESSION TOOLS') &&
+     appJsText.includes('+1 RECORD') &&
+     appJsText.includes('START EPISODE') &&
+     appJsText.includes('START BREAK') &&
+     appJsText.includes('END BREAK') &&
+     appJsText.includes('SESSION DOCUMENTATION'),
+     'Simplified RBT Session Dashboard renders 3 top-to-bottom sections, single BCBA-assigned behavior action, configured prompt buttons, and break/session tools');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);
