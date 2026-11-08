@@ -35,7 +35,21 @@ CREATE TABLE IF NOT EXISTS leads(id INTEGER PRIMARY KEY, name TEXT, email TEXT, 
 CREATE TABLE IF NOT EXISTS facility_models(id INTEGER PRIMARY KEY, name TEXT, subtitle TEXT, is_default INTEGER DEFAULT 0, config_json TEXT DEFAULT '{}', updated_at TEXT);
 CREATE TABLE IF NOT EXISTS facility_signups(id INTEGER PRIMARY KEY, child_name TEXT, age INTEGER, diagnosis TEXT, tier TEXT, weekly_hours INTEGER, payer TEXT, cohort TEXT, gym_track TEXT, enrollment_status TEXT DEFAULT 'committed', target_month INTEGER DEFAULT 1, notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS clinic_licenses(id INTEGER PRIMARY KEY, clinic_name TEXT, contact_name TEXT, contact_email TEXT, tier TEXT DEFAULT 'growth', status TEXT DEFAULT 'active', license_key TEXT UNIQUE, base_fee INTEGER DEFAULT 599, max_clients INTEGER DEFAULT 40, per_client_fee INTEGER DEFAULT 15, max_seats INTEGER DEFAULT 20, per_seat_fee INTEGER DEFAULT 24, billing_cycle TEXT DEFAULT 'annual', is_primary INTEGER DEFAULT 0, issued_at TEXT, expires_at TEXT, msa_signed_by TEXT DEFAULT '', msa_signed_at TEXT DEFAULT '', baa_signed_by TEXT DEFAULT '', baa_signed_at TEXT DEFAULT '', eula_accepted_by TEXT DEFAULT '', eula_accepted_at TEXT DEFAULT '', notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS client_assessments(id INTEGER PRIMARY KEY, client_id INTEGER, assessment_ref_id TEXT, assessment_name TEXT, edition TEXT DEFAULT '', assessor_name TEXT DEFAULT '', assessor_role TEXT DEFAULT 'BCBA', assessment_date TEXT DEFAULT '', report_date TEXT DEFAULT '', status TEXT DEFAULT 'Completed', notes TEXT DEFAULT '', created_at TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS assessment_findings(id INTEGER PRIMARY KEY, client_id INTEGER, assessment_id INTEGER, assessment_name TEXT, domain TEXT, finding_text TEXT, result_value TEXT DEFAULT '', evidence_source TEXT DEFAULT '', context TEXT DEFAULT '', strengths TEXT DEFAULT '', support_needs TEXT DEFAULT '', missing_info_flag TEXT DEFAULT '', priority_status TEXT DEFAULT 'priority_goal', entered_by TEXT DEFAULT '', created_at TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS smart_goal_drafts(id INTEGER PRIMARY KEY, client_id INTEGER, finding_id INTEGER, goal_type TEXT DEFAULT 'skill_acquisition', raw_goal_text TEXT DEFAULT '', refined_goal_text TEXT DEFAULT '', domain TEXT DEFAULT 'Skill Acquisition', operational_definition TEXT DEFAULT '', onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', episode_rule TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', exclusions TEXT DEFAULT '', primary_measurement TEXT DEFAULT 'trial_by_trial', secondary_measurement TEXT DEFAULT '', measurement_rationale TEXT DEFAULT '', data_fields_json TEXT DEFAULT '[]', sample_rows_json TEXT DEFAULT '[]', clarity_json TEXT DEFAULT '{}', baseline_data TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', status TEXT DEFAULT 'draft', created_by TEXT DEFAULT '', approved_by TEXT DEFAULT '', approved_at TEXT DEFAULT '', activated_entity_type TEXT DEFAULT '', activated_entity_id INTEGER, created_at TEXT DEFAULT '');
 `);
+try { db.exec("ALTER TABLE goals ADD COLUMN operational_definition TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN onset_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN offset_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN examples TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN non_examples TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN measurement_type TEXT DEFAULT 'trial_by_trial'"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN secondary_measurement TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN data_fields_json TEXT DEFAULT '[]'"); } catch (e) {}
+try { db.exec('ALTER TABLE goals ADD COLUMN linked_finding_id INTEGER'); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN approved_by TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE goals ADD COLUMN approved_at TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN status TEXT DEFAULT 'new'"); } catch (e) {}
 try { db.exec("ALTER TABLE leads ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec('ALTER TABLE clients ADD COLUMN communication TEXT'); } catch (e) {}
@@ -423,6 +437,179 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
     run('INSERT INTO fidelity_ioa_logs(client_id,session_id,bcba_id,rbt_id,ts,log_type,fidelity_pct,ioa_pct,data_json,notes) VALUES(?,?,?,?,?,?,?,?,?,?)',
       el, 3, bcba, rbt, new Date().toISOString(), 'both', 100, 92, JSON.stringify(fidData),
       'Treatment Integrity: 6/6 (100%) procedural steps implemented correctly. Interobserver Agreement (IOA): 11/12 (92%) trial-by-trial agreement between Sam Lee (RBT) and Dr. Dana Rivera (BCBA).');
+  }
+
+  if (!get('SELECT COUNT(*) c FROM client_assessments WHERE client_id=?', el).c) {
+    const nowIso = new Date().toISOString();
+    const assessDate = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    const elVbId = run(
+      'INSERT INTO client_assessments(client_id,assessment_ref_id,assessment_name,edition,assessor_name,assessor_role,assessment_date,report_date,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      el, 'vbmapp', 'VB-MAPP', '2nd Edition (Milestones & Barriers)', 'Dr. Dana Rivera, BCBA', 'BCBA', assessDate, assessDate, 'Completed',
+      'Clinician-entered milestone and barriers summary across Mand, Social Play, and Classroom Routines.', nowIso
+    ).lastInsertRowid;
+    const elAbllsId = run(
+      'INSERT INTO client_assessments(client_id,assessment_ref_id,assessment_name,edition,assessor_name,assessor_role,assessment_date,report_date,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      el, 'abllsr', 'ABLLS-R', 'Revised Criterion-Referenced Review', 'Dr. Dana Rivera, BCBA', 'BCBA', assessDate, assessDate, 'Completed',
+      'Focused review of Classroom Routines, Social Interaction, and Self-Help Dressing/Grooming domains.', nowIso
+    ).lastInsertRowid;
+
+    const fEl1 = run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, elVbId, 'VB-MAPP', 'Mand',
+      'Learner requests preferred items when visible but does not consistently request a break during challenging activities',
+      'Level 2 Mand — 15% independent on break requests',
+      'VB-MAPP Mand & Barriers Summary + Classroom Probe',
+      'Structured tabletop & pre-lunch clean-up transitions',
+      'Strong vocal repertoire (full sentences) for visible preferred tangibles (LEGO, stickers)',
+      'Requires functional communication training (FCT) to request a break prior to vocal protest',
+      '',
+      'priority_goal',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    ).lastInsertRowid;
+
+    run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, elVbId, 'VB-MAPP', 'Social Behavior and Social Play',
+      'Learner engages in parallel LEGO construction near peers but requires adult gestural or verbal prompts to wait for a turn or share materials',
+      'Level 2 Social Play — 20% independent turn-taking',
+      'VB-MAPP Social Behavior Observation',
+      'Classroom LEGO Center & Small Group Play',
+      'Tolerates peer proximity during parallel play for up to 10 minutes',
+      'Needs structured turn-taking and peer sharing opportunities with visual wait timer',
+      '',
+      'priority_goal',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    );
+
+    run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el, elAbllsId, 'ABLLS-R', 'Grooming',
+      'Completes 4 of 6 handwashing routine steps independently; requires model or gestural prompt to scrub backs of hands for 15s and turn off faucet',
+      '67% Task Analysis Steps Independent (4/6)',
+      'ABLLS-R Self-Help Probe',
+      'School Restroom before lunch',
+      'Independently turns on water, wets hands, and pumps soap',
+      'Forward chaining on steps 4–5 of handwashing task analysis',
+      '',
+      'priority_goal',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    );
+
+    // Pre-seed Smart Goal Draft for Eleanor linked to Finding #1
+    const elDraftAnalysis = G.analyzeSmartGoal({
+      rawGoalText: 'When experiencing task demands or frustration, Eleanor will independently request a break using an approved communication modality without interfering behavior.',
+      clientName: 'Eleanor',
+      communicationModality: 'Vocal phrase ("Break please") or Break card',
+      domain: 'Communication (Requests / Mands)',
+      findingId: fEl1,
+      findingText: 'Learner requests preferred items when visible but does not consistently request a break during challenging activities'
+    });
+    run(
+      'INSERT INTO smart_goal_drafts(client_id,finding_id,goal_type,raw_goal_text,refined_goal_text,domain,operational_definition,onset_criteria,offset_criteria,episode_rule,examples,non_examples,exclusions,primary_measurement,secondary_measurement,measurement_rationale,data_fields_json,sample_rows_json,clarity_json,baseline_data,mastery_criteria,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      el,
+      fEl1,
+      elDraftAnalysis.goalType,
+      elDraftAnalysis.rawGoalText,
+      elDraftAnalysis.clarityCheck.refinedGoalText,
+      elDraftAnalysis.domain,
+      elDraftAnalysis.operationalDefinition.targetResponse,
+      elDraftAnalysis.operationalDefinition.onsetCriteria,
+      elDraftAnalysis.operationalDefinition.offsetCriteria,
+      elDraftAnalysis.operationalDefinition.episodeRule,
+      (elDraftAnalysis.operationalDefinition.examples || []).join('; '),
+      (elDraftAnalysis.operationalDefinition.nonExamples || []).join('; '),
+      (elDraftAnalysis.operationalDefinition.exclusions || []).join('; '),
+      elDraftAnalysis.measurementPlan.primaryMeasurement,
+      elDraftAnalysis.measurementPlan.secondaryMeasurement,
+      elDraftAnalysis.measurementPlan.rationale,
+      JSON.stringify(elDraftAnalysis.dataCollectionPlan.dataFields),
+      JSON.stringify(elDraftAnalysis.dataCollectionPlan.sampleRows),
+      JSON.stringify(elDraftAnalysis.clarityCheck),
+      '15% independent across baseline opportunities',
+      elDraftAnalysis.masteryRecommendation.suggestedCriterion,
+      'draft',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    );
+  }
+
+  if (le && !get('SELECT COUNT(*) c FROM client_assessments WHERE client_id=?', le).c) {
+    const nowIso = new Date().toISOString();
+    const assessDate = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+    const leEflId = run(
+      'INSERT INTO client_assessments(client_id,assessment_ref_id,assessment_name,edition,assessor_name,assessor_role,assessment_date,report_date,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      le, 'efl', 'Essential for Living (EFL)', 'Essential Eight & Functional Skills Review', 'Dr. Dana Rivera, BCBA', 'BCBA', assessDate, assessDate, 'Completed',
+      'Clinician-entered Essential Eight assessment focusing on PECS/vocal mands, accepting transitions, and requesting assistance.', nowIso
+    ).lastInsertRowid;
+
+    const fLe1 = run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le, leEflId, 'Essential for Living (EFL)', 'Accepting Removals, Transitions, Sharing, and Turns',
+      'Following a transition cue from preferred train play to table work, learner delays 15–30 seconds or cries before initiating movement toward the next activity',
+      'Mean baseline transition latency: 18 seconds (20% ≤ 5s)',
+      'EFL Transition Probe & Home Observation',
+      'Home therapy transitions between play area and table',
+      'Responds well to visual sand timers and train-themed token boards',
+      'Target rapid initiation of movement within 5 seconds of transition cue',
+      '',
+      'priority_goal',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    ).lastInsertRowid;
+
+    run(
+      'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le, leEflId, 'Essential for Living (EFL)', 'Requests (Mands)',
+      'When assistance is needed during a daily activity (e.g., opening a bubble jar or connecting train tracks), learner whines rather than independently requesting help',
+      '10% independent help requests across opportunities',
+      'EFL Communication Probe',
+      'Home play & snack routines',
+      'Demonstrates PECS Phase III discrimination for preferred items',
+      'Teach independent "Help please" PECS exchange or 2-word vocal request',
+      '',
+      'priority_goal',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    );
+
+    const leDraftAnalysis = G.analyzeSmartGoal({
+      rawGoalText: 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue.',
+      clientName: 'Leon',
+      communicationModality: 'PECS Phase III & 2-word vocal requests',
+      domain: 'Classroom Routines & Transitions',
+      findingId: fLe1,
+      findingText: 'Following a transition cue from preferred train play to table work, learner delays 15–30 seconds or cries before initiating movement toward the next activity'
+    });
+    run(
+      'INSERT INTO smart_goal_drafts(client_id,finding_id,goal_type,raw_goal_text,refined_goal_text,domain,operational_definition,onset_criteria,offset_criteria,episode_rule,examples,non_examples,exclusions,primary_measurement,secondary_measurement,measurement_rationale,data_fields_json,sample_rows_json,clarity_json,baseline_data,mastery_criteria,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      le,
+      fLe1,
+      leDraftAnalysis.goalType,
+      leDraftAnalysis.rawGoalText,
+      leDraftAnalysis.clarityCheck.refinedGoalText,
+      leDraftAnalysis.domain,
+      leDraftAnalysis.operationalDefinition.targetResponse,
+      leDraftAnalysis.operationalDefinition.onsetCriteria,
+      leDraftAnalysis.operationalDefinition.offsetCriteria,
+      leDraftAnalysis.operationalDefinition.episodeRule,
+      (leDraftAnalysis.operationalDefinition.examples || []).join('; '),
+      (leDraftAnalysis.operationalDefinition.nonExamples || []).join('; '),
+      (leDraftAnalysis.operationalDefinition.exclusions || []).join('; '),
+      leDraftAnalysis.measurementPlan.primaryMeasurement,
+      leDraftAnalysis.measurementPlan.secondaryMeasurement,
+      leDraftAnalysis.measurementPlan.rationale,
+      JSON.stringify(leDraftAnalysis.dataCollectionPlan.dataFields),
+      JSON.stringify(leDraftAnalysis.dataCollectionPlan.sampleRows),
+      JSON.stringify(leDraftAnalysis.clarityCheck),
+      'Mean latency 18s (20% of opportunities ≤ 5s)',
+      leDraftAnalysis.masteryRecommendation.suggestedCriterion,
+      'draft',
+      'Dr. Dana Rivera, BCBA',
+      nowIso
+    );
   }
 }
 
@@ -2374,6 +2561,17 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   const auditLogs = isParent ? [] : all('SELECT * FROM audit_logs WHERE client_id=? ORDER BY id DESC', c.id).slice(0, 40);
   const billingSnapshot = isParent ? null : buildClientBillingSnapshot(c);
 
+  // ABA Assessment Reference Records, Clinician-Entered Findings, Traceable Skill-Gap Suggestions & Smart Goal Drafts
+  const clientAssessments = isParent ? [] : all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
+  const assessmentFindings = isParent ? [] : all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
+  const skillGapAnalysis = isParent ? null : G.organizeSkillGapsFromFindings(assessmentFindings, c.name, c.communication || 'Vocal / AAC');
+  const smartGoalDrafts = isParent ? [] : all('SELECT * FROM smart_goal_drafts WHERE client_id=? ORDER BY id DESC', c.id).map((d) => ({
+    ...d,
+    data_fields: parse(d.data_fields_json) || [],
+    sample_rows: parse(d.sample_rows_json) || [],
+    clarity: parse(d.clarity_json) || {}
+  }));
+
   return {
     client: isParent ? { id: c.id, name: c.name } : c,
     goals,
@@ -2390,7 +2588,11 @@ route('GET', '/api/clients/:id', (u, b, p) => {
     taskAnalyses,
     fidelityIoaLogs,
     auditLogs,
-    billingSnapshot
+    billingSnapshot,
+    clientAssessments,
+    assessmentFindings,
+    skillGapAnalysis,
+    smartGoalDrafts
   };
 });
 route('GET', '/api/clients/:id/billing-snapshot', (u, b, p) => {
@@ -2418,6 +2620,9 @@ route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
   const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
   const abcLogs = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
   const auths = all('SELECT * FROM authorizations WHERE client_id=?', c.id);
+  const assessments = all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
+  const assessmentFindings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
+  const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) => enrichBehaviorProgram(bp, [], abcLogs));
   const monthPrefix = getLocalDate().slice(0, 7);
   const rbtUserIds = new Set(all('SELECT id FROM users WHERE role=\'RBT\'').map((x) => x.id));
   const rbtSessions = all('SELECT * FROM sessions WHERE start LIKE ?', monthPrefix + '%').filter((s) => rbtUserIds.has(s.user_id));
@@ -2427,7 +2632,7 @@ route('GET', '/api/clients/:id/reauth-report', (u, b, p) => {
   const supPct = rbtDirectMinutes > 0 ? Math.round((supMinutes / rbtDirectMinutes) * 100) : 0;
   const supervision = { rbtDirectMinutes, supMinutes, supPct, compliant: supPct >= 5 };
 
-  return G.generateReauthReport({ client: c, goals, abcLogs, auths, supervision });
+  return G.generateReauthReport({ client: c, goals, abcLogs, auths, supervision, assessments, assessmentFindings, behaviorPrograms });
 });
 route('PUT', '/api/clients/:id', (u, b, p) => {
   need(u, 'BCBA');
@@ -2444,10 +2649,24 @@ route('POST', '/api/clients/:id/goals', (u, b, p) => {
   const promptStrategy = b.prompt_strategy || 'Least-to-Most';
   const scoringRule = b.scoring_rule === 'include_prompted' ? 'include_prompted' : 'independent_only';
   const masterySessions = Math.max(1, +b.mastery_sessions || 3);
-  const r = run('INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions) VALUES(?,?,?,?,?,?,?,?)',
-    +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions);
+  const opDef = String(b.operational_definition || '').trim();
+  const onsetCrit = String(b.onset_criteria || '').trim();
+  const offsetCrit = String(b.offset_criteria || '').trim();
+  const examples = String(b.examples || '').trim();
+  const nonExamples = String(b.non_examples || '').trim();
+  const measType = String(b.measurement_type || 'trial_by_trial').trim();
+  const secMeas = String(b.secondary_measurement || '').trim();
+  const dataFieldsJson = Array.isArray(b.data_fields) ? JSON.stringify(b.data_fields) : (b.data_fields_json || '[]');
+  const linkedFindingId = b.linked_finding_id ? Number(b.linked_finding_id) : null;
+  const approvedBy = u.role === 'BCBA' || u.role === 'OWNER' ? `${u.name} (${u.role})` : '';
+  const approvedAt = approvedBy ? new Date().toISOString() : '';
+
+  const r = run(
+    'INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions,operational_definition,onset_criteria,offset_criteria,examples,non_examples,measurement_type,secondary_measurement,data_fields_json,linked_finding_id,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, dataFieldsJson, linkedFindingId, approvedBy, approvedAt
+  );
   const gid = Number(r.lastInsertRowid);
-  logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Target: ${+b.target || 80}% across ${masterySessions} sessions, Scoring: ${scoringRule})` });
+  logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Measure: ${measType}, Target: ${+b.target || 80}% across ${masterySessions} sessions)` });
   const g = get('SELECT * FROM goals WHERE id=?', gid);
   return { id: gid, goal: g ? goalProgress(g) : null };
 });
@@ -2483,11 +2702,365 @@ route('PUT', '/api/goals/:id', (u, b, p) => {
   const promptStrategy = b.prompt_strategy || g.prompt_strategy || 'Least-to-Most';
   const scoringRule = b.scoring_rule || g.scoring_rule || 'independent_only';
   const masterySessions = b.mastery_sessions !== undefined ? Math.max(1, +b.mastery_sessions) : (g.mastery_sessions || 3);
-  run('UPDATE goals SET title=?,baseline=?,target=?,status=?,domain=?,prompt_strategy=?,scoring_rule=?,mastery_sessions=? WHERE id=?',
-    title, baseline, target, status, domain, promptStrategy, scoringRule, masterySessions, g.id);
-  logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'UPDATE_GOAL', details: `Updated goal "${title}" -> Status: ${status}, Target: ${target}%, Scoring: ${scoringRule}` });
+  const opDef = b.operational_definition !== undefined ? String(b.operational_definition).trim() : (g.operational_definition || '');
+  const onsetCrit = b.onset_criteria !== undefined ? String(b.onset_criteria).trim() : (g.onset_criteria || '');
+  const offsetCrit = b.offset_criteria !== undefined ? String(b.offset_criteria).trim() : (g.offset_criteria || '');
+  const examples = b.examples !== undefined ? String(b.examples).trim() : (g.examples || '');
+  const nonExamples = b.non_examples !== undefined ? String(b.non_examples).trim() : (g.non_examples || '');
+  const measType = b.measurement_type !== undefined ? String(b.measurement_type).trim() : (g.measurement_type || 'trial_by_trial');
+  const secMeas = b.secondary_measurement !== undefined ? String(b.secondary_measurement).trim() : (g.secondary_measurement || '');
+  run(
+    'UPDATE goals SET title=?,baseline=?,target=?,status=?,domain=?,prompt_strategy=?,scoring_rule=?,mastery_sessions=?,operational_definition=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,measurement_type=?,secondary_measurement=? WHERE id=?',
+    title, baseline, target, status, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, g.id
+  );
+  logAudit(u, { client_id: g.client_id, entity_type: 'goal', entity_id: g.id, action: 'UPDATE_GOAL', details: `Updated goal "${title}" -> Status: ${status}, Target: ${target}%, Measure: ${measType}` });
   const updated = get('SELECT * FROM goals WHERE id=?', g.id);
   return goalProgress(updated);
+});
+
+// ---------- ABA Assessment Reference Library, Findings & Smart Goal Builder API ----------
+route('GET', '/api/assessments/library', (u) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  return {
+    instruments: G.ASSESSMENT_REFERENCE_LIBRARY,
+    measurementLibrary: G.MEASUREMENT_RECOMMENDATION_LIBRARY,
+    qualityRules: G.VAGUE_GOAL_QUALITY_RULES.map((r) => ({ id: r.id, flagLabel: r.flagLabel, clarifyingQuestion: r.clarifyingQuestion })),
+    copyrightSafeguard: 'This reference library stores high-level assessment domain metadata and clinician-entered findings only. It does not reproduce proprietary assessment items, scoring tables, or test protocols, nor does it administer or auto-score standardized tests.'
+  };
+});
+
+route('POST', '/api/smart-goal-builder/analyze', (u, b) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const rawGoalText = String(b.rawGoalText || b.goalText || b.title || '').trim();
+  if (!rawGoalText) bad(400, 'Goal or target behavior statement is required for analysis');
+  let clientName = b.clientName || 'Learner';
+  let commModality = b.communicationModality || 'Vocal / AAC / PECS';
+  if (b.clientId) {
+    const c = get('SELECT * FROM clients WHERE id=?', +b.clientId);
+    if (c) {
+      clientName = c.name;
+      commModality = c.communication || commModality;
+    }
+  }
+  return G.analyzeSmartGoal({
+    rawGoalText,
+    goalType: b.goalType,
+    domain: b.domain,
+    clientName,
+    communicationModality: commModality,
+    findingId: b.findingId || null,
+    findingText: b.findingText || '',
+    baselineData: b.baselineData || '',
+    masteryCriteria: b.masteryCriteria || ''
+  });
+});
+
+route('GET', '/api/clients/:id/assessments', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const assessments = all('SELECT * FROM client_assessments WHERE client_id=? ORDER BY id DESC', c.id);
+  const findings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', c.id);
+  const skillGapAnalysis = G.organizeSkillGapsFromFindings(findings, c.name, c.communication || 'Vocal / AAC');
+  const smartGoalDrafts = all('SELECT * FROM smart_goal_drafts WHERE client_id=? ORDER BY id DESC', c.id).map((d) => ({
+    ...d,
+    data_fields: parse(d.data_fields_json) || [],
+    sample_rows: parse(d.sample_rows_json) || [],
+    clarity: parse(d.clarity_json) || {}
+  }));
+  return {
+    clientId: c.id,
+    clientName: c.name,
+    communicationModality: c.communication || 'Vocal',
+    library: G.ASSESSMENT_REFERENCE_LIBRARY,
+    measurementLibrary: G.MEASUREMENT_RECOMMENDATION_LIBRARY,
+    assessments,
+    findings,
+    skillGapAnalysis,
+    smartGoalDrafts
+  };
+});
+
+route('POST', '/api/clients/:id/assessments', (u, b, p) => {
+  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  clientOr403(u, p.id);
+  const refId = String(b.assessment_ref_id || 'vbmapp').trim();
+  const refObj = G.ASSESSMENT_REFERENCE_LIBRARY.find((x) => x.id === refId) || G.ASSESSMENT_REFERENCE_LIBRARY[0];
+  const assessmentName = String(b.assessment_name || refObj.shortName).trim();
+  const edition = String(b.edition || '').trim();
+  const assessorName = String(b.assessor_name || u.name).trim();
+  const assessorRole = String(b.assessor_role || u.role).trim();
+  const assessmentDate = String(b.assessment_date || getLocalDate()).trim();
+  const reportDate = String(b.report_date || assessmentDate).trim();
+  const status = String(b.status || 'Completed').trim();
+  const notes = String(b.notes || '').trim();
+  const nowIso = new Date().toISOString();
+
+  const r = run(
+    'INSERT INTO client_assessments(client_id,assessment_ref_id,assessment_name,edition,assessor_name,assessor_role,assessment_date,report_date,status,notes,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, refId, assessmentName, edition, assessorName, assessorRole, assessmentDate, reportDate, status, notes, nowIso
+  );
+  const newId = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: +p.id, entity_type: 'client_assessment', entity_id: newId, action: 'LOG_ASSESSMENT_RECORD', details: `Logged ${assessmentName} assessment metadata (${assessmentDate})` });
+  return { id: newId, assessment: get('SELECT * FROM client_assessments WHERE id=?', newId) };
+});
+
+route('POST', '/api/clients/:id/assessment-findings', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  clientOr403(u, p.id);
+  const findingText = String(b.finding_text || '').trim();
+  if (!findingText) bad(400, 'Clinician-entered assessment finding text is required');
+  const assessmentId = b.assessment_id ? Number(b.assessment_id) : null;
+  const instRef = b.instrument_id ? G.ASSESSMENT_REFERENCE_LIBRARY.find(i => i.id === String(b.instrument_id).toLowerCase()) : null;
+  const assessmentName = String(b.assessment_name || (instRef && (instRef.shortName || instRef.name)) || 'VB-MAPP').trim();
+  const domain = String(b.domain || 'Requests (Mands)').trim();
+  const resultValue = String(b.result_value || b.score_or_level || '').trim();
+  const evidenceSource = String(b.evidence_source || 'Clinician Assessment Summary & Direct Probe').trim();
+  const context = String(b.context || 'Clinic / Home').trim();
+  const strengths = String(b.strengths || '').trim();
+  const supportNeeds = String(b.support_needs || '').trim();
+  const missingInfoFlag = String(b.missing_info_flag || '').trim();
+  const priorityStatus = String(b.priority_status || 'priority_goal').trim();
+  const nowIso = new Date().toISOString();
+
+  const r = run(
+    'INSERT INTO assessment_findings(client_id,assessment_id,assessment_name,domain,finding_text,result_value,evidence_source,context,strengths,support_needs,missing_info_flag,priority_status,entered_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, assessmentId, assessmentName, domain, findingText, resultValue, evidenceSource, context, strengths, supportNeeds, missingInfoFlag, priorityStatus, `${u.name} (${u.role})`, nowIso
+  );
+  const fid = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: +p.id, entity_type: 'assessment_finding', entity_id: fid, action: 'ADD_ASSESSMENT_FINDING', details: `Entered ${assessmentName} finding in ${domain}: "${findingText.slice(0, 80)}"` });
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  const allFindings = all('SELECT * FROM assessment_findings WHERE client_id=? ORDER BY id DESC', +p.id);
+  return {
+    id: fid,
+    finding: get('SELECT * FROM assessment_findings WHERE id=?', fid),
+    skillGapAnalysis: G.organizeSkillGapsFromFindings(allFindings, c ? c.name : 'Learner', c ? c.communication : 'Vocal')
+  };
+});
+
+route('PATCH', '/api/assessment-findings/:id', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const f = get('SELECT * FROM assessment_findings WHERE id=?', +p.id);
+  if (!f) bad(404, 'Assessment finding not found');
+  clientOr403(u, f.client_id);
+  const priorityStatus = b.priority_status !== undefined ? String(b.priority_status).trim() : f.priority_status;
+  const findingText = b.finding_text !== undefined ? String(b.finding_text).trim() : f.finding_text;
+  const resultValue = b.result_value !== undefined ? String(b.result_value).trim() : f.result_value;
+  run('UPDATE assessment_findings SET priority_status=?, finding_text=?, result_value=? WHERE id=?', priorityStatus, findingText, resultValue, f.id);
+  logAudit(u, { client_id: f.client_id, entity_type: 'assessment_finding', entity_id: f.id, action: 'UPDATE_FINDING_PRIORITY', details: `Updated finding #${f.id} priority to ${priorityStatus}` });
+  return get('SELECT * FROM assessment_findings WHERE id=?', f.id);
+});
+
+route('POST', '/api/clients/:id/smart-goal-drafts', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  clientOr403(u, p.id);
+  const c = get('SELECT * FROM clients WHERE id=?', +p.id);
+  if (!c) bad(404, 'Client not found');
+  const rawGoalText = String(b.raw_goal_text || b.rawGoalText || '').trim();
+  if (!rawGoalText) bad(400, 'Goal text is required');
+  const analysis = G.analyzeSmartGoal({
+    rawGoalText,
+    goalType: b.goal_type || b.goalType,
+    domain: b.domain,
+    clientName: c.name,
+    communicationModality: c.communication || 'Vocal / AAC',
+    findingId: b.finding_id || b.findingId || null,
+    findingText: b.finding_text || b.findingText || '',
+    baselineData: b.baseline_data || '',
+    masteryCriteria: b.mastery_criteria || ''
+  });
+  const nowIso = new Date().toISOString();
+  const toStr = (val) => Array.isArray(val) ? val.join('; ') : String(val || '');
+  const r = run(
+    'INSERT INTO smart_goal_drafts(client_id,finding_id,goal_type,raw_goal_text,refined_goal_text,domain,operational_definition,onset_criteria,offset_criteria,episode_rule,examples,non_examples,exclusions,primary_measurement,secondary_measurement,measurement_rationale,data_fields_json,sample_rows_json,clarity_json,baseline_data,mastery_criteria,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    c.id,
+    b.finding_id || b.findingId || null,
+    b.goal_type || analysis.goalType,
+    rawGoalText,
+    b.refined_goal_text || analysis.clarityCheck.refinedGoalText,
+    b.domain || analysis.domain,
+    b.operational_definition || analysis.operationalDefinition.targetResponse,
+    b.onset_criteria || analysis.operationalDefinition.onsetCriteria,
+    b.offset_criteria || analysis.operationalDefinition.offsetCriteria,
+    b.episode_rule || analysis.operationalDefinition.episodeRule,
+    toStr(b.examples || analysis.operationalDefinition.examples),
+    toStr(b.non_examples || analysis.operationalDefinition.nonExamples),
+    toStr(b.exclusions || analysis.operationalDefinition.exclusions),
+    b.primary_measurement || analysis.measurementPlan.primaryMeasurement,
+    b.secondary_measurement !== undefined ? b.secondary_measurement : (analysis.measurementPlan.secondaryMeasurement || ''),
+    b.measurement_rationale || analysis.measurementPlan.rationale,
+    JSON.stringify(b.data_fields || analysis.dataCollectionPlan.dataFields),
+    JSON.stringify(b.sample_rows || b.sample_table || analysis.dataCollectionPlan.sampleRows),
+    JSON.stringify(analysis.clarityCheck),
+    String(b.baseline_data || ''),
+    String(b.mastery_criteria || analysis.masteryRecommendation.suggestedCriterion),
+    'draft',
+    `${u.name} (${u.role})`,
+    nowIso
+  );
+  const did = Number(r.lastInsertRowid);
+  logAudit(u, { client_id: c.id, entity_type: 'smart_goal_draft', entity_id: did, action: 'CREATE_SMART_GOAL_DRAFT', details: `Created Smart Goal Draft "${rawGoalText.slice(0, 70)}" [Status: draft — Awaiting BCBA Approval]` });
+  const row = get('SELECT * FROM smart_goal_drafts WHERE id=?', did);
+  const draftObj = {
+    ...row,
+    data_fields: parse(row.data_fields_json) || [],
+    sample_rows: parse(row.sample_rows_json) || [],
+    clarity: parse(row.clarity_json) || {}
+  };
+  return {
+    id: did,
+    status: 'draft',
+    draft: draftObj,
+    analysis
+  };
+});
+
+route('PUT', '/api/smart-goal-drafts/:id', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const d = get('SELECT * FROM smart_goal_drafts WHERE id=?', +p.id);
+  if (!d) bad(404, 'Smart Goal Draft not found');
+  clientOr403(u, d.client_id);
+
+  const refined = b.refined_goal_text !== undefined ? String(b.refined_goal_text).trim() : d.refined_goal_text;
+  const domain = b.domain !== undefined ? String(b.domain).trim() : d.domain;
+  const opDef = b.operational_definition !== undefined ? String(b.operational_definition).trim() : d.operational_definition;
+  const onset = b.onset_criteria !== undefined ? String(b.onset_criteria).trim() : d.onset_criteria;
+  const offset = b.offset_criteria !== undefined ? String(b.offset_criteria).trim() : d.offset_criteria;
+  const epRule = b.episode_rule !== undefined ? String(b.episode_rule).trim() : d.episode_rule;
+  const ex = b.examples !== undefined ? String(b.examples).trim() : d.examples;
+  const nonEx = b.non_examples !== undefined ? String(b.non_examples).trim() : d.non_examples;
+  const excl = b.exclusions !== undefined ? String(b.exclusions).trim() : d.exclusions;
+  const primMeas = b.primary_measurement !== undefined ? String(b.primary_measurement).trim() : d.primary_measurement;
+  const secMeas = b.secondary_measurement !== undefined ? String(b.secondary_measurement).trim() : d.secondary_measurement;
+  const rationale = b.measurement_rationale !== undefined ? String(b.measurement_rationale).trim() : d.measurement_rationale;
+  const bData = b.baseline_data !== undefined ? String(b.baseline_data).trim() : d.baseline_data;
+  const mast = b.mastery_criteria !== undefined ? String(b.mastery_criteria).trim() : d.mastery_criteria;
+
+  run(
+    'UPDATE smart_goal_drafts SET refined_goal_text=?,domain=?,operational_definition=?,onset_criteria=?,offset_criteria=?,episode_rule=?,examples=?,non_examples=?,exclusions=?,primary_measurement=?,secondary_measurement=?,measurement_rationale=?,baseline_data=?,mastery_criteria=? WHERE id=?',
+    refined, domain, opDef, onset, offset, epRule, ex, nonEx, excl, primMeas, secMeas, rationale, bData, mast, d.id
+  );
+  logAudit(u, { client_id: d.client_id, entity_type: 'smart_goal_draft', entity_id: d.id, action: 'EDIT_SMART_GOAL_DRAFT', details: `Edited Smart Goal Draft #${d.id} ("${refined.slice(0, 60)}")` });
+  const updated = get('SELECT * FROM smart_goal_drafts WHERE id=?', d.id);
+  return {
+    ...updated,
+    data_fields: parse(updated.data_fields_json) || [],
+    sample_rows: parse(updated.sample_rows_json) || [],
+    clarity: parse(updated.clarity_json) || {}
+  };
+});
+
+route('POST', '/api/smart-goal-drafts/:id/approve', (u, b, p) => {
+  // Clinical Guardrail: Only a BCBA (or Practice Owner) can approve and activate a Smart Goal Draft into an active program
+  need(u, 'BCBA', 'OWNER');
+  const d = get('SELECT * FROM smart_goal_drafts WHERE id=?', +p.id);
+  if (!d) bad(404, 'Smart Goal Draft not found');
+  clientOr403(u, d.client_id);
+
+  const nowIso = new Date().toISOString();
+  const approverLabel = `${u.name} (${u.role})`;
+  const finalTitle = String(b.refined_goal_text || d.refined_goal_text || d.raw_goal_text).trim();
+  const finalOpDef = String(b.operational_definition || d.operational_definition || '').trim();
+  const finalOnset = String(b.onset_criteria || d.onset_criteria || '').trim();
+  const finalOffset = String(b.offset_criteria || d.offset_criteria || '').trim();
+  const finalExamples = String(b.examples || d.examples || '').trim();
+  const finalNonExamples = String(b.non_examples || d.non_examples || '').trim();
+  const finalPrimaryMeas = String(b.primary_measurement || d.primary_measurement || 'trial_by_trial').trim();
+  const finalSecondaryMeas = String(b.secondary_measurement !== undefined ? b.secondary_measurement : (d.secondary_measurement || '')).trim();
+  const finalMastery = String(b.mastery_criteria || d.mastery_criteria || '80% across 3 consecutive sessions').trim();
+  const finalBaseline = String(b.baseline_data || d.baseline_data || '0').trim();
+  const goalType = String(b.goal_type || d.goal_type || 'skill_acquisition').trim();
+
+  let activatedEntityType = 'goal';
+  let activatedEntityId = null;
+
+  if (goalType === 'behavior_reduction') {
+    activatedEntityType = 'behavior_program';
+    const initHist = buildInitialBehaviorHistory(
+      { definition: finalOpDef, measurement_type: finalPrimaryMeas, updated_at: nowIso },
+      approverLabel
+    );
+    const numBase = parseFloat(finalBaseline) || 0;
+    const r = run(
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      d.client_id,
+      finalTitle.slice(0, 80),
+      finalOpDef,
+      finalPrimaryMeas,
+      b.function_hypothesis || 'Escape',
+      'Mild / Moderate / Severe',
+      finalOnset,
+      finalOffset,
+      finalExamples,
+      finalNonExamples,
+      finalBaseline,
+      numBase,
+      0,
+      finalTitle,
+      b.replacement_skill_goal || 'Functional communication replacement (FCT)',
+      finalMastery,
+      1,
+      JSON.stringify(initHist),
+      nowIso,
+      approverLabel,
+      'active'
+    );
+    activatedEntityId = Number(r.lastInsertRowid);
+  } else {
+    activatedEntityType = 'goal';
+    const numBase = Math.min(100, Math.max(0, parseInt(finalBaseline, 10) || 20));
+    const pctMatch = finalMastery.match(/(\d{1,3})\s*%/);
+    const numTarget = pctMatch ? Math.min(100, Math.max(10, parseInt(pctMatch[1], 10))) : 80;
+    const r = run(
+      'INSERT INTO goals(client_id,title,baseline,target,domain,prompt_strategy,scoring_rule,mastery_sessions,operational_definition,onset_criteria,offset_criteria,examples,non_examples,measurement_type,secondary_measurement,data_fields_json,linked_finding_id,approved_by,approved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      d.client_id,
+      finalTitle,
+      numBase,
+      numTarget,
+      b.domain || d.domain || 'DTT / Skill Acquisition',
+      'Least-to-Most',
+      'independent_only',
+      3,
+      finalOpDef,
+      finalOnset,
+      finalOffset,
+      finalExamples,
+      finalNonExamples,
+      finalPrimaryMeas,
+      finalSecondaryMeas,
+      d.data_fields_json || '[]',
+      d.finding_id || null,
+      approverLabel,
+      nowIso
+    );
+    activatedEntityId = Number(r.lastInsertRowid);
+  }
+
+  run(
+    'UPDATE smart_goal_drafts SET refined_goal_text=?,operational_definition=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,primary_measurement=?,secondary_measurement=?,baseline_data=?,mastery_criteria=?,status=?,approved_by=?,approved_at=?,activated_entity_type=?,activated_entity_id=? WHERE id=?',
+    finalTitle, finalOpDef, finalOnset, finalOffset, finalExamples, finalNonExamples, finalPrimaryMeas, finalSecondaryMeas, finalBaseline, finalMastery, 'approved', approverLabel, nowIso, activatedEntityType, activatedEntityId, d.id
+  );
+  logAudit(u, {
+    client_id: d.client_id,
+    entity_type: 'smart_goal_draft',
+    entity_id: d.id,
+    action: 'APPROVE_SMART_GOAL_DRAFT',
+    details: `BCBA approved & activated Smart Goal Draft #${d.id} into active ${activatedEntityType} #${activatedEntityId} ("${finalTitle}")`
+  });
+
+  const updatedDraft = get('SELECT * FROM smart_goal_drafts WHERE id=?', d.id);
+  return {
+    id: d.id,
+    status: 'approved',
+    approved_by: approverLabel,
+    approved_at: nowIso,
+    activated_entity_type: activatedEntityType,
+    activated_entity_id: activatedEntityId,
+    draft: updatedDraft,
+    activatedGoal: activatedEntityType === 'goal' ? get('SELECT * FROM goals WHERE id=?', activatedEntityId) : null,
+    activatedBehavior: activatedEntityType === 'behavior_program' ? get('SELECT * FROM behavior_programs WHERE id=?', activatedEntityId) : null
+  };
 });
 route('POST', '/api/goals/:id/status', (u, b, p) => {
   need(u, 'BCBA');

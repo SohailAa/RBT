@@ -758,6 +758,140 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(cleanDelete.s === 200 && cleanDelete.j.deleted === true,
      'DELETE /api/behaviors/:id cleanly deletes a behavior when 0 historical events exist');
 
+  // 31. Smart Goal Builder, Operational Definition Generator, Smart Measurement Assistant & ABA Assessment Reference Library
+  const libRes = await b('GET', '/api/assessments/library');
+  const instIds = (libRes.j.instruments || []).map(i => i.id);
+  const peakEntry = (libRes.j.instruments || []).find(i => i.id === 'peak');
+  ok(libRes.s === 200 &&
+     instIds.includes('vbmapp') &&
+     instIds.includes('abllsr') &&
+     instIds.includes('afls') &&
+     instIds.includes('efl') &&
+     instIds.includes('vineland3') &&
+     peakEntry && peakEntry.phaseStatus.includes('Later Phase'),
+     'GET /api/assessments/library returns VB-MAPP, ABLLS-R, AFLS, EFL, Vineland-3 (Phase 1) and PEAK (Later Phase) with copyright safeguards');
+
+  // Test Leon's 5-second transition latency goal (Spec Example 1)
+  const leonGoalRes = await b('POST', '/api/smart-goal-builder/analyze', {
+    client_id: 2,
+    goalText: 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue',
+    goalType: 'skill_acquisition',
+    domain: 'Transitions & Cooperation'
+  });
+  ok(leonGoalRes.s === 200 &&
+     leonGoalRes.j.measurementPlan.primaryKey === 'latency' &&
+     leonGoalRes.j.measurementPlan.secondaryKey === 'percentage_of_opportunities' &&
+     leonGoalRes.j.operationalDefinition.onsetCriteria.includes('transition cue') &&
+     Array.isArray(leonGoalRes.j.dataCollectionPlan.sampleRows) &&
+     leonGoalRes.j.dataCollectionPlan.sampleRows.length === 5 &&
+     leonGoalRes.j.dataCollectionPlan.sampleSummary.includes('80%') &&
+     leonGoalRes.j.dataCollectionPlan.sampleSummary.includes('5.0 seconds') &&
+     leonGoalRes.j.masteryRecommendation.requiresClinicianConfirmation === true,
+     'Smart Goal Builder recommends Latency (primary) + % of Opportunities (secondary), 5-row sample table (80% / 5.0s avg), and mastery safeguard for Leon transition goal');
+
+  // Test Discrete Hitting Behavior Reduction Goal (Spec Example 2)
+  const hitGoalRes = await b('POST', '/api/smart-goal-builder/analyze', {
+    client_id: 1,
+    goalText: 'Client will decrease hitting behavior',
+    goalType: 'behavior_reduction',
+    domain: 'Behavior Reduction — Aggression'
+  });
+  ok(hitGoalRes.s === 200 &&
+     hitGoalRes.j.measurementPlan.primaryKey === 'frequency' &&
+     hitGoalRes.j.measurementPlan.secondaryKey === 'abc' &&
+     hitGoalRes.j.operationalDefinition.summary.toLowerCase().includes('forceful') &&
+     hitGoalRes.j.operationalDefinition.nonExamples.some(n => n.toLowerCase().includes('high-five')),
+     'Smart Goal Builder recommends Frequency/Rate (primary) + ABC (secondary) and forceful-contact operational definition with high-five exclusion for hitting goal');
+
+  // Test Functional Communication / Requesting Break Goal (Spec Example 3)
+  const breakGoalRes = await b('POST', '/api/smart-goal-builder/analyze', {
+    client_id: 1,
+    goalText: 'When assistance is needed, Eleanor will independently request a break across 80% of opportunities across 3 consecutive sessions',
+    goalType: 'skill_acquisition',
+    domain: 'Functional Communication (Mand)'
+  });
+  ok(breakGoalRes.s === 200 &&
+     breakGoalRes.j.measurementPlan.primaryKey === 'percentage_of_opportunities' &&
+     breakGoalRes.j.measurementPlan.secondaryKey === 'trial_by_trial' &&
+     breakGoalRes.j.masteryRecommendation.hasExplicitCriterion === true,
+     'Smart Goal Builder recommends Percentage of Opportunities (primary) + Trial-by-Trial (secondary) and detects explicit mastery criterion for break request goal');
+
+  // Test Vague Goal Quality Checks ("Be respectful", "Improve social skills", "Reduce tantrums")
+  const vagueRespect = await b('POST', '/api/smart-goal-builder/analyze', {
+    client_id: 1,
+    goalText: 'Be respectful'
+  });
+  const vagueTantrum = await b('POST', '/api/smart-goal-builder/analyze', {
+    client_id: 1,
+    goalText: 'Reduce tantrums',
+    goalType: 'behavior_reduction'
+  });
+  ok(vagueRespect.s === 200 &&
+     vagueRespect.j.qualityCheck.isClear === false &&
+     vagueRespect.j.qualityCheck.vagueFlags.length >= 1 &&
+     vagueRespect.j.qualityCheck.clarifyingQuestions.length >= 1 &&
+     vagueTantrum.j.qualityCheck.isClear === false &&
+     vagueTantrum.j.measurementPlan.primaryKey === 'duration' &&
+     vagueTantrum.j.measurementPlan.secondaryKey === 'frequency',
+     'Smart Goal Builder flags vague/subjective goals ("Be respectful", "Reduce tantrums") and returns clarifying questions + Duration/Frequency recommendation');
+
+  // Test Clinician-Entered Assessment Findings & 100% Traceable Skill-Gap Suggestions
+  const newFindingRes = await b('POST', '/api/clients/2/assessment-findings', {
+    instrument_id: 'efl',
+    domain: 'Waiting After a Request',
+    finding_text: 'Protests vocally within 3 seconds when told "wait" for preferred tablet; requires continuous visual countdown',
+    score_or_level: 'Score 1 of 4 — Emerging',
+    evidence_source: 'Direct Observation & Formal Assessment',
+    context: 'Clinic tabletop & transitions',
+    support_needs: 'Requires visual timer + verbal reassurance',
+    priority_status: 'priority_goal'
+  });
+  ok(newFindingRes.s === 200 &&
+     newFindingRes.j.finding.id &&
+     newFindingRes.j.skillGapAnalysis &&
+     newFindingRes.j.skillGapAnalysis.suggestions.some(s => s.findingId === newFindingRes.j.finding.id && s.traceability && s.traceability.includes('Essential for Living')),
+     'POST /api/clients/:id/assessment-findings logs clinician-entered finding and generates 100% traceable skill-gap suggestion');
+
+  // Test Smart Goal Draft Creation & Mandatory BCBA Approval Guardrail
+  const createDraftRes = await r('POST', '/api/clients/2/smart-goal-drafts', {
+    finding_id: newFindingRes.j.finding.id,
+    goal_type: 'skill_acquisition',
+    domain: 'Transitions & Cooperation',
+    raw_goal_text: 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue',
+    refined_goal_text: 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue',
+    operational_definition: leonGoalRes.j.operationalDefinition.summary,
+    onset_criteria: leonGoalRes.j.operationalDefinition.onsetCriteria,
+    offset_criteria: leonGoalRes.j.operationalDefinition.offsetCriteria,
+    examples: leonGoalRes.j.operationalDefinition.examples.join('; '),
+    non_examples: leonGoalRes.j.operationalDefinition.nonExamples.join('; '),
+    primary_measurement: 'latency',
+    secondary_measurement: 'percentage_of_opportunities',
+    measurement_rationale: leonGoalRes.j.measurementPlan.rationale,
+    mastery_criteria: '80% of opportunities with latency <= 5s across 3 consecutive sessions',
+    baseline_data: 'Mean latency 16s across 3 baseline sessions'
+  });
+  ok(createDraftRes.s === 200 && createDraftRes.j.status === 'draft',
+     'Clinician can save a Smart Goal & Measurement recommendation as a clinical draft');
+
+  const rbtApproveBlocked = await r('POST', `/api/smart-goal-drafts/${createDraftRes.j.id}/approve`, {});
+  ok(rbtApproveBlocked.s === 403,
+     'Clinical Guardrail: RBT is blocked (HTTP 403) from approving a Smart Goal & Measurement draft');
+
+  const bcbaApproveDraft = await b('POST', `/api/smart-goal-drafts/${createDraftRes.j.id}/approve`, {});
+  ok(bcbaApproveDraft.s === 200 &&
+     bcbaApproveDraft.j.draft.status === 'approved' &&
+     bcbaApproveDraft.j.activatedGoal &&
+     bcbaApproveDraft.j.activatedGoal.measurement_type === 'latency',
+     'BCBA approval activates Smart Goal draft into Client 360 active skill acquisition goals with operational definition and latency measurement');
+
+  // Verify Auto-Populated Progress Report Domain Matrix (Section 2 of Re-Auth Report)
+  const reauthWithDomains = await b('GET', '/api/clients/2/reauth-report');
+  ok(reauthWithDomains.s === 200 &&
+     Array.isArray(reauthWithDomains.j.domainMatrix) &&
+     reauthWithDomains.j.domainMatrix.length >= 1 &&
+     reauthWithDomains.j.text.includes('2. AUTO-POPULATED ASSESSMENT INSTRUMENTS & DOMAIN MATRIX'),
+     'GET /api/clients/:id/reauth-report auto-populates Section 2 Assessment Instruments & Domain Matrix from assessment findings, skill goals, and behavior programs');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

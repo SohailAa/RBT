@@ -44,6 +44,685 @@ let lastLicensingData = null;
 let mobileNavOpen = false;
 let openBehMenuId = null;
 let showArchivedBehaviors = false;
+let smartGoalAnalysis = null;
+let smartGoalInputText = '';
+let smartGoalType = 'skill_acquisition';
+let smartGoalDomain = '';
+let smartGoalFindingId = null;
+let smartGoalFindingText = '';
+let assessmentPlannerSubTab = 'smart_builder';
+let selectedAssessmentInstrumentId = 'vbmapp';
+
+const SMART_MEASUREMENT_OPTIONS = [
+  { key: 'percentage_of_opportunities', label: 'Percentage of Opportunities (% Independent)' },
+  { key: 'trial_by_trial', label: 'Trial-by-Trial / Discrete Trial Recording (DTT)' },
+  { key: 'latency', label: 'Latency Recording (Time from Cue/SD to Initiation)' },
+  { key: 'frequency', label: 'Frequency / Event & Rate Recording (Count per Session/Hour)' },
+  { key: 'duration', label: 'Duration Recording (Total / Mean Episode Length)' },
+  { key: 'task_analysis', label: 'Task Analysis (% Independent Steps)' },
+  { key: 'mts', label: 'Momentary Time Sampling (MTS)' },
+  { key: 'partial_interval', label: 'Partial-Interval Recording' },
+  { key: 'whole_interval', label: 'Whole-Interval Recording' },
+  { key: 'irt', label: 'Inter-Response Time (IRT)' },
+  { key: 'abc', label: 'ABC Narrative / Functional Context Recording' },
+  { key: 'permanent_product', label: 'Permanent Product Recording' }
+];
+
+function renderSmartPlannerAndAssessmentsTab(c, data, B) {
+  const {
+    clientAssessments = [],
+    assessmentFindings = [],
+    skillGapAnalysis = null,
+    smartGoalDrafts = []
+  } = data || {};
+  const canApprove = ['BCBA', 'OWNER'].includes(me.role);
+  const instruments = (skillGapAnalysis && skillGapAnalysis.supportedInstruments) || [
+    { id: 'vbmapp', name: 'VB-MAPP', fullName: 'Verbal Behavior Milestones Assessment and Placement Program', category: 'Developmental / Verbal Behavior Milestone Assessment', phaseStatus: 'Phase 1 Supported', primaryPurpose: 'Assesses language, learning, and social milestones plus learning barriers and transition readiness.', learnerProfile: 'Early learners and children developing foundational vocal, PECS, or AAC verbal operants.', domains: ['Mand', 'Tact', 'Listener Responding', 'Visual Perceptual / Match-to-Sample', 'Independent Play', 'Social Behavior & Social Play', 'Motor Imitation', 'Echoic', 'LRFFC', 'Intraverbal', 'Classroom Routines & Group Skills', 'Linguistic Structure', 'Barriers Assessment'], resultFormat: 'Milestone Levels (Level 1, 2, 3), Barrier scores (0–4), and clinician domain observations.', goalPlanningUse: 'Identifies missing verbal operants, functional communication gaps, and behavioral barriers to learning.', copyrightNote: 'High-level domain reference only. Clinicians enter summarized findings; proprietary test items are never reproduced.' },
+    { id: 'abllsr', name: 'ABLLS-R', fullName: 'Assessment of Basic Language and Learning Skills – Revised', category: 'Criterion-Referenced Skill Tracking Assessment', phaseStatus: 'Phase 1 Supported', primaryPurpose: 'Tracks 25 skill domains across basic learner, academic, self-help, and motor repertoires.', learnerProfile: 'Preschool through school-age learners building foundational learner readiness, language, and self-help skills.', domains: ['Cooperation & Reinforcer Effectiveness', 'Visual Performance', 'Receptive Language', 'Motor Imitation', 'Vocal Imitation', 'Requests (Mands)', 'Labeling (Tacts)', 'Intraverbals', 'Spontaneous Vocalizations', 'Social Interaction', 'Group Instruction', 'Classroom Routines', 'Generalized Responding', 'Dressing / Eating / Grooming / Toileting'], resultFormat: 'Criterion-referenced task level summaries and clinician-entered domain skill statuses.', goalPlanningUse: 'Translates specific skill gaps in cooperation, language, classroom routines, and self-care into DTT/NET and Task Analysis targets.', copyrightNote: 'High-level domain reference only. Stores clinician-entered findings without reproducing copyrighted task grids.' },
+    { id: 'afls', name: 'AFLS', fullName: 'Assessment of Functional Living Skills', category: 'Functional & Adaptive Living Skills Assessment', phaseStatus: 'Phase 1 Supported', primaryPurpose: 'Evaluates functional independence across Basic Living, Home, Community, School, Vocational, and Independent Living protocols.', learnerProfile: 'School-age children, adolescents, and transition-age learners focusing on daily living and community independence.', domains: ['Basic Living Skills (Self-Management, Basic Communication, Dressing, Toileting, Grooming, Health & Safety)', 'Home Skills', 'Community Participation', 'School Skills', 'Independent Living Skills', 'Vocational Skills'], resultFormat: 'Clinician-entered domain summaries, prompt level requirements, and independence ratings.', goalPlanningUse: 'Guides multi-step Task Analysis (chaining), transition latency, and functional communication goals.', copyrightNote: 'High-level domain reference only. Stores clinician-entered summaries only.' },
+    { id: 'efl', name: 'Essential for Living (EFL)', fullName: 'Essential for Living — Functional Communication, Behavior & Daily Living Curriculum', category: 'Functional Communication & Essential Life Skills Assessment', phaseStatus: 'Phase 1 Supported', primaryPurpose: 'Prioritizes the "Essential Eight" functional skills (making requests, waiting, accepting removals/transitions, completing brief tasks, accepting "no", following health/safety routines, tolerating situations) alongside severe behavior reduction.', learnerProfile: 'Learners with moderate-to-severe disabilities, limited vocal repertoires, or significant challenging behaviors.', domains: ['Speaking / Alternative Communication (Method of Communication)', 'Making Requests & Communicating Wants/Needs', 'Waiting After a Request', 'Accepting Removals, Transitions & Sharing', 'Completing Required Brief Tasks', 'Accepting "No"', 'Following Health & Safety Routines', 'Tolerating Situations Related to Health & Safety', 'Problem Behavior Tracking (Tantrums, Aggression, SIB)'], resultFormat: 'Skill performance levels, prompt dependency notes, and problem behavior severity/frequency summaries.', goalPlanningUse: 'Directly informs FCT replacement goals, transition latency targets, waiting duration goals, and behavior reduction plans.', copyrightNote: 'High-level domain reference only. Stores clinician-entered findings only.' },
+    { id: 'vineland3', name: 'Vineland-3', fullName: 'Vineland Adaptive Behavior Scales, Third Edition', category: 'Standardized Norm-Referenced Adaptive Behavior Measure', phaseStatus: 'Phase 1 Supported', primaryPurpose: 'Measures adaptive behavior across Communication, Daily Living Skills, Socialization, Motor Skills, and Maladaptive Behavior (frequently required by insurance payers for medical necessity).', learnerProfile: 'Birth through adulthood; standard payer-required benchmark for initial evaluations (CPT 97151) and 6-month re-authorizations.', domains: ['Communication (Receptive, Expressive, Written)', 'Daily Living Skills (Personal, Domestic, Community)', 'Socialization (Interpersonal Relationships, Play and Leisure, Coping Skills)', 'Motor Skills (Gross Motor, Fine Motor)', 'Maladaptive Behavior Index (Internalizing, Externalizing)'], resultFormat: 'Clinician-entered Domain Standard Scores, v-scale scores, Adaptive Behavior Composite (ABC), and adaptive deficit summaries.', goalPlanningUse: 'Aligns treatment plan domains with insurance medical-necessity criteria and caregiver-reported adaptive priorities.', copyrightNote: 'High-level domain reference only. Clinicians enter already-scored summary values; system never fabricates standardized norms.' },
+    { id: 'peak', name: 'PEAK', fullName: 'Promoting the Emergence of Advanced Knowledge Relational Training System', category: 'Derived Relational Responding & Advanced Language Assessment', phaseStatus: 'Later Phase / Future Expansion', primaryPurpose: 'Assesses direct training, generalization, stimulus equivalence, and relational frame theory (RFT) operants.', learnerProfile: 'Learners progressing from foundational verbal behavior to generalized, equivalence-based, and abstract relational reasoning.', domains: ['Direct Training Module', 'Generalization Module', 'Equivalence Module', 'Transformation of Functions Module'], resultFormat: 'Clinician-entered summary notes (Full module workflow scheduled for Later Phase).', goalPlanningUse: 'Included in the Reference Library for clinical awareness; marked as Later Phase per Phase 1 specification.', copyrightNote: 'Reference metadata only (Later Phase).' }
+  ];
+  const suggestions = (skillGapAnalysis && skillGapAnalysis.suggestions) || [];
+
+  // Default preview if clinician hasn't clicked analyze yet
+  const defaultGoalText = smartGoalInputText || (c.id === 2
+    ? 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue'
+    : 'When assistance is needed, Eleanor will independently request a break or help across 80% of opportunities across 3 consecutive sessions');
+  const activeAnalysis = smartGoalAnalysis || (smartGoalDrafts.length ? {
+    rawGoalText: smartGoalDrafts[0].raw_goal_text,
+    refinedGoalText: smartGoalDrafts[0].refined_goal_text,
+    goalType: smartGoalDrafts[0].goal_type,
+    domain: smartGoalDrafts[0].domain,
+    qualityCheck: {
+      isClear: true,
+      qualityScore: 95,
+      who: c.name,
+      targetResponse: smartGoalDrafts[0].refined_goal_text,
+      cueOrContext: 'When presented with instructional cue or natural routine opportunity',
+      timeframe: c.id === 2 ? 'Within 5 seconds' : 'Within 5 seconds of cue',
+      promptExpectation: 'Independent response (prompted tracked separately)',
+      statedCriterion: smartGoalDrafts[0].mastery_criteria,
+      vagueFlags: [],
+      clarifyingQuestions: smartGoalDrafts[0].clarifying_questions || []
+    },
+    operationalDefinition: {
+      summary: smartGoalDrafts[0].operational_definition,
+      targetResponse: smartGoalDrafts[0].refined_goal_text,
+      onsetCriteria: smartGoalDrafts[0].onset_criteria,
+      offsetCriteria: smartGoalDrafts[0].offset_criteria,
+      episodeRule: smartGoalDrafts[0].episode_rule,
+      examples: (smartGoalDrafts[0].examples || '').split(';').map(s => s.trim()).filter(Boolean),
+      nonExamples: (smartGoalDrafts[0].non_examples || '').split(';').map(s => s.trim()).filter(Boolean),
+      exclusions: ['Prompted responses are recorded with prompt level and excluded from independent mastery numerator']
+    },
+    measurementPlan: {
+      primaryKey: smartGoalDrafts[0].primary_measurement,
+      primaryMethod: (SMART_MEASUREMENT_OPTIONS.find(m => m.key === smartGoalDrafts[0].primary_measurement) || {}).label || smartGoalDrafts[0].primary_measurement,
+      secondaryKey: smartGoalDrafts[0].secondary_measurement,
+      secondaryMethod: (SMART_MEASUREMENT_OPTIONS.find(m => m.key === smartGoalDrafts[0].secondary_measurement) || {}).label || smartGoalDrafts[0].secondary_measurement,
+      rationale: smartGoalDrafts[0].measurement_rationale,
+      whatPrimaryCaptures: smartGoalDrafts[0].primary_measurement === 'latency'
+        ? 'Exact elapsed seconds from the transition cue to movement initiation.'
+        : 'Proportion of opportunities where the learner responds independently.',
+      whatPrimaryDoesNotCapture: smartGoalDrafts[0].primary_measurement === 'latency'
+        ? 'Overall percentage of transitions that met the 5-second threshold.'
+        : 'Exact prompt level required on non-independent trials.',
+      whatSecondaryCaptures: smartGoalDrafts[0].primary_measurement === 'latency'
+        ? 'Percentage of transition opportunities completed within the ≤ 5s criterion.'
+        : 'Trial-by-trial prompt hierarchy breakdown (I, V, G, M, PP, P, N, NA).'
+    },
+    dataCollectionPlan: {
+      dataFields: smartGoalDrafts[0].data_fields || ['Trial / Opportunity #', 'Cue Given', 'Response / Latency', 'Prompt Level', 'Met Goal?'],
+      responseOptions: ['I (Independent)', 'V (Verbal)', 'G (Gestural)', 'M (Model)', 'PP (Partial Physical)', 'P (Full Physical)', 'N (Refusal/No Response)', 'NA (Excluded)'],
+      calculationFormula: smartGoalDrafts[0].calculation_formula || '(Independent Responses / Total Valid Opportunities) × 100',
+      validityRules: [
+        'Independent and prompted responses are NEVER combined in the mastery numerator unless explicitly overridden by the BCBA.',
+        'Trials scored NA (Not Applicable) are excluded from the denominator.'
+      ],
+      sampleRows: smartGoalDrafts[0].sample_table || [
+        { trial: 1, cueGiven: 'Yes', movementInitiated: 'Yes', latency: '3 sec', metGoal: 'Yes (≤5s)' },
+        { trial: 2, cueGiven: 'Yes', movementInitiated: 'Yes', latency: '2 sec', metGoal: 'Yes (≤5s)' },
+        { trial: 3, cueGiven: 'Yes', movementInitiated: 'Yes', latency: '5 sec', metGoal: 'Yes (≤5s)' },
+        { trial: 4, cueGiven: 'Yes', movementInitiated: 'Yes', latency: '12 sec', metGoal: 'No (>5s)' },
+        { trial: 5, cueGiven: 'Yes', movementInitiated: 'Yes', latency: '3 sec', metGoal: 'Yes (≤5s)' }
+      ],
+      sampleSummary: c.id === 2
+        ? '80% successful transitions (4/5 opportunities met ≤5s criterion); Average latency = 5.0 seconds.'
+        : '80% independent responses (4/5 valid opportunities); 20% gestural prompt (1/5).'
+    },
+    masteryRecommendation: {
+      hasExplicitCriterion: true,
+      suggestedCriterion: smartGoalDrafts[0].mastery_criteria,
+      suggestedBaseline: smartGoalDrafts[0].baseline_data || '20% independent across 3 baseline sessions',
+      suggestedTargetPct: 80,
+      suggestedSessions: 3,
+      requiresClinicianConfirmation: false,
+      safeguardNotice: '✓ BCBA Review Guardrail Active: Clinician can edit any field before approving.'
+    }
+  } : null);
+
+  const selectedInst = instruments.find(inst => inst.id === selectedAssessmentInstrumentId) || instruments[0];
+
+  return `
+  <!-- Top Clinical Planning Header & 3-Step Workflow Banner -->
+  <div class="card" style="background:linear-gradient(135deg,#0f172a 0%,#134e4a 100%);color:#fff;border:none;margin-bottom:16px">
+    <div class="flex-between" style="flex-wrap:wrap;gap:14px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+          <span class="badge" style="background:#14b8a6;color:#042f2e;font-weight:800">AI Clinical Planning Assistant · Phase 1</span>
+          <span class="badge" style="background:rgba(255,255,255,0.14);color:#e2e8f0">100% Traceable Assessment → Goal → Measurement Pipeline</span>
+          <span class="badge" style="background:#fef3c7;color:#92400e;font-weight:800">🔒 Mandatory BCBA Review & Approval Guardrail</span>
+        </div>
+        <h3 style="margin:0 0 4px;color:#fff;font-size:1.3rem">🧠 Smart Goal Builder, Operational Definition Generator & ABA Assessment Center</h3>
+        <p style="margin:0;font-size:0.85rem;color:#cbd5e1;max-width:920px;line-height:1.5">
+          Turn any natural-language behavioral or skill-acquisition goal (or clinician-entered assessment finding) into a clear, observable, measurable, and trackable ABA plan—complete with <b>Operational Definition</b>, <b>Onset/Offset</b>, <b>Primary & Secondary Measurement System</b>, <b>Plain-Language Rationale</b>, and <b>Sample Data-Collection Sheet</b>.
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="act.openReauthReportModal(${c.id})">📄 Preview Auto-Populated Progress Report</button>
+      </div>
+    </div>
+
+    <!-- 3 Sub-Navigation Pills -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.15)">
+      <button type="button" class="${assessmentPlannerSubTab === 'smart_builder' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'smart_builder' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('smart_builder')">
+        ✨ 1. Smart Goal, Definition & Measurement Assistant
+      </button>
+      <button type="button" class="${assessmentPlannerSubTab === 'findings' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'findings' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('findings')">
+        📋 2. Assessment Findings & Traceable Skill-Gap Suggestions (${assessmentFindings.length})
+      </button>
+      <button type="button" class="${assessmentPlannerSubTab === 'library' ? 'ok' : 'sec'}" style="padding:8px 16px;font-size:0.84rem;${assessmentPlannerSubTab !== 'library' ? 'background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)' : ''}" onclick="act.setAssessmentSubTab('library')">
+        📚 3. ABA Assessment Reference Library (VB-MAPP · ABLLS-R · AFLS · EFL · Vineland-3 · PEAK)
+      </button>
+    </div>
+  </div>
+
+  ${assessmentPlannerSubTab === 'smart_builder' ? `
+    <!-- SUB-TAB 1: SMART GOAL BUILDER, OPERATIONAL DEFINITION & MEASUREMENT ASSISTANT -->
+    <div class="card" style="border-top:4px solid var(--primary)">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <span class="badge p">Step 1 · Enter Behavioral or Skill-Acquisition Goal</span>
+          <h3 style="margin:4px 0 2px">✨ AI Smart Goal Builder & Smart Measurement Assistant</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-600)">
+            Type any goal below or tap a clinical scenario preset. The assistant checks goal clarity, flags vague/internal-state language, and recommends an editable <b>Operational Definition</b> + <b>Primary & Secondary Measurement System</b>.
+          </p>
+        </div>
+        ${smartGoalFindingId ? `
+          <div style="background:#f0fdf4;border:1px solid #86efac;padding:6px 12px;border-radius:8px;font-size:0.78rem;color:#14532d;display:flex;align-items:center;gap:8px">
+            <span>🔗 <b>Traceable to Assessment Finding #${smartGoalFindingId}:</b> ${esc(smartGoalFindingText)}</span>
+            <button type="button" class="sec" style="padding:2px 6px;font-size:0.7rem" onclick="act.clearSmartGoalFinding()">✕ Clear</button>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- 1-Click Clinical Scenario & Vague Goal Quality-Check Presets -->
+      <div style="background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:12px;margin-bottom:14px">
+        <div style="font-size:0.74rem;font-weight:800;color:var(--slate-600);text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">
+          1-Click Clinical Goal Examples & Vague-Goal Quality Check Demos:
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px" onclick="act.loadSmartGoalPreset(${c.id}, 'Leon will initiate movement toward the next activity within 5 seconds of a transition cue', 'skill_acquisition', 'Transitions & Cooperation')">
+            ⏱️ Leon's 5s Transition Goal (Latency + % Opps)
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px" onclick="act.loadSmartGoalPreset(${c.id}, 'Client will decrease hitting behavior during structured demands', 'behavior_reduction', 'Behavior Reduction — Aggression')">
+            🛑 Decrease Hitting Behavior (Frequency/Rate + ABC)
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px" onclick="act.loadSmartGoalPreset(${c.id}, 'When assistance is needed, ${esc(c.name)} will independently request a break or help across 80% of opportunities across 3 consecutive sessions', 'skill_acquisition', 'Functional Communication (Mand / FCT)')">
+            🗣️ Request Break / Assistance (FCT % Opps + Trial-by-Trial)
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px" onclick="act.loadSmartGoalPreset(${c.id}, 'Decrease crying and screaming tantrum episodes during transitions', 'behavior_reduction', 'Behavior Reduction — Tantrum')">
+            ⏳ Decrease Tantrum Episodes (Duration + Frequency)
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px;border-color:#fcd34d;background:#fffbeb;color:#92400e" onclick="act.loadSmartGoalPreset(${c.id}, 'Be respectful', 'skill_acquisition', 'Social & Classroom')">
+            ⚠️ Vague Goal Test: "Be respectful"
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px;border-color:#fcd34d;background:#fffbeb;color:#92400e" onclick="act.loadSmartGoalPreset(${c.id}, 'Improve social skills', 'skill_acquisition', 'Socialization')">
+            ⚠️ Vague Goal Test: "Improve social skills"
+          </button>
+          <button type="button" class="sec" style="font-size:0.76rem;padding:5px 10px;border-color:#fcd34d;background:#fffbeb;color:#92400e" onclick="act.loadSmartGoalPreset(${c.id}, 'Reduce tantrums', 'behavior_reduction', 'Behavior Reduction')">
+            ⚠️ Vague Goal Test: "Reduce tantrums"
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:2">
+          <label>Enter Behavioral or Skill-Acquisition Goal (Natural Language)</label>
+          <textarea id="sgb_goal_input" rows="2" placeholder="e.g. Leon will initiate movement toward the next activity within 5 seconds of a transition cue">${esc(defaultGoalText)}</textarea>
+        </div>
+        <div style="flex:1">
+          <label>Goal Classification</label>
+          <select id="sgb_goal_type">
+            <option value="skill_acquisition" ${smartGoalType !== 'behavior_reduction' ? 'selected' : ''}>🎯 Skill Acquisition / FCT Replacement Goal</option>
+            <option value="behavior_reduction" ${smartGoalType === 'behavior_reduction' ? 'selected' : ''}>📉 Behavior Reduction / Deceleration Target</option>
+          </select>
+          <label style="margin-top:8px">Clinical Domain</label>
+          <input id="sgb_goal_domain" placeholder="e.g. Transitions, Manding, Aggression" value="${esc(smartGoalDomain || (activeAnalysis && activeAnalysis.domain) || 'Communication & Adaptive Skills')}">
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+        <button type="button" class="ok" style="padding:10px 20px;font-size:0.9rem" onclick="act.runSmartGoalAnalysis(${c.id})">
+          🧠 Analyze Goal & Recommend Operational Definition + Measurement Plan
+        </button>
+      </div>
+    </div>
+
+    ${activeAnalysis ? `
+      <!-- 6-PART STRUCTURED CLINICAL RECOMMENDATION & EDITABLE WORKSPACE -->
+      <div class="card" style="border:2px solid var(--primary);background:#fff">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--slate-200)">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="badge p">Step 2 · Review & Customize AI Clinical Recommendations</span>
+              <span class="tag ${activeAnalysis.qualityCheck?.isClear ? 'approved' : 'draft'}">
+                ${activeAnalysis.qualityCheck?.isClear ? `✓ Observable & Measurable (Clarity Score: ${activeAnalysis.qualityCheck.qualityScore}/100)` : `⚠️ Needs Clarification Before Finalizing (Clarity Score: ${activeAnalysis.qualityCheck?.qualityScore || 45}/100)`}
+              </span>
+            </div>
+            <h3 style="margin:6px 0 0;font-size:1.2rem;color:var(--slate-900)">Recommended Operational Definition, Measurement System & Data Plan</h3>
+          </div>
+          <span class="badge tan">All Fields Editable by BCBA</span>
+        </div>
+
+        <!-- PART 1: Goal Clarity & Quality Check -->
+        <div style="margin-top:14px;padding:14px;border-radius:10px;background:${activeAnalysis.qualityCheck?.isClear ? '#f0fdf4' : '#fffbeb'};border:1.5px solid ${activeAnalysis.qualityCheck?.isClear ? '#86efac' : '#fcd34d'}">
+          <div style="font-size:0.76rem;font-weight:800;color:${activeAnalysis.qualityCheck?.isClear ? '#065f46' : '#92400e'};text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            1. Goal Clarity, Component Extraction & Quality Check
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;font-size:0.82rem;margin-bottom:10px">
+            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200)">
+              <span style="color:var(--slate-500);font-size:0.72rem;font-weight:700;text-transform:uppercase">Who (Learner)</span><br>
+              <b>${esc(activeAnalysis.qualityCheck?.who || c.name)}</b>
+            </div>
+            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200)">
+              <span style="color:var(--slate-500);font-size:0.72rem;font-weight:700;text-transform:uppercase">Target Observable Response</span><br>
+              <b>${esc(activeAnalysis.qualityCheck?.targetResponse || activeAnalysis.refinedGoalText)}</b>
+            </div>
+            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200)">
+              <span style="color:var(--slate-500);font-size:0.72rem;font-weight:700;text-transform:uppercase">Cue / Antecedent Context</span><br>
+              <b>${esc(activeAnalysis.qualityCheck?.cueOrContext || 'During structured or natural opportunities')}</b>
+            </div>
+            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200)">
+              <span style="color:var(--slate-500);font-size:0.72rem;font-weight:700;text-transform:uppercase">Timeframe / Latency</span><br>
+              <b>${esc(activeAnalysis.qualityCheck?.timeframe || 'Standard session observation')}</b>
+            </div>
+            <div style="background:#fff;padding:8px 10px;border-radius:6px;border:1px solid var(--slate-200)">
+              <span style="color:var(--slate-500);font-size:0.72rem;font-weight:700;text-transform:uppercase">Prompt Expectation</span><br>
+              <b>${esc(activeAnalysis.qualityCheck?.promptExpectation || 'Independent response')}</b>
+            </div>
+          </div>
+
+          ${(activeAnalysis.qualityCheck?.vagueFlags && activeAnalysis.qualityCheck.vagueFlags.length) ? `
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid var(--bad);border-radius:6px;padding:10px 12px;margin-bottom:8px;font-size:0.82rem;color:#991b1b">
+              <b>🚩 Vague or Subjective Goal Language Flagged:</b>
+              <ul style="margin:4px 0 0 18px;padding:0">
+                ${activeAnalysis.qualityCheck.vagueFlags.map(f => `<li><b>"${esc(f.term)}":</b> ${esc(f.issue)}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+
+          ${(activeAnalysis.qualityCheck?.clarifyingQuestions && activeAnalysis.qualityCheck.clarifyingQuestions.length) ? `
+            <div style="background:#fff;border:1px solid var(--slate-200);border-radius:6px;padding:10px 12px;font-size:0.82rem;color:var(--slate-800)">
+              <b style="color:var(--primary)">❓ Clarifying Questions for Clinician Review:</b>
+              <ul style="margin:4px 0 0 18px;padding:0">
+                ${activeAnalysis.qualityCheck.clarifyingQuestions.map(q => `<li>${esc(q)}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- PART 2: Editable Operational Definition (Target Response, Onset, Offset, Episode Rule, Examples, Non-Examples) -->
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1.5px solid var(--slate-200);background:var(--slate-50)">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            2. Recommended Operational Definition (What Exactly Should Be Observed & Recorded)
+          </div>
+
+          <label>Refined Measurable Goal Statement</label>
+          <input id="sgb_refined_goal" value="${esc(activeAnalysis.refinedGoalText || '')}">
+
+          <label>Operational Definition (Objective, Observable & Measurable)</label>
+          <textarea id="sgb_op_def" rows="3">${esc(activeAnalysis.operationalDefinition?.summary || '')}</textarea>
+
+          <div class="row">
+            <div>
+              <label>Onset Criteria (When observation/timing begins)</label>
+              <input id="sgb_onset" value="${esc(activeAnalysis.operationalDefinition?.onsetCriteria || '')}">
+            </div>
+            <div>
+              <label>Offset Criteria (When response/episode ends)</label>
+              <input id="sgb_offset" value="${esc(activeAnalysis.operationalDefinition?.offsetCriteria || '')}">
+            </div>
+          </div>
+
+          <label>Episode Separation / Counting Rule</label>
+          <input id="sgb_episode" value="${esc(activeAnalysis.operationalDefinition?.episodeRule || '')}">
+
+          <div class="row">
+            <div>
+              <label>Examples (Observable Topographies Included)</label>
+              <textarea id="sgb_examples" rows="2">${esc((activeAnalysis.operationalDefinition?.examples || []).join('; '))}</textarea>
+            </div>
+            <div>
+              <label>Non-Examples & Exclusions (Excluded from Count)</label>
+              <textarea id="sgb_non_examples" rows="2">${esc((activeAnalysis.operationalDefinition?.nonExamples || []).join('; '))}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- PART 3: Smart Measurement Assistant (Primary + Secondary + Plain-Language Rationale) -->
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1.5px solid #99f6e4;background:#f0fdfa">
+          <div style="font-size:0.76rem;font-weight:800;color:#0f766e;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            3. Smart Measurement Assistant (How the Behavior or Skill Should Be Measured)
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Recommended Primary Measurement Method</label>
+              <select id="sgb_primary_meas">
+                ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}" ${activeAnalysis.measurementPlan?.primaryKey === m.key ? 'selected' : ''}>📏 Primary: ${esc(m.label)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label>Recommended Secondary Measurement (Only When Clinically Distinct)</label>
+              <select id="sgb_secondary_meas">
+                <option value="">None (Primary Measurement Sufficient)</option>
+                ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}" ${activeAnalysis.measurementPlan?.secondaryKey === m.key ? 'selected' : ''}>➕ Secondary: ${esc(m.label)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <label>Plain-Language Clinical Measurement Rationale</label>
+          <textarea id="sgb_rationale" rows="2">${esc(activeAnalysis.measurementPlan?.rationale || '')}</textarea>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:8px;font-size:0.81rem">
+            <div style="background:#fff;padding:10px 12px;border-radius:8px;border:1px solid #99f6e4">
+              <div style="font-weight:800;color:#0f766e;font-size:0.73rem;text-transform:uppercase">✓ What Primary Measurement Captures</div>
+              <div style="margin-top:4px;color:var(--slate-800)">${esc(activeAnalysis.measurementPlan?.whatPrimaryCaptures || '')}</div>
+            </div>
+            <div style="background:#fff;padding:10px 12px;border-radius:8px;border:1px solid #fde68a">
+              <div style="font-weight:800;color:#92400e;font-size:0.73rem;text-transform:uppercase">⚠️ What Primary Does NOT Capture Alone</div>
+              <div style="margin-top:4px;color:var(--slate-800)">${esc(activeAnalysis.measurementPlan?.whatPrimaryDoesNotCapture || '')}</div>
+            </div>
+            <div style="background:#fff;padding:10px 12px;border-radius:8px;border:1px solid #bfdbfe">
+              <div style="font-weight:800;color:#1d4ed8;font-size:0.73rem;text-transform:uppercase">➕ What Secondary Measurement Adds</div>
+              <div style="margin-top:4px;color:var(--slate-800)">${esc(activeAnalysis.measurementPlan?.whatSecondaryCaptures || 'Optional supplementary context')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PART 4: Data-Collection Sheet & Sample Recording Table -->
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1.5px solid var(--slate-200);background:#fff">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--slate-700);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
+            4. Recommended Data-Collection Structure, Formula & Sample Session Table
+          </div>
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+            <span style="font-size:0.76rem;font-weight:700;color:var(--slate-500)">Required Session Fields:</span>
+            ${(activeAnalysis.dataCollectionPlan?.dataFields || []).map(f => `<span class="badge p">${esc(f)}</span>`).join('')}
+          </div>
+
+          <div style="font-size:0.82rem;background:var(--slate-50);padding:8px 12px;border-radius:6px;border:1px solid var(--slate-200);margin-bottom:10px">
+            <b>Calculation Formula:</b> <code style="font-family:var(--font-mono);color:var(--primary)">${esc(activeAnalysis.dataCollectionPlan?.calculationFormula || '')}</code>
+          </div>
+
+          ${(activeAnalysis.dataCollectionPlan?.sampleRows && activeAnalysis.dataCollectionPlan.sampleRows.length) ? `
+            <div class="table-responsive" style="margin-bottom:10px">
+              <table>
+                <thead>
+                  <tr>
+                    ${Object.keys(activeAnalysis.dataCollectionPlan.sampleRows[0]).map(k => `<th>${esc(k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()))}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${activeAnalysis.dataCollectionPlan.sampleRows.map(row => `
+                    <tr>
+                      ${Object.values(row).map(v => `<td><b>${esc(String(v))}</b></td>`).join('')}
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div style="background:var(--ok-light);border:1px solid var(--ok-border);padding:8px 12px;border-radius:6px;font-size:0.82rem;color:#065f46">
+              <b>📊 Sample Session Summary Output:</b> ${esc(activeAnalysis.dataCollectionPlan?.sampleSummary || '')}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- PART 5: Mastery Criterion & Safeguard -->
+        <div style="margin-top:14px;padding:14px;border-radius:10px;border:1.5px solid ${activeAnalysis.masteryRecommendation?.requiresClinicianConfirmation ? '#fcd34d' : 'var(--slate-200)'};background:${activeAnalysis.masteryRecommendation?.requiresClinicianConfirmation ? '#fffbeb' : 'var(--slate-50)'}">
+          <div style="font-size:0.76rem;font-weight:800;color:var(--slate-800);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;font-family:var(--font-mono)">
+            5. Baseline & Mastery Criterion (Safeguard Against Unverified Auto-Locking)
+          </div>
+          <div style="font-size:0.8rem;color:${activeAnalysis.masteryRecommendation?.requiresClinicianConfirmation ? '#92400e' : '#065f46'};margin-bottom:10px">
+            <b>${esc(activeAnalysis.masteryRecommendation?.safeguardNotice || '')}</b>
+          </div>
+          <div class="row">
+            <div style="flex:2">
+              <label>Mastery Criterion Statement</label>
+              <input id="sgb_mastery" value="${esc(activeAnalysis.masteryRecommendation?.suggestedCriterion || '80% across 3 consecutive sessions')}">
+            </div>
+            <div style="flex:1">
+              <label>Baseline Data</label>
+              <input id="sgb_baseline" value="${esc(activeAnalysis.masteryRecommendation?.suggestedBaseline || '20% across 3 baseline sessions')}">
+            </div>
+            <div style="flex:1">
+              <label>Target % / Sessions</label>
+              <div style="display:flex;gap:6px">
+                <input id="sgb_target_pct" type="number" min="1" max="100" value="${activeAnalysis.masteryRecommendation?.suggestedTargetPct || 80}" title="Target %">
+                <input id="sgb_sessions" type="number" min="1" max="10" value="${activeAnalysis.masteryRecommendation?.suggestedSessions || 3}" title="Consecutive Sessions">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PART 6: Save Draft or BCBA Review, Edit & Approve -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--slate-200)">
+          <div style="font-size:0.8rem;color:var(--slate-600)">
+            🔒 <b>Clinical Guardrail:</b> All AI-recommended definitions and measurement plans are saved as <code>draft</code> until reviewed and approved by a supervising BCBA.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="sec" onclick="act.saveSmartGoalDraft(${c.id}, false)">
+              💾 Save as Clinical Draft
+            </button>
+            ${canApprove ? `
+              <button type="button" class="ok" onclick="act.saveSmartGoalDraft(${c.id}, true)">
+                ✓ BCBA Approve & Activate in Client Record
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- Saved Smart Goal & Measurement Drafts Queue -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <h3 style="margin:0">📂 Saved Smart Goal & Measurement Plans (${smartGoalDrafts.length})</h3>
+          <p style="margin:2px 0 0;font-size:0.83rem;color:var(--slate-500)">Drafts awaiting BCBA sign-off and approved plans linked to ${esc(c.name)}'s clinical record.</p>
+        </div>
+      </div>
+      ${smartGoalDrafts.length ? smartGoalDrafts.map(d => `
+        <div style="background:var(--slate-50);border:1.5px solid ${d.status === 'approved' ? '#86efac' : 'var(--slate-200)'};border-left:4px solid ${d.status === 'approved' ? 'var(--ok)' : 'var(--warn)'};border-radius:var(--radius-md);padding:14px;margin-bottom:10px">
+          <div class="flex-between" style="flex-wrap:wrap;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="tag ${d.status === 'approved' ? 'approved' : 'draft'}">${d.status === 'approved' ? `✓ Approved by ${esc(d.approved_by || 'BCBA')}` : '📝 Draft (Awaiting BCBA Approval)'}</span>
+              <span class="badge p">${d.goal_type === 'behavior_reduction' ? '📉 Behavior Reduction' : '🎯 Skill Acquisition'}</span>
+              <span class="badge">${esc(d.domain || 'Clinical Goal')}</span>
+              <span class="badge tan">Primary: ${esc(d.primary_measurement)}</span>
+              ${d.secondary_measurement ? `<span class="badge">Secondary: ${esc(d.secondary_measurement)}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.loadDraftIntoSmartBuilder(${d.id}, ${c.id})">✏️ Load into Editor</button>
+              ${canApprove && d.status !== 'approved' ? `
+                <button type="button" class="ok" style="padding:5px 12px;font-size:0.76rem" onclick="act.approveSmartGoalDraft(${d.id})">✓ BCBA Approve & Activate</button>
+              ` : ''}
+            </div>
+          </div>
+          <div style="font-weight:700;font-size:0.96rem;color:var(--slate-900);margin-top:8px">${esc(d.refined_goal_text || d.raw_goal_text)}</div>
+          <div style="font-size:0.82rem;color:var(--slate-700);margin-top:4px"><b>Operational Definition:</b> ${esc(d.operational_definition)}</div>
+          <div style="font-size:0.78rem;color:var(--slate-600);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
+            <span><b>Onset:</b> ${esc(d.onset_criteria || '—')}</span>
+            <span><b>Offset:</b> ${esc(d.offset_criteria || '—')}</span>
+            <span><b>Mastery:</b> ${esc(d.mastery_criteria || '—')}</span>
+          </div>
+        </div>
+      `).join('') : '<p style="color:var(--slate-400)">No smart goal drafts saved yet.</p>'}
+    </div>
+  ` : ''}
+
+  ${assessmentPlannerSubTab === 'findings' ? `
+    <!-- SUB-TAB 2: CLINICIAN-ENTERED ASSESSMENT FINDINGS & TRACEABLE SKILL-GAP SUGGESTIONS -->
+    <div class="card" style="border-top:4px solid var(--primary)">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <span class="badge p">Clinician-Entered Assessment Findings · Zero Fabricated Scores</span>
+          <h3 style="margin:4px 0 2px">📋 Log Assessment Finding & Generate Traceable Skill-Gap Suggestion</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-600)">
+            Record findings from <b>VB-MAPP</b>, <b>ABLLS-R</b>, <b>AFLS</b>, <b>Essential for Living (EFL)</b>, or <b>Vineland-3</b>. Every recommended skill target maintains 100% traceability back to the clinician-entered finding.
+          </p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Assessment Instrument</label>
+          <select id="af_inst" onchange="act.selectFindingInstrument(this.value)">
+            ${instruments.filter(i => i.phaseStatus === 'Phase 1 Supported').map(inst => `
+              <option value="${inst.id}" ${selectedAssessmentInstrumentId === inst.id ? 'selected' : ''}>${esc(inst.name)} — ${esc(inst.category)}</option>
+            `).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Assessment Domain</label>
+          <select id="af_domain">
+            ${(selectedInst?.domains || ['Mand', 'Tact', 'Listener Responding']).map(dom => `<option value="${esc(dom)}">${esc(dom)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Evidence Source</label>
+          <select id="af_source">
+            <option value="Direct Observation & Formal Assessment">Direct Observation & Formal Assessment</option>
+            <option value="Formal Assessment Administration">Formal Assessment Administration</option>
+            <option value="Caregiver Interview & Rating">Caregiver Interview & Rating</option>
+            <option value="Clinical Record Review">Clinical Record Review</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:2">
+          <label>Clinician-Observed Finding / Skill Deficit / Behavioral Barrier</label>
+          <input id="af_finding" placeholder="e.g. Initiates transition movement after 12–20s delay when preferred activity ends; requires gestural/physical prompts">
+        </div>
+        <div style="flex:1">
+          <label>Score / Milestone Level (Clinician-Entered)</label>
+          <input id="af_score" placeholder="e.g. Level 1 (1.5 / 5) or Score 1 of 4">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Observation Context / Setting</label>
+          <input id="af_context" value="Clinic & Structured Transitions">
+        </div>
+        <div>
+          <label>Current Support / Prompt Needs</label>
+          <input id="af_support" value="Requires verbal + gestural prompting">
+        </div>
+        <div>
+          <label>Clinical Priority Action</label>
+          <select id="af_priority">
+            <option value="priority_goal">🎯 Priority Treatment Goal</option>
+            <option value="further_assessment">🔍 Needs Further Assessment</option>
+            <option value="environmental_support">🛠️ Environmental / Caregiver Support</option>
+            <option value="no_action">⏸️ No Immediate Action</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button type="button" class="ok" onclick="act.addAssessmentFinding(${c.id})">
+          + Log Assessment Finding & Generate Skill-Gap Suggestion
+        </button>
+      </div>
+    </div>
+
+    <!-- Traceable Skill-Gap Suggestions Table -->
+    <div class="card">
+      <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <h3 style="margin:0">🔗 Traceable Skill-Gap Suggestions (${suggestions.length})</h3>
+          <p style="margin:2px 0 0;font-size:0.83rem;color:var(--slate-500)">
+            Each candidate target is directly linked to a specific clinician-entered assessment finding and can be sent to the Smart Goal Builder in 1 click.
+          </p>
+        </div>
+      </div>
+
+      ${suggestions.length ? suggestions.map(s => `
+        <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-left:4px solid var(--primary);border-radius:var(--radius-md);padding:14px;margin-bottom:12px">
+          <div class="flex-between" style="flex-wrap:wrap;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="badge p">Finding #${s.findingId} · ${esc(s.instrumentName)}</span>
+              <span class="badge">${esc(s.domain)}</span>
+              <span class="badge tan">Score/Level: ${esc(s.scoreOrLevel || 'Observed')}</span>
+              <span class="badge">Source: ${esc(s.evidenceSource)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <select style="margin:0;padding:4px 8px;font-size:0.76rem;width:auto" onchange="act.updateFindingPriority(${s.findingId}, this.value)">
+                <option value="priority_goal" ${s.priorityStatus === 'priority_goal' ? 'selected' : ''}>🎯 Priority Goal</option>
+                <option value="further_assessment" ${s.priorityStatus === 'further_assessment' ? 'selected' : ''}>🔍 Needs Further Assessment</option>
+                <option value="environmental_support" ${s.priorityStatus === 'environmental_support' ? 'selected' : ''}>🛠️ Environmental Support</option>
+                <option value="no_action" ${s.priorityStatus === 'no_action' ? 'selected' : ''}>⏸️ No Action</option>
+              </select>
+              <button type="button" class="ok" style="padding:6px 12px;font-size:0.78rem" onclick="act.sendFindingToSmartBuilder(${c.id}, ${s.findingId}, ${JSON.stringify(s.suggestedGoalStatement).replace(/"/g, '&quot;')}, '${esc(s.goalType)}', '${esc(s.domain)}', ${JSON.stringify(s.findingText).replace(/"/g, '&quot;')})">
+                ✨ Open in Smart Goal Builder →
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:8px;font-size:0.84rem;color:var(--slate-700)">
+            <b>Clinician-Entered Finding:</b> "${esc(s.findingText)}" <i>(Context: ${esc(s.context)} · Support Needs: ${esc(s.supportNeeds)})</i>
+          </div>
+
+          <div style="margin-top:8px;background:#fff;border:1px solid var(--slate-200);border-radius:8px;padding:10px 12px">
+            <div style="font-size:0.75rem;font-weight:800;color:var(--primary);text-transform:uppercase">Recommended Candidate Goal & Measurement Plan:</div>
+            <div style="font-weight:700;color:var(--slate-900);font-size:0.92rem;margin-top:2px">${esc(s.suggestedGoalStatement)}</div>
+            <div style="font-size:0.8rem;color:var(--slate-600);margin-top:4px">
+              <b>Operational Definition Preview:</b> ${esc(s.operationalDefinitionSummary)}
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:0.78rem">
+              <span class="badge tan">Primary: ${esc(s.recommendedPrimaryMeasurement)}</span>
+              ${s.recommendedSecondaryMeasurement ? `<span class="badge">Secondary: ${esc(s.recommendedSecondaryMeasurement)}</span>` : ''}
+              <span class="badge p">Draft Criterion: ${esc(s.suggestedMasteryCriterion)}</span>
+            </div>
+          </div>
+        </div>
+      `).join('') : '<p style="color:var(--slate-400)">No assessment findings logged yet.</p>'}
+    </div>
+  ` : ''}
+
+  ${assessmentPlannerSubTab === 'library' ? `
+    <!-- SUB-TAB 3: ABA ASSESSMENT REFERENCE LIBRARY -->
+    <div class="card" style="background:#fffbeb;border:1.5px solid #fcd34d;margin-bottom:16px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="font-size:1.4rem">🛡️</div>
+        <div style="font-size:0.83rem;color:#78350f;line-height:1.5">
+          <b>Copyright, Content & Clinical Integrity Safeguards (Phase 1 Specification):</b><br>
+          The RBT Sepia Assessment Reference Library stores <b>high-level domain organization, clinical purpose, learner profiles, and clinician-entered summary findings only</b>. It never reproduces proprietary test forms, verbatim copyrighted scoring grids, or fabricated normative scores.
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px">
+      ${instruments.map(inst => `
+        <div class="card" style="margin:0;border-top:4px solid ${inst.phaseStatus === 'Phase 1 Supported' ? 'var(--primary)' : 'var(--slate-400)'};display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="flex-between" style="gap:8px;flex-wrap:wrap;margin-bottom:6px">
+              <span class="badge p">${esc(inst.category)}</span>
+              <span class="tag ${inst.phaseStatus === 'Phase 1 Supported' ? 'approved' : 'draft'}">${esc(inst.phaseStatus)}</span>
+            </div>
+            <h3 style="margin:4px 0 2px;font-size:1.15rem;color:var(--slate-900)">${esc(inst.name)}</h3>
+            <div style="font-size:0.8rem;font-weight:600;color:var(--slate-500);margin-bottom:10px">${esc(inst.fullName)}</div>
+
+            <div style="font-size:0.83rem;color:var(--slate-700);margin-bottom:8px">
+              <b>Primary Clinical Purpose:</b> ${esc(inst.primaryPurpose)}
+            </div>
+            <div style="font-size:0.83rem;color:var(--slate-700);margin-bottom:8px">
+              <b>Typical Learner Profile:</b> ${esc(inst.learnerProfile)}
+            </div>
+            <div style="font-size:0.83rem;color:var(--slate-700);margin-bottom:8px">
+              <b>Typical Result Format:</b> ${esc(inst.resultFormat)}
+            </div>
+            <div style="font-size:0.83rem;color:var(--slate-700);margin-bottom:10px">
+              <b>Goal-Planning Use:</b> ${esc(inst.goalPlanningUse)}
+            </div>
+
+            <div style="font-size:0.74rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px">High-Level Domains (${(inst.domains || []).length}):</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px">
+              ${(inst.domains || []).map(d => `<span class="badge" style="font-size:0.72rem">${esc(d)}</span>`).join('')}
+            </div>
+          </div>
+
+          <div style="padding-top:10px;border-top:1px solid var(--slate-200);display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <span style="font-size:0.72rem;color:var(--slate-500)">${esc(inst.copyrightNote)}</span>
+            ${inst.phaseStatus === 'Phase 1 Supported' ? `
+              <button type="button" class="ok" style="padding:6px 12px;font-size:0.76rem;white-space:nowrap" onclick="act.openLogFindingForInstrument('${inst.id}')">
+                + Log ${esc(inst.name)} Finding →
+              </button>
+            ` : `
+              <span class="badge">Scheduled Later Phase</span>
+            `}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : ''}
+  `;
+}
 
 if (typeof document !== 'undefined') {
   document.addEventListener('click', (e) => {
@@ -2038,6 +2717,7 @@ async function clientView(id) {
   const B = me.role === 'BCBA', P = me.role === 'PARENT';
   const tabs = P ? [['goals', 'Skill Goals'], ['stories', 'Social Stories']] : [
     ['overview', 'Overview'],
+    ['assessments', '🧠 Smart Goal & Assessment Planner'],
     ['skills', 'Skill Goals (DTT)'],
     ['behavior_abc', 'Behavior & ABC'],
     ['plans', 'Behavior Plan (BIP)'],
@@ -2068,6 +2748,7 @@ async function clientView(id) {
           <button class="ok" style="padding:7px 12px;font-size:0.8rem" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">📅 Schedule RBT</button>
         ` : ''}
         ${!P ? `
+          <button class="ok" style="padding:7px 12px;font-size:0.8rem;background:#0f766e" onclick="act.setTab('assessments')">🧠 Smart Goal & Measurement AI</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openClientBillingModal(${c.id})">💳 Billing Snapshot</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials</button>
           <button class="sec" style="padding:7px 12px;font-size:0.8rem" onclick="act.openAuditModal(${c.id})">🛡️ Audit Log (${auditLogs.length})</button>
@@ -2286,6 +2967,11 @@ async function clientView(id) {
     </div>`;
   }
 
+  // Tab: Smart Goal Builder, Operational Definition Generator & ABA Assessment Center
+  else if (tab === 'assessments') {
+    body = renderSmartPlannerAndAssessmentsTab(c, data, B);
+  }
+
   // Tab: Skills, DTT & Task Analysis (also used for Parent 'goals' tab)
   else if (tab === 'skills' || tab === 'goals') {
     body = `
@@ -2300,6 +2986,7 @@ async function clientView(id) {
         </div>
         ${!P ? `
           <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="sec" onclick="act.setTab('assessments');act.setAssessmentSubTab('smart_builder')">🧠 Smart Goal & Measurement Assistant</button>
             <button class="sec" onclick="window.open('/api/clients/${c.id}/export-csv?type=trials','_blank')">📥 Export Trials CSV</button>
             <button class="ok" onclick="act.openCreateGoalModal(${c.id})">+ Create New Skill Target</button>
           </div>
@@ -2319,6 +3006,8 @@ async function clientView(id) {
                 <span class="tag ${stMeta.cls}">${esc(g.status === 'active' ? g.trend : stMeta.label)}</span>
                 <span class="badge">${esc(g.domain || 'Communication / Manding')}</span>
                 <span class="badge">${esc(g.prompt_strategy || 'Least-to-Most (LTM)')}</span>
+                ${g.measurement_type ? `<span class="badge tan">📏 ${esc(g.measurement_type)}</span>` : ''}
+                ${g.secondary_measurement ? `<span class="badge">+ ${esc(g.secondary_measurement)}</span>` : ''}
                 <span class="badge ${g.scoring_rule === 'include_prompted' ? 'att' : 'tan'}">
                   ${g.scoring_rule === 'include_prompted' ? 'Scoring: Indep + Prompted' : 'Scoring: Independent Only'}
                 </span>
@@ -2329,6 +3018,12 @@ async function clientView(id) {
                 ${!P && g.status === 'mastered' ? `<button class="sec" style="font-size:0.8rem;padding:6px 12px" onclick="act.quickReactivateGoal(${g.id})">Reactivate</button>` : ''}
               </div>
             </div>
+            ${g.operational_definition ? `
+              <div style="background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:0.81rem;color:var(--slate-700)">
+                <b>Operational Definition:</b> ${esc(g.operational_definition)}
+                ${g.onset_criteria || g.offset_criteria ? `<div style="font-size:0.76rem;color:var(--slate-500);margin-top:2px">${g.onset_criteria ? `<b>Onset:</b> ${esc(g.onset_criteria)} ` : ''}${g.offset_criteria ? `· <b>Offset:</b> ${esc(g.offset_criteria)}` : ''}</div>` : ''}
+              </div>
+            ` : ''}
             <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin:8px 0 10px;display:flex;gap:12px;flex-wrap:wrap">
               <span>Baseline: <b>${g.baseline}%</b></span>
               <span>${g.mastery_sessions || 3}-Session Avg: <b>${g.current ?? '—'}${g.current !== null ? '%' : ''}</b></span>
@@ -6333,9 +7028,15 @@ function renderModal() {
 
         <!-- SECTION 1: Behavior Name, Function, Operational Definition, Onset/Offset, Examples & Non-Examples -->
         <div style="margin-top:12px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'behavior' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'behavior' ? '#f0fdfa' : '#ffffff'}">
-          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
-            1. Behavior Name, Function, Operational Definition, Onset/Offset & Examples
+          <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+            <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;font-family:var(--font-mono)">
+              1. Behavior Name, Function, Operational Definition, Onset/Offset & Examples
+            </div>
+            <button type="button" class="ok" style="padding:5px 10px;font-size:0.75rem;background:#0f766e" onclick="act.aiRecommendInBehaviorModal(${cid})">
+              ✨ AI Recommend Operational Definition & Measurement
+            </button>
           </div>
+          <div id="bp_ai_banner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;color:#065f46"></div>
           <div class="row">
             <div style="flex:2">
               <label>Behavior Name</label>
@@ -7005,8 +7706,55 @@ function renderModal() {
           </div>
         </div>
 
-        <label>Target Operational Title</label>
-        <input id="new_g_title" placeholder="e.g. Following 2-step classroom directions" value="${esc(prefill)}">
+        <div class="flex-between" style="align-items:flex-end;gap:8px;margin-bottom:4px">
+          <label style="margin:0">Target Operational Title / Goal Statement</label>
+          <button type="button" class="ok" style="padding:5px 10px;font-size:0.75rem;background:#0f766e" onclick="act.aiRecommendInGoalModal(${cid})">
+            ✨ AI Recommend Operational Definition & Measurement
+          </button>
+        </div>
+        <input id="new_g_title" placeholder="e.g. Leon will initiate movement toward the next activity within 5 seconds of a transition cue" value="${esc(prefill)}">
+        <div id="new_g_ai_banner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;color:#065f46"></div>
+
+        <label>Operational Definition (What exactly should be observed & recorded)</label>
+        <textarea id="new_g_def" rows="2" placeholder="Click '✨ AI Recommend' above or enter an observable, measurable definition..."></textarea>
+
+        <div class="row">
+          <div>
+            <label>Onset Criteria</label>
+            <input id="new_g_onset" placeholder="When timing/observation begins">
+          </div>
+          <div>
+            <label>Offset Criteria</label>
+            <input id="new_g_offset" placeholder="When response/episode ends">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Examples (Included)</label>
+            <input id="new_g_examples" placeholder="Observable topographies included">
+          </div>
+          <div>
+            <label>Non-Examples (Excluded)</label>
+            <input id="new_g_non" placeholder="Topographies or prompts excluded">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Primary Measurement Method</label>
+            <select id="new_g_mtype">
+              ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Secondary Measurement (Optional)</label>
+            <select id="new_g_sec_mtype">
+              <option value="">None</option>
+              ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
 
         <div class="row">
           <div>
@@ -8093,9 +8841,251 @@ const act = {
     const prompt_strategy = val('new_g_strategy') || 'Least-to-Most (LTM)';
     const scoring_rule = val('new_g_scoring') || 'independent_only';
     const mastery_sessions = +val('new_g_sess') || 3;
-    await api('POST', `/api/clients/${cid}/goals`, { title, baseline, target, domain, prompt_strategy, scoring_rule, mastery_sessions });
+    const operational_definition = val('new_g_def') || '';
+    const onset_criteria = val('new_g_onset') || '';
+    const offset_criteria = val('new_g_offset') || '';
+    const examples = val('new_g_examples') || '';
+    const non_examples = val('new_g_non') || '';
+    const measurement_type = val('new_g_mtype') || 'percentage_of_opportunities';
+    const secondary_measurement = val('new_g_sec_mtype') || '';
+    await api('POST', `/api/clients/${cid}/goals`, {
+      title, baseline, target, domain, prompt_strategy, scoring_rule, mastery_sessions,
+      operational_definition, onset_criteria, offset_criteria, examples, non_examples, measurement_type, secondary_measurement
+    });
     activeModal = null;
     render();
+  }),
+  setAssessmentSubTab: (sub) => {
+    assessmentPlannerSubTab = sub;
+    render();
+  },
+  runSmartGoalAnalysis: safe(async (cid) => {
+    const goalText = val('sgb_goal_input').trim();
+    if (!goalText) return alert('Please enter a behavioral or skill-acquisition goal to analyze.');
+    const goalType = val('sgb_goal_type') || 'skill_acquisition';
+    const domain = val('sgb_goal_domain') || '';
+    smartGoalInputText = goalText;
+    smartGoalType = goalType;
+    smartGoalDomain = domain;
+    smartGoalAnalysis = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText,
+      goalType,
+      domain,
+      assessmentFinding: smartGoalFindingText || ''
+    });
+    render();
+  }),
+  loadSmartGoalPreset: safe(async (cid, text, gType, dom) => {
+    smartGoalInputText = text;
+    smartGoalType = gType || 'skill_acquisition';
+    smartGoalDomain = dom || '';
+    smartGoalAnalysis = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText: text,
+      goalType: smartGoalType,
+      domain: smartGoalDomain,
+      assessmentFinding: smartGoalFindingText || ''
+    });
+    render();
+  }),
+  clearSmartGoalFinding: () => {
+    smartGoalFindingId = null;
+    smartGoalFindingText = '';
+    render();
+  },
+  saveSmartGoalDraft: safe(async (cid, approveImmediately = false) => {
+    const raw_goal_text = val('sgb_goal_input') || smartGoalInputText || 'Clinical Target';
+    const refined_goal_text = val('sgb_refined_goal') || raw_goal_text;
+    const goal_type = val('sgb_goal_type') || smartGoalType || 'skill_acquisition';
+    const domain = val('sgb_goal_domain') || smartGoalDomain || 'Communication & Adaptive Skills';
+    const operational_definition = val('sgb_op_def') || '';
+    const onset_criteria = val('sgb_onset') || '';
+    const offset_criteria = val('sgb_offset') || '';
+    const episode_rule = val('sgb_episode') || '';
+    const examples = val('sgb_examples') || '';
+    const non_examples = val('sgb_non_examples') || '';
+    const primary_measurement = val('sgb_primary_meas') || 'percentage_of_opportunities';
+    const secondary_measurement = val('sgb_secondary_meas') || '';
+    const measurement_rationale = val('sgb_rationale') || '';
+    const mastery_criteria = val('sgb_mastery') || '80% across 3 consecutive sessions';
+    const baseline_data = val('sgb_baseline') || '20% across 3 baseline sessions';
+    const draft = await api('POST', `/api/clients/${cid}/smart-goal-drafts`, {
+      finding_id: smartGoalFindingId,
+      goal_type,
+      domain,
+      raw_goal_text,
+      refined_goal_text,
+      operational_definition,
+      onset_criteria,
+      offset_criteria,
+      episode_rule,
+      examples,
+      non_examples,
+      primary_measurement,
+      secondary_measurement,
+      measurement_rationale,
+      data_fields: (smartGoalAnalysis && smartGoalAnalysis.dataCollectionPlan && smartGoalAnalysis.dataCollectionPlan.dataFields) || [],
+      calculation_formula: (smartGoalAnalysis && smartGoalAnalysis.dataCollectionPlan && smartGoalAnalysis.dataCollectionPlan.calculationFormula) || '',
+      mastery_criteria,
+      baseline_data,
+      sample_table: (smartGoalAnalysis && smartGoalAnalysis.dataCollectionPlan && smartGoalAnalysis.dataCollectionPlan.sampleRows) || [],
+      clarifying_questions: (smartGoalAnalysis && smartGoalAnalysis.qualityCheck && smartGoalAnalysis.qualityCheck.clarifyingQuestions) || []
+    });
+    if (approveImmediately) {
+      await api('POST', `/api/smart-goal-drafts/${draft.id}/approve`, {});
+      alert(`✓ BCBA Approved & Activated "${refined_goal_text}" in Client Record!`);
+    } else {
+      alert(`💾 Saved "${refined_goal_text}" as a Clinical Draft (awaiting BCBA approval).`);
+    }
+    render();
+  }),
+  approveSmartGoalDraft: safe(async (draftId) => {
+    const res = await api('POST', `/api/smart-goal-drafts/${draftId}/approve`, {});
+    alert(`✓ BCBA Approved & Activated Plan #${draftId} (${res.draft?.refined_goal_text || 'Clinical Goal'}) into active treatment!`);
+    render();
+  }),
+  loadDraftIntoSmartBuilder: safe(async (draftId, cid) => {
+    const cData = await api('GET', `/api/clients/${cid}`);
+    const d = (cData.smartGoalDrafts || []).find(x => Number(x.id) === Number(draftId));
+    if (!d) return;
+    smartGoalInputText = d.raw_goal_text || d.refined_goal_text;
+    smartGoalType = d.goal_type || 'skill_acquisition';
+    smartGoalDomain = d.domain || '';
+    smartGoalFindingId = d.finding_id || null;
+    smartGoalAnalysis = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText: smartGoalInputText,
+      goalType: smartGoalType,
+      domain: smartGoalDomain
+    });
+    smartGoalAnalysis.refinedGoalText = d.refined_goal_text || smartGoalAnalysis.refinedGoalText;
+    if (smartGoalAnalysis.operationalDefinition) {
+      smartGoalAnalysis.operationalDefinition.summary = d.operational_definition || smartGoalAnalysis.operationalDefinition.summary;
+      smartGoalAnalysis.operationalDefinition.onsetCriteria = d.onset_criteria || smartGoalAnalysis.operationalDefinition.onsetCriteria;
+      smartGoalAnalysis.operationalDefinition.offsetCriteria = d.offset_criteria || smartGoalAnalysis.operationalDefinition.offsetCriteria;
+      smartGoalAnalysis.operationalDefinition.episodeRule = d.episode_rule || smartGoalAnalysis.operationalDefinition.episodeRule;
+    }
+    if (smartGoalAnalysis.measurementPlan) {
+      smartGoalAnalysis.measurementPlan.primaryKey = d.primary_measurement || smartGoalAnalysis.measurementPlan.primaryKey;
+      smartGoalAnalysis.measurementPlan.secondaryKey = d.secondary_measurement || '';
+      smartGoalAnalysis.measurementPlan.rationale = d.measurement_rationale || smartGoalAnalysis.measurementPlan.rationale;
+    }
+    if (smartGoalAnalysis.masteryRecommendation) {
+      smartGoalAnalysis.masteryRecommendation.suggestedCriterion = d.mastery_criteria || smartGoalAnalysis.masteryRecommendation.suggestedCriterion;
+      smartGoalAnalysis.masteryRecommendation.suggestedBaseline = d.baseline_data || smartGoalAnalysis.masteryRecommendation.suggestedBaseline;
+    }
+    assessmentPlannerSubTab = 'smart_builder';
+    render();
+  }),
+  selectFindingInstrument: (instId) => {
+    selectedAssessmentInstrumentId = instId;
+    render();
+  },
+  openLogFindingForInstrument: (instId) => {
+    selectedAssessmentInstrumentId = instId;
+    assessmentPlannerSubTab = 'findings';
+    render();
+  },
+  addAssessmentFinding: safe(async (cid) => {
+    const finding_text = val('af_finding').trim();
+    if (!finding_text) return alert('Please enter a clinician-observed finding or skill deficit.');
+    const instrument_id = val('af_inst') || 'vbmapp';
+    const domain = val('af_domain') || 'Mand';
+    const score_or_level = val('af_score') || 'Observed Deficit';
+    const evidence_source = val('af_source') || 'Direct Observation & Formal Assessment';
+    const context = val('af_context') || 'Clinic';
+    const support_needs = val('af_support') || 'Requires prompting';
+    const priority_status = val('af_priority') || 'priority_goal';
+    await api('POST', `/api/clients/${cid}/assessment-findings`, {
+      instrument_id,
+      domain,
+      finding_text,
+      score_or_level,
+      evidence_source,
+      context,
+      support_needs,
+      priority_status
+    });
+    alert('✓ Assessment Finding Logged & Traceable Skill-Gap Suggestion Generated!');
+    render();
+  }),
+  updateFindingPriority: safe(async (findingId, priority_status) => {
+    await api('PATCH', `/api/assessment-findings/${findingId}`, { priority_status });
+    render();
+  }),
+  sendFindingToSmartBuilder: safe(async (cid, findingId, goalStmt, goalType, dom, findingText) => {
+    smartGoalFindingId = findingId;
+    smartGoalFindingText = findingText || '';
+    smartGoalInputText = goalStmt;
+    smartGoalType = goalType || 'skill_acquisition';
+    smartGoalDomain = dom || '';
+    assessmentPlannerSubTab = 'smart_builder';
+    smartGoalAnalysis = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText: goalStmt,
+      goalType: smartGoalType,
+      domain: smartGoalDomain,
+      assessmentFinding: smartGoalFindingText
+    });
+    render();
+  }),
+  aiRecommendInGoalModal: safe(async (cid) => {
+    const goalText = val('new_g_title').trim();
+    if (!goalText) return alert('Please type a goal statement or tap a template first so the AI can recommend an operational definition & measurement method.');
+    const domain = val('new_g_domain') || '';
+    const res = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText,
+      goalType: 'skill_acquisition',
+      domain
+    });
+    const setIf = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+    setIf('new_g_title', res.refinedGoalText || goalText);
+    setIf('new_g_def', res.operationalDefinition?.summary || '');
+    setIf('new_g_onset', res.operationalDefinition?.onsetCriteria || '');
+    setIf('new_g_offset', res.operationalDefinition?.offsetCriteria || '');
+    setIf('new_g_examples', (res.operationalDefinition?.examples || []).join('; '));
+    setIf('new_g_non', (res.operationalDefinition?.nonExamples || []).join('; '));
+    setIf('new_g_mtype', res.measurementPlan?.primaryKey || 'percentage_of_opportunities');
+    setIf('new_g_sec_mtype', res.measurementPlan?.secondaryKey || '');
+    if (res.masteryRecommendation?.suggestedTargetPct) setIf('new_g_target', res.masteryRecommendation.suggestedTargetPct);
+    if (res.masteryRecommendation?.suggestedSessions) setIf('new_g_sess', res.masteryRecommendation.suggestedSessions);
+    const banner = document.getElementById('new_g_ai_banner');
+    if (banner) {
+      banner.style.display = 'block';
+      const qHtml = (res.qualityCheck?.clarifyingQuestions && res.qualityCheck.clarifyingQuestions.length && !res.qualityCheck.isClear)
+        ? `<div style="margin-top:4px;color:#92400e"><b>❓ Clarifying Questions:</b> ${res.qualityCheck.clarifyingQuestions.map(q => esc(q)).join(' · ')}</div>`
+        : '';
+      banner.innerHTML = `<b>✨ AI Recommended Plan:</b> Primary Measurement: <b>${esc(res.measurementPlan?.primaryMethod || '')}</b>${res.measurementPlan?.secondaryMethod ? ` + Secondary: <b>${esc(res.measurementPlan.secondaryMethod)}</b>` : ''}<br><span>${esc(res.measurementPlan?.rationale || '')}</span>${qHtml}`;
+    }
+  }),
+  aiRecommendInBehaviorModal: safe(async (cid) => {
+    const bName = val('bp_name').trim();
+    const rGoal = val('bp_reduction_goal').trim();
+    const query = rGoal || `Decrease ${bName || 'target behavior'}`;
+    const res = await api('POST', '/api/smart-goal-builder/analyze', {
+      client_id: cid,
+      goalText: query,
+      goalType: 'behavior_reduction',
+      domain: `Behavior Reduction — ${bName}`
+    });
+    const setIf = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+    setIf('bp_def', res.operationalDefinition?.summary || '');
+    setIf('bp_onset', res.operationalDefinition?.onsetCriteria || '');
+    setIf('bp_offset', res.operationalDefinition?.offsetCriteria || '');
+    setIf('bp_examples', (res.operationalDefinition?.examples || []).join('; '));
+    setIf('bp_non', (res.operationalDefinition?.nonExamples || []).join('; '));
+    const pKey = res.measurementPlan?.primaryKey || 'frequency';
+    const validBpMethods = ['frequency', 'rate', 'duration', 'latency', 'irt', 'partial_interval', 'whole_interval', 'mts', 'abc'];
+    setIf('bp_method', validBpMethods.includes(pKey) ? pKey : 'frequency');
+    if (!rGoal) setIf('bp_reduction_goal', res.refinedGoalText || query);
+    setIf('bp_mastery', res.masteryRecommendation?.suggestedCriterion || '≤ 0.5 episodes/hr across 3 consecutive sessions');
+    const banner = document.getElementById('bp_ai_banner');
+    if (banner) {
+      banner.style.display = 'block';
+      banner.innerHTML = `<b>✨ AI Recommended Behavior Plan:</b> Primary Measurement: <b>${esc(res.measurementPlan?.primaryMethod || '')}</b>${res.measurementPlan?.secondaryMethod ? ` + Secondary: <b>${esc(res.measurementPlan.secondaryMethod)}</b>` : ''}<br><span>${esc(res.measurementPlan?.rationale || '')}</span>`;
+    }
   }),
   addAuth: safe(async (id) => { await api('POST', `/api/clients/${id}/auths`, { code: val('ac'), authorized: val('au') }); render(); }),
   genPlan: safe(async (id) => { await api('POST', `/api/clients/${id}/plans/generate`, { behavior: val('pb'), antecedents: [...document.querySelectorAll('.pa:checked')].map((x) => x.value) }); render(); }),
