@@ -1134,6 +1134,144 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      tSum.integritySummary.editedEventsCount >= 1,
      'Requirement 8: Session timeline includes all timestamped events and time-based dashboard summaries trace back to exact underlying event records');
 
+  // --- 41. Multiple Measurement Methods on One Behavior (RBT Sepia Multiple Measurement Methods Spec) ---
+  const specRes = await b('GET', '/api/measurement-methods/spec');
+  ok(specRes.s === 200 &&
+     specRes.j.methods &&
+     specRes.j.methods.frequency &&
+     specRes.j.methods.duration &&
+     specRes.j.methods.intensity,
+     'Multi-Method Spec: GET /api/measurement-methods/spec returns validated methods, units, and clinical rules');
+
+  // Verify pre-configured Screaming / Vocal Protest behavior has 3 independent methods matching Page 1 of the PDF
+  const clientBehList = await b('GET', '/api/clients/1/behaviors');
+  const screamBp = (clientBehList.j || []).find((x) => x.name && x.name.includes('Screaming'));
+  ok(screamBp &&
+     Array.isArray(screamBp.measurement_methods) &&
+     screamBp.measurement_methods.length >= 3 &&
+     screamBp.measurement_methods.some((m) => m.method === 'frequency' && Number(m.baseline_value) === 4.2 && m.unit === 'episodes per hour') &&
+     screamBp.measurement_methods.some((m) => m.method === 'duration' && Number(m.baseline_value) === 8 && m.unit === 'minutes per episode') &&
+     screamBp.measurement_methods.some((m) => m.method === 'intensity' && String(m.baseline_value) === 'Moderate' && m.unit === 'defined intensity scale'),
+     'Multi-Method Spec: Pre-seeded Screaming / Vocal Protest behavior has independent Frequency (4.2 episodes per hour), Duration (8 minutes per episode), and Intensity (Moderate defined intensity scale) baselines');
+
+  // Verify create behavior with multiple measurement methods stores independent baselines, units, observation periods, targets, and mastery criteria
+  const multiCreateRes = await b('POST', '/api/clients/1/behaviors', {
+    name: 'Tantrum / Protest Episode (Multi-Dimension)',
+    operational_definition: 'Vocal protest accompanied by dropping to floor lasting >= 5 seconds.',
+    function_hypothesis: 'Escape',
+    measurement_methods: [
+      {
+        method: 'frequency',
+        baseline_value: 4.2,
+        unit: 'episodes per hour',
+        observation_period: 'Across 3 baseline sessions (6 hours)',
+        target_criterion: 0.5,
+        target_unit: 'episodes per hour',
+        mastery_criterion: '<= 0.5 episodes per hour across 3 consecutive sessions',
+        mastery_timeframe: '3 consecutive sessions'
+      },
+      {
+        method: 'duration',
+        baseline_value: 8,
+        unit: 'minutes per episode',
+        observation_period: 'Across 3 baseline sessions (mean episode length)',
+        target_criterion: 1,
+        target_unit: 'minutes per episode',
+        mastery_criterion: '<= 1 minute per episode across 3 consecutive sessions',
+        mastery_timeframe: '3 consecutive sessions'
+      },
+      {
+        method: 'intensity',
+        baseline_value: 'Moderate',
+        unit: 'defined intensity scale',
+        observation_period: 'Across 3 baseline sessions (anchored scale)',
+        target_criterion: 'Mild or 0 Severe',
+        target_unit: 'defined intensity scale',
+        mastery_criterion: '0 Severe episodes across 3 consecutive sessions',
+        mastery_timeframe: '3 consecutive sessions'
+      }
+    ]
+  });
+  ok(multiCreateRes.s === 200 &&
+     Array.isArray(multiCreateRes.j.measurement_methods) &&
+     multiCreateRes.j.measurement_methods.length === 3 &&
+     multiCreateRes.j.data_streams &&
+     multiCreateRes.j.data_streams.frequency &&
+     multiCreateRes.j.data_streams.duration &&
+     multiCreateRes.j.data_streams.intensity,
+     'Multi-Method Spec: POST /api/clients/:id/behaviors creates behavior with 3 independent measurement methods, baselines, goals, and separate data_streams');
+
+  const multiBpId = multiCreateRes.j.id;
+
+  // Functional requirement: Add a method to an existing behavior and remove a method without deleting the behavior
+  const addMethodRes = await b('POST', `/api/behaviors/${multiBpId}/methods`, {
+    method: 'latency',
+    baseline_value: 15,
+    unit: 'seconds from SD to onset',
+    observation_period: 'Across 3 demand probes',
+    target_criterion: 120,
+    mastery_criterion: '>= 120 seconds from SD across 3 consecutive sessions'
+  });
+  ok(addMethodRes.s === 200 &&
+     addMethodRes.j.measurement_methods.length === 4 &&
+     addMethodRes.j.measurement_methods.some((m) => m.method === 'latency'),
+     'Multi-Method Spec: POST /api/behaviors/:id/methods adds a 4th measurement method (latency) to the behavior');
+
+  const remMethodRes = await b('DELETE', `/api/behaviors/${multiBpId}/methods/latency`);
+  ok(remMethodRes.s === 200 &&
+     remMethodRes.j.measurement_methods.length === 3 &&
+     !remMethodRes.j.measurement_methods.some((m) => m.method === 'latency'),
+     'Multi-Method Spec: DELETE /api/behaviors/:id/methods/:methodKey removes a method without deleting the behavior');
+
+  // Functional requirement: Validation rejects incompatible unit/method combinations or combined dimensions in one field
+  const badUnitRes = await b('POST', `/api/behaviors/${multiBpId}/methods`, {
+    method: 'frequency',
+    baseline_value: 4.2,
+    unit: 'minutes per episode'
+  });
+  const combinedFieldRes = await b('PUT', `/api/behaviors/${multiBpId}`, {
+    measurement_methods: [
+      {
+        method: 'frequency',
+        baseline_value: '4.2 episodes per hour and 8 minutes per episode',
+        unit: 'episodes per hour'
+      }
+    ]
+  });
+  ok(badUnitRes.s === 400 && combinedFieldRes.s === 400,
+     'Multi-Method Spec: Validation rejects incompatible unit/method combinations (minutes per episode on frequency) and combined dimensions in one numeric field with HTTP 400');
+
+  // Functional requirement: Ongoing data are stored, summarized, and graphed separately by measurement method
+  await r('POST', `/api/clients/1/behavior-events`, {
+    behavior_id: multiBpId,
+    behavior: 'Tantrum / Protest Episode (Multi-Dimension)',
+    measurement_type: 'frequency',
+    count: 3,
+    value: 3
+  });
+  await r('POST', `/api/clients/1/behavior-events`, {
+    behavior_id: multiBpId,
+    behavior: 'Tantrum / Protest Episode (Multi-Dimension)',
+    measurement_type: 'duration',
+    count: 1,
+    duration_sec: 360
+  });
+  await r('POST', `/api/clients/1/behavior-events`, {
+    behavior_id: multiBpId,
+    behavior: 'Tantrum / Protest Episode (Multi-Dimension)',
+    measurement_type: 'intensity',
+    count: 1,
+    value: 2,
+    notes: 'Intensity: Moderate'
+  });
+  const checkStreamsRes = await b('GET', `/api/behaviors/${multiBpId}`);
+  const ds = checkStreamsRes.j.data_streams || {};
+  ok(checkStreamsRes.s === 200 &&
+     ds.frequency && ds.frequency.summary_stats && ds.frequency.summary_stats.totalCount === 3 && /Line Graph/i.test(ds.frequency.graph_type) &&
+     ds.duration && ds.duration.event_count === 1 && Number(ds.duration.current_value) === 6 &&
+     ds.intensity && ds.intensity.event_count === 1 && ds.intensity.current_value === 'Moderate' && /Bar Chart/i.test(ds.intensity.graph_type),
+     'Multi-Method Spec: Separate data streams store, summarize, and graph Frequency (count/rate), Duration (6 min), and Intensity (Moderate) independently without mixing dimensions');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

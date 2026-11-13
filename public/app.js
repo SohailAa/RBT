@@ -91,6 +91,202 @@ const SMART_MEASUREMENT_OPTIONS = [
   { key: 'permanent_product', label: 'Permanent Product Recording' }
 ];
 
+const CLIENT_MEASUREMENT_METHODS_SPEC = {
+  frequency: {
+    key: 'frequency',
+    label: 'Frequency / Event Recording',
+    dimensionCategory: 'count_rate',
+    defaultUnit: 'episodes per hour',
+    validUnits: ['episodes per hour', 'occurrences per session', 'count per day', 'episodes per day', 'events per hour', 'count per session'],
+    defaultDataEntryFormat: 'event_tally_and_auto_rate',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  rate: {
+    key: 'rate',
+    label: 'Rate Recording',
+    dimensionCategory: 'count_rate',
+    defaultUnit: 'episodes per hour',
+    validUnits: ['episodes per hour', 'episodes per minute', 'occurrences per hour', 'events per hour', 'responses per minute'],
+    defaultDataEntryFormat: 'rate_counter_with_session_timer',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  duration: {
+    key: 'duration',
+    label: 'Duration Recording',
+    dimensionCategory: 'temporal_duration',
+    defaultUnit: 'minutes per episode',
+    validUnits: ['minutes per episode', 'seconds per episode', 'total minutes per session', 'total seconds per session', 'mean duration (minutes)', 'mean duration (seconds)'],
+    defaultDataEntryFormat: 'start_stop_duration_timer',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  latency: {
+    key: 'latency',
+    label: 'Latency Recording',
+    dimensionCategory: 'temporal_latency',
+    defaultUnit: 'seconds from SD to onset',
+    validUnits: ['seconds from SD to onset', 'minutes from SD to onset', 'mean latency (seconds)', 'mean latency (minutes)'],
+    defaultDataEntryFormat: 'cue_to_response_latency_timer',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  irt: {
+    key: 'irt',
+    label: 'Inter-Response Time (IRT)',
+    dimensionCategory: 'temporal_irt',
+    defaultUnit: 'seconds between responses',
+    validUnits: ['seconds between responses', 'minutes between responses', 'mean IRT (seconds)', 'mean IRT (minutes)'],
+    defaultDataEntryFormat: 'inter_response_timer',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  partial_interval: {
+    key: 'partial_interval',
+    label: 'Partial-Interval Recording',
+    dimensionCategory: 'interval_percentage',
+    defaultUnit: '% of intervals',
+    validUnits: ['% of intervals', 'percentage of intervals', '% of 1-minute intervals', '% of 30-second intervals'],
+    defaultDataEntryFormat: 'interval_occurrence_toggle',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  whole_interval: {
+    key: 'whole_interval',
+    label: 'Whole-Interval Recording',
+    dimensionCategory: 'interval_percentage',
+    defaultUnit: '% of intervals',
+    validUnits: ['% of intervals', 'percentage of intervals', '% of 1-minute intervals', '% of 30-second intervals'],
+    defaultDataEntryFormat: 'interval_occurrence_toggle',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  mts: {
+    key: 'mts',
+    label: 'Momentary Time Sampling (MTS)',
+    dimensionCategory: 'interval_percentage',
+    defaultUnit: '% of intervals',
+    validUnits: ['% of intervals', 'percentage of intervals', '% of momentary samples'],
+    defaultDataEntryFormat: 'momentary_sample_toggle',
+    defaultGraphType: 'line_chart_by_session'
+  },
+  intensity: {
+    key: 'intensity',
+    label: 'Intensity (if used)',
+    dimensionCategory: 'intensity_scale',
+    defaultUnit: 'defined intensity scale',
+    validUnits: ['defined intensity scale', 'defined intensity scale (Mild / Moderate / Severe)', '1-5 anchored severity scale', 'anchored rating scale'],
+    defaultDataEntryFormat: 'anchored_rating_selector',
+    defaultGraphType: 'categorical_bar_or_distribution',
+    clinicalNote: 'Intensity can be recorded as a separate rating when clinically appropriate; it is not a substitute for a direct measurement dimension.'
+  },
+  abc: {
+    key: 'abc',
+    label: 'ABC Narrative / Functional Recording',
+    dimensionCategory: 'abc_context',
+    defaultUnit: 'documented ABC episodes per session',
+    validUnits: ['documented ABC episodes per session', 'ABC incident logs', 'episodes with A-B-C context'],
+    defaultDataEntryFormat: 'structured_abc_form',
+    defaultGraphType: 'function_distribution_chart'
+  }
+};
+
+function normalizeModalBehaviorMethods(bp) {
+  if (bp && Array.isArray(bp.measurement_methods) && bp.measurement_methods.length > 0) {
+    return bp.measurement_methods.map((m, idx) => {
+      const key = String(m.method || m.measurement_type || 'frequency').toLowerCase();
+      const spec = CLIENT_MEASUREMENT_METHODS_SPEC[key] || CLIENT_MEASUREMENT_METHODS_SPEC.frequency;
+      return {
+        id: m.id || `m_${idx + 1}`,
+        method: spec.key,
+        method_label: m.method_label || spec.label,
+        baseline_value: m.baseline_value !== undefined && m.baseline_value !== null ? String(m.baseline_value) : (spec.key === 'intensity' ? 'Moderate' : '4.2'),
+        unit: m.unit || spec.defaultUnit,
+        observation_period: m.observation_period || 'Across 3 baseline sessions',
+        target_criterion: m.target_criterion !== undefined && m.target_criterion !== null ? String(m.target_criterion) : (spec.key === 'intensity' ? 'Mild or 0 Severe' : '0.5'),
+        target_unit: m.target_unit || m.unit || spec.defaultUnit,
+        mastery_criterion: m.mastery_criterion || '≤ 0.5 across 3 consecutive sessions',
+        mastery_timeframe: m.mastery_timeframe || 'Across 3 consecutive sessions',
+        data_entry_format: m.data_entry_format || spec.defaultDataEntryFormat,
+        graph_type: m.graph_type || spec.defaultGraphType,
+        intensity_anchors: m.intensity_anchors || (bp && bp.intensity_criteria) || 'Mild: <15s whining; Moderate: 15s–2m loud protest; Severe: >2m screaming',
+        clinical_note: m.clinical_note || spec.clinicalNote || ''
+      };
+    });
+  }
+  const key = bp && bp.measurement_type ? String(bp.measurement_type).toLowerCase() : 'frequency';
+  const spec = CLIENT_MEASUREMENT_METHODS_SPEC[key] || CLIENT_MEASUREMENT_METHODS_SPEC.frequency;
+  return [{
+    id: 'm_1',
+    method: spec.key,
+    method_label: spec.label,
+    baseline_value: bp && bp.baseline_rate !== undefined ? String(bp.baseline_rate) : '3.0',
+    unit: spec.defaultUnit,
+    observation_period: bp && bp.baseline_data ? bp.baseline_data : 'Across 3 baseline sessions',
+    target_criterion: bp && bp.target_rate !== undefined ? String(bp.target_rate) : '0.5',
+    target_unit: spec.defaultUnit,
+    mastery_criterion: bp && bp.mastery_criteria ? bp.mastery_criteria : `≤ 0.5 ${spec.defaultUnit} across 3 consecutive sessions`,
+    mastery_timeframe: 'Across 3 consecutive sessions',
+    data_entry_format: spec.defaultDataEntryFormat,
+    graph_type: spec.defaultGraphType,
+    intensity_anchors: (bp && bp.intensity_criteria) || 'Mild: <15s; Moderate: 15s–2m; Severe: >2m',
+    clinical_note: spec.clinicalNote || ''
+  }];
+}
+
+function renderMethodStreamMiniChart(stream) {
+  if (!stream) return '';
+  if (stream.method === 'intensity' || stream.graph_type === 'categorical_bar_or_distribution') {
+    const dist = stream.intensity_distribution || { Mild: 0, Moderate: 0, Severe: 0 };
+    const tot = Math.max(1, (dist.Mild || 0) + (dist.Moderate || 0) + (dist.Severe || 0));
+    const mPct = Math.round(((dist.Mild || 0) / tot) * 100);
+    const modPct = Math.round(((dist.Moderate || 0) / tot) * 100);
+    const sevPct = Math.round(((dist.Severe || 0) / tot) * 100);
+    return `
+      <div style="margin-top:6px">
+        <div style="display:flex;gap:6px;align-items:flex-end;height:42px;padding:4px 6px;background:#f8fafc;border-radius:6px;border:1px solid var(--slate-200)">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+            <div style="width:100%;background:#10b981;height:${Math.max(4, Math.round(mPct * 0.28))}px;border-radius:3px 3px 0 0"></div>
+            <span style="font-size:0.64rem;color:var(--slate-600);margin-top:2px">Mild (${dist.Mild || 0})</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+            <div style="width:100%;background:#f59e0b;height:${Math.max(4, Math.round(modPct * 0.28))}px;border-radius:3px 3px 0 0"></div>
+            <span style="font-size:0.64rem;color:var(--slate-600);margin-top:2px">Mod (${dist.Moderate || 0})</span>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+            <div style="width:100%;background:#e11d48;height:${Math.max(4, Math.round(sevPct * 0.28))}px;border-radius:3px 3px 0 0"></div>
+            <span style="font-size:0.64rem;color:var(--slate-600);margin-top:2px">Sev (${dist.Severe || 0})</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  const pts = Array.isArray(stream.session_series) ? stream.session_series.filter(p => p.y_value !== null && p.y_value !== undefined) : [];
+  const baseNum = parseFloat(stream.baseline_value);
+  const targNum = parseFloat(stream.target_criterion);
+  const vals = pts.map(p => Number(p.y_value) || 0);
+  if (!Number.isNaN(baseNum)) vals.push(baseNum);
+  if (!Number.isNaN(targNum)) vals.push(targNum);
+  const maxVal = Math.max(1, ...vals);
+  const w = 180;
+  const h = 42;
+  const polyPts = pts.length > 0
+    ? pts.map((p, i) => {
+        const x = pts.length === 1 ? w / 2 : Math.round((i / (pts.length - 1)) * (w - 16)) + 8;
+        const y = Math.round(h - 6 - ((Number(p.y_value) || 0) / maxVal) * (h - 14));
+        return `${x},${y}`;
+      }).join(' ')
+    : '';
+  const baseY = !Number.isNaN(baseNum) ? Math.round(h - 6 - (baseNum / maxVal) * (h - 14)) : null;
+  return `
+    <div style="margin-top:6px;background:#f8fafc;border:1px solid var(--slate-200);border-radius:6px;padding:4px 6px">
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:40px;display:block">
+        ${baseY !== null ? `<line x1="4" y1="${baseY}" x2="${w - 4}" y2="${baseY}" stroke="#94a3b8" stroke-dasharray="3,3" stroke-width="1"/>` : ''}
+        ${polyPts ? `<polyline fill="none" stroke="#0f766e" stroke-width="2" points="${polyPts}"/>` : ''}
+        ${pts.map((p, i) => {
+          const x = pts.length === 1 ? w / 2 : Math.round((i / (pts.length - 1)) * (w - 16)) + 8;
+          const y = Math.round(h - 6 - ((Number(p.y_value) || 0) / maxVal) * (h - 14));
+          return `<circle cx="${x}" cy="${y}" r="2.8" fill="#0f766e"><title>${esc(p.date || '')}: ${p.y_value} ${esc(stream.unit || '')}</title></circle>`;
+        }).join('')}
+      </svg>
+    </div>
+  `;
+}
+
 function renderAutoPopulatedReportTemplateSection(c, data, isModal = false) {
   const repTpl = (data && data.reportTemplate) || (activeModal && activeModal.report && activeModal.report.reportTemplate) || {};
   const availableTemplates = repTpl.availableTemplates || [
@@ -3570,7 +3766,7 @@ async function clientView(id) {
       </div>
     </div>
 
-    <!-- Target Behavior Operational Definitions & 9-Method Measurement Suite (Build Spec §2 & §5) -->
+    <!-- Target Behavior Operational Definitions & Multiple Measurement Methods Suite -->
     <div class="card">
       ${(() => {
         const activeBps = behaviorPrograms.filter((bp) => bp.status !== 'archived');
@@ -3580,13 +3776,13 @@ async function clientView(id) {
       <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
         <div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <h3 style="margin:0">Target Behavior Operational Definitions & 9-Method Measurement Suite</h3>
-            <span class="badge p">Frequency · Rate · Duration · Latency · IRT · Partial/Whole Interval · MTS · ABC</span>
+            <h3 style="margin:0">Target Behavior Operational Definitions & Multiple Measurement Methods</h3>
+            <span class="badge p">Frequency · Rate · Duration · Latency · IRT · Interval · MTS · Intensity · ABC</span>
             <span class="tag approved">${activeBps.length} Active</span>
             ${archivedBps.length ? `<span class="tag draft">${archivedBps.length} Archived</span>` : ''}
           </div>
           <p style="font-size:0.84rem;color:var(--slate-500);margin:3px 0 0">
-            Click <b>✏️ Edit</b> or the <b>⋮</b> menu on any behavior card to update its operational definition, onset/offset, examples, measurement method, or goals with automatic version history and historical data protection.
+            Supports <b>multiple measurement methods on a single behavior</b> with independent baselines, validated units/formats, separate target & mastery criteria, and separate ongoing data streams & graphs.
           </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -3629,12 +3825,15 @@ async function clientView(id) {
       </div>
 
       <!-- Individualized Target Behavior Cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
         ${displayedBps.map((bp) => {
           const bpStats = (bSum.byBehavior && (bSum.byBehavior[`id_${bp.id}`] || bSum.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0', byMeasurementType: {} };
           const isArchived = bp.status === 'archived';
           const ver = bp.version || (Array.isArray(bp.version_history) ? bp.version_history.length : 1) || 1;
           const histMeasList = Object.keys(bpStats.byMeasurementType || {});
+          const cfgMethods = normalizeModalBehaviorMethods(bp);
+          const streamsList = Array.isArray(bp.data_streams_list) && bp.data_streams_list.length > 0 ? bp.data_streams_list : [];
+          const hasIntensityMethod = cfgMethods.some(m => m.method === 'intensity');
           return `
             <div class="beh-program-card ${isArchived ? 'archived' : ''}" style="background:${isArchived ? '#f8fafc' : '#ffffff'};border:1.5px solid ${isArchived ? 'var(--slate-300)' : 'var(--slate-200)'};border-top:4px solid ${isArchived ? 'var(--slate-400)' : 'var(--primary)'};border-radius:12px;padding:14px;box-shadow:var(--shadow-sm);opacity:${isArchived ? '0.88' : '1'}">
               <div class="flex-between" style="gap:8px;align-items:flex-start">
@@ -3642,7 +3841,8 @@ async function clientView(id) {
                   <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                     <b style="font-family:var(--font-serif);font-size:1.04rem;color:var(--slate-900)">${esc(bp.name)}</b>
                     <span class="badge ${bp.function_hypothesis ? bp.function_hypothesis.toLowerCase().slice(0,3) : 'esc'}">${esc(bp.function_hypothesis || 'Escape')}</span>
-                    <span class="badge p" style="text-transform:uppercase">${esc((bp.measurement_type || 'frequency').replace('_', ' '))}</span>
+                    ${cfgMethods.map((m) => `<span class="badge p" style="text-transform:uppercase">${esc(m.method.replace('_', ' '))}</span>`).join('')}
+                    ${cfgMethods.length > 1 ? `<span class="tag approved" style="font-size:0.68rem">${cfgMethods.length} Methods</span>` : ''}
                     <button type="button" class="beh-ver-pill" title="Click to View Version History" onclick="act.openBehaviorHistoryModal(${bp.id})">
                       🕓 v${ver}${ver > 1 ? ' · Edited' : ''}
                     </button>
@@ -3670,12 +3870,72 @@ async function clientView(id) {
                 </div>
               ` : ''}
 
-              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:0.75rem;color:#14532d;line-height:1.4">
-                <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
-                  <span><b>Baseline:</b> ${esc(bp.baseline_data || (bp.baseline_rate ? `${bp.baseline_rate}/hr` : 'Recorded'))}</span>
-                  ${bp.mastery_criteria ? `<span><b>Mastery Criteria:</b> ${esc(bp.mastery_criteria)}</span>` : ''}
+              <!-- Multiple Measurement Methods & Independent Baselines/Goals Table -->
+              <div style="margin:8px 0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;background:#ffffff">
+                <div style="background:#113f59;color:#ffffff;padding:5px 10px;font-size:0.72rem;font-weight:800;display:flex;justify-content:space-between;align-items:center">
+                  <span>Configured Measurement Methods (${cfgMethods.length}) — Independent Baselines & Goals</span>
+                  <a href="javascript:void(0)" style="color:#99f6e4;text-decoration:none;font-size:0.7rem" onclick="act.openEditBehaviorModal(${bp.id}, 'measurement')">+ Add / Edit Methods</a>
                 </div>
-                ${bp.reduction_goal ? `<div style="margin-top:2px"><b>📉 Reduction Goal:</b> ${esc(bp.reduction_goal)}</div>` : ''}
+                <div style="overflow-x:auto">
+                  <table style="width:100%;border-collapse:collapse;font-size:0.73rem">
+                    <thead>
+                      <tr style="background:#f1f5f9;color:#334155;text-align:left">
+                        <th style="padding:5px 8px;border-bottom:1px solid #e2e8f0">Measurement method</th>
+                        <th style="padding:5px 8px;border-bottom:1px solid #e2e8f0">Baseline value</th>
+                        <th style="padding:5px 8px;border-bottom:1px solid #e2e8f0">Unit / format</th>
+                        <th style="padding:5px 8px;border-bottom:1px solid #e2e8f0">Target & Mastery</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${cfgMethods.map((m) => `
+                        <tr style="border-bottom:1px solid #f1f5f9">
+                          <td style="padding:5px 8px;font-weight:700;color:#0f172a">${esc(m.method_label)}</td>
+                          <td style="padding:5px 8px;font-family:var(--font-mono);font-weight:800;color:#0f766e">${esc(m.baseline_value)}</td>
+                          <td style="padding:5px 8px;color:#475569">${esc(m.unit)}</td>
+                          <td style="padding:5px 8px;color:#14532d">
+                            <div><b>Target:</b> ${esc(m.target_criterion)} ${m.method === 'intensity' ? '' : esc(m.target_unit || '')}</div>
+                            <div style="font-size:0.68rem;color:#64748b">${esc(m.mastery_criterion)}</div>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+                ${hasIntensityMethod ? `
+                  <div style="background:#fffbeb;border-top:1px solid #fde68a;padding:5px 8px;font-size:0.7rem;color:#92400e">
+                    <b>Clinical Note:</b> Intensity can be recorded as a separate rating when clinically appropriate; it is not a substitute for a direct measurement dimension.
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Separate Ongoing Data Streams & Independent Mini-Graphs by Measurement Method -->
+              ${streamsList.length > 0 ? `
+                <div style="margin-bottom:8px">
+                  <div style="font-size:0.7rem;font-weight:800;color:var(--slate-600);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:4px">
+                    Separate Ongoing Data Streams & Independent Graphs by Method
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+                    ${streamsList.map((st) => `
+                      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 8px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:4px">
+                          <span style="font-size:0.7rem;font-weight:800;color:#113f59">${esc(st.method_label)}</span>
+                          <span style="font-size:0.64rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:4px;font-family:var(--font-mono)">${esc(st.unit)}</span>
+                        </div>
+                        <div style="font-family:var(--font-mono);font-size:0.84rem;font-weight:800;color:#0f766e;margin-top:3px">
+                          ${esc(st.summary_label || `${st.current_value ?? 0} ${st.unit}`)}
+                        </div>
+                        <div style="font-size:0.66rem;color:#64748b">
+                          Baseline: <b>${esc(String(st.baseline_value))}</b> · Target: <b>${esc(String(st.target_criterion))}</b>
+                        </div>
+                        ${renderMethodStreamMiniChart(st)}
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:0.75rem;color:#14532d;line-height:1.4">
+                ${bp.reduction_goal ? `<div><b>📉 Reduction Goal:</b> ${esc(bp.reduction_goal)}</div>` : ''}
                 ${bp.replacement_skill_goal ? `<div style="margin-top:2px"><b>🎯 Replacement / Skill Goal:</b> ${esc(bp.replacement_skill_goal)}</div>` : ''}
               </div>
 
@@ -3688,11 +3948,16 @@ async function clientView(id) {
 
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px dashed var(--slate-200);font-family:var(--font-mono);font-size:0.75rem">
                 <span>Freq: <b>${bpStats.frequency}</b> (${bpStats.ratePerHour}/hr) · Avg Dur: <b>${bpStats.avgDurationSec}s</b>${bpStats.intervalPct !== null ? ` · Int: <b>${bpStats.intervalPct}% (${bpStats.intervalNumDenom})</b>` : ''}</span>
-                <div style="display:flex;gap:6px;align-items:center">
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   ${isArchived ? `
                     <button class="sec" style="padding:4px 10px;font-size:0.74rem" onclick="act.toggleArchiveBehavior(${bp.id}, 'archived')">♻️ Restore to Active</button>
                   ` : `
                     <button class="ok" style="padding:4px 10px;font-size:0.74rem" onclick="act.quickTallyBehavior(${c.id}, null, ${bp.id})">+1 Tally</button>
+                    ${hasIntensityMethod ? `
+                      <button class="sec" style="padding:3px 7px;font-size:0.68rem" title="Record Separate Intensity Rating: Mild" onclick="act.quickIntensityBehavior(${c.id}, null, ${bp.id}, 'Mild')">Mild</button>
+                      <button class="sec" style="padding:3px 7px;font-size:0.68rem" title="Record Separate Intensity Rating: Moderate" onclick="act.quickIntensityBehavior(${c.id}, null, ${bp.id}, 'Moderate')">Mod</button>
+                      <button class="sec" style="padding:3px 7px;font-size:0.68rem" title="Record Separate Intensity Rating: Severe" onclick="act.quickIntensityBehavior(${c.id}, null, ${bp.id}, 'Severe')">Sev</button>
+                    ` : ''}
                   `}
                 </div>
               </div>
@@ -4826,13 +5091,20 @@ async function sessionView(id) {
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:18px">
         ${activeBehPrograms.map((bp) => {
-          const bpStats = (behaviorSummary.byBehavior && (behaviorSummary.byBehavior[`id_${bp.id}`] || behaviorSummary.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0' };
+          const bpStats = (behaviorSummary.byBehavior && (behaviorSummary.byBehavior[`id_${bp.id}`] || behaviorSummary.byBehavior[bp.name])) || { frequency: 0, ratePerHour: 0, avgDurationSec: 0, avgLatencySec: 0, intervalPct: null, intervalNumDenom: '0/0', byIntensity: { Mild: 0, Moderate: 0, Severe: 0 } };
           const runningTimer = behTimers[bp.id];
+          const cfgMethods = normalizeModalBehaviorMethods(bp);
+          const methodKeys = cfgMethods.map(m => m.method);
+          const isMultiMethod = cfgMethods.length > 1;
           const mType = String(bp.measurement_type || 'frequency').toLowerCase();
           let pillLabel = 'FREQUENCY';
           let pillBg = '#f3d6ce';
           let pillColor = '#8c2d19';
-          if (mType === 'duration' || mType === 'irt') {
+          if (isMultiMethod) {
+            pillLabel = cfgMethods.map(m => m.method.toUpperCase().replace('_', ' ')).join(' + ');
+            pillBg = '#d6eff2';
+            pillColor = '#0f4c5c';
+          } else if (mType === 'duration' || mType === 'irt') {
             pillLabel = 'FREQUENCY + DURATION';
             pillBg = '#d6eff2';
             pillColor = '#0f4c5c';
@@ -4848,10 +5120,63 @@ async function sessionView(id) {
             pillLabel = 'ABC RECORD';
             pillBg = '#fef3c7';
             pillColor = '#92400e';
+          } else if (mType === 'intensity') {
+            pillLabel = 'INTENSITY SCALE';
+            pillBg = '#fef3c7';
+            pillColor = '#92400e';
           }
 
           let primaryControlHtml = '';
-          if (mType === 'duration' || mType === 'irt') {
+          if (isMultiMethod) {
+            const ctrlParts = [];
+            if (methodKeys.includes('frequency') || methodKeys.includes('rate')) {
+              ctrlParts.push(`
+                <button type="button" style="flex:1;min-width:120px;background:#b91c47;color:#ffffff;border:none;border-radius:10px;padding:10px 12px;font-size:0.84rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickTallyBehavior(${client.id}, ${s.id}, ${bp.id})" ${ended ? 'disabled' : ''}>
+                  +1 RECORD (Freq)
+                </button>
+              `);
+            }
+            if (methodKeys.includes('duration') || methodKeys.includes('irt')) {
+              ctrlParts.push(`
+                <button id="beh_timer_${bp.id}" type="button" style="flex:1;min-width:130px;background:${runningTimer ? '#b91c47' : '#0d6e6e'};color:#ffffff;border:none;border-radius:10px;padding:10px 12px;font-size:0.84rem;font-weight:800;cursor:pointer"
+                  onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'duration')" ${ended ? 'disabled' : ''}>
+                  ${runningTimer ? 'STOP EPISODE' : 'START EPISODE'}
+                </button>
+              `);
+            }
+            if (methodKeys.includes('latency')) {
+              ctrlParts.push(`
+                <button id="beh_timer_${bp.id}" type="button" style="flex:1;min-width:130px;background:${runningTimer ? '#b91c47' : '#0d6e6e'};color:#ffffff;border:none;border-radius:10px;padding:10px 12px;font-size:0.84rem;font-weight:800;cursor:pointer"
+                  onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'latency')" ${ended ? 'disabled' : ''}>
+                  ${runningTimer ? 'MARK RESPONSE' : 'START AT CUE'}
+                </button>
+              `);
+            }
+            if (methodKeys.some(k => ['partial_interval', 'whole_interval', 'mts'].includes(k))) {
+              ctrlParts.push(`
+                <button type="button" style="flex:1;background:#0d6e6e;color:#ffffff;border:none;border-radius:10px;padding:10px 10px;font-size:0.8rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickIntervalBehavior(${client.id}, ${s.id}, ${bp.id}, 1)" ${ended ? 'disabled' : ''}>
+                  INT +
+                </button>
+              `);
+            }
+            const intensityRow = methodKeys.includes('intensity') ? `
+              <div style="display:flex;align-items:center;gap:6px;margin-top:6px;background:#f8fafc;padding:6px 8px;border-radius:10px;border:1px solid #cbd5e1">
+                <span style="font-size:0.72rem;font-weight:800;color:#334155">Intensity Rating:</span>
+                <button type="button" style="flex:1;background:#10b981;color:#fff;border:none;border-radius:7px;padding:6px 8px;font-size:0.74rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickIntensityBehavior(${client.id}, ${s.id}, ${bp.id}, 'Mild')" ${ended ? 'disabled' : ''}>Mild</button>
+                <button type="button" style="flex:1;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:6px 8px;font-size:0.74rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickIntensityBehavior(${client.id}, ${s.id}, ${bp.id}, 'Moderate')" ${ended ? 'disabled' : ''}>Moderate</button>
+                <button type="button" style="flex:1;background:#e11d48;color:#fff;border:none;border-radius:7px;padding:6px 8px;font-size:0.74rem;font-weight:800;cursor:pointer"
+                  onclick="act.quickIntensityBehavior(${client.id}, ${s.id}, ${bp.id}, 'Severe')" ${ended ? 'disabled' : ''}>Severe</button>
+              </div>
+            ` : '';
+            primaryControlHtml = `
+              <div style="display:flex;gap:6px;flex-wrap:wrap">${ctrlParts.join('')}</div>
+              ${intensityRow}
+            `;
+          } else if (mType === 'duration' || mType === 'irt') {
             primaryControlHtml = `
               <button id="beh_timer_${bp.id}" type="button" style="width:100%;background:${runningTimer ? '#b91c47' : '#0d6e6e'};color:#ffffff;border:none;border-radius:12px;padding:13px 16px;font-size:0.96rem;font-weight:800;cursor:pointer"
                 onclick="act.toggleBehaviorTimer(${client.id}, ${s.id}, ${bp.id}, 'duration')" ${ended ? 'disabled' : ''}>
@@ -4894,6 +5219,7 @@ async function sessionView(id) {
             `;
           }
 
+          const byInt = bpStats.byIntensity || { Mild: 0, Moderate: 0, Severe: 0 };
           return `
             <div style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between">
               <div>
@@ -4902,27 +5228,33 @@ async function sessionView(id) {
                     ${esc(bp.name)}
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-                    <span style="background:${pillBg};color:${pillColor};font-size:0.72rem;font-weight:800;padding:4px 10px;border-radius:999px;letter-spacing:0.03em">
+                    <span style="background:${pillBg};color:${pillColor};font-size:0.7rem;font-weight:800;padding:4px 10px;border-radius:999px;letter-spacing:0.03em">
                       ${pillLabel}
                     </span>
                     ${renderBehaviorCardThreeDotMenu(bp, client.id, s.id)}
                   </div>
                 </div>
-                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
                   <div>
                     <div style="font-size:0.84rem;color:#475569">Count today</div>
                     <div style="font-size:2rem;font-weight:900;color:${bpStats.frequency > 0 && (mType === 'frequency' || mType === 'rate') ? '#b91c47' : '#0f4c5c'};font-family:var(--font-mono);line-height:1.1;margin-top:2px">
                       ${bpStats.frequency || 0}
                     </div>
                   </div>
-                  <div style="text-align:right;font-family:var(--font-mono);font-size:0.76rem;color:#475569">
-                    ${mType === 'duration' || mType === 'irt'
-                      ? `Avg duration: <b>${bpStats.avgDurationSec || 0}s</b>`
-                      : mType === 'latency'
-                        ? `Avg latency: <b>${bpStats.avgLatencySec || 0}s</b>`
-                        : (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts')
-                          ? `Intervals: <b>${bpStats.intervalPct ?? 0}% (${bpStats.intervalNumDenom || '0/0'})</b>`
-                          : `Auto rate: <b>${bpStats.ratePerHour || 0}/hr</b>`}
+                  <div style="text-align:right;font-family:var(--font-mono);font-size:0.74rem;color:#475569;line-height:1.4">
+                    ${isMultiMethod ? `
+                      <div>Rate: <b>${bpStats.ratePerHour || 0}/hr</b> (Base: ${esc(String(cfgMethods[0].baseline_value))})</div>
+                      ${methodKeys.includes('duration') ? `<div>Avg duration: <b>${bpStats.avgDurationSec || 0}s</b></div>` : ''}
+                      ${methodKeys.includes('intensity') ? `<div>Intensity: <b>M:${byInt.Mild || 0} · Mod:${byInt.Moderate || 0} · Sev:${byInt.Severe || 0}</b></div>` : ''}
+                    ` : (
+                      mType === 'duration' || mType === 'irt'
+                        ? `Avg duration: <b>${bpStats.avgDurationSec || 0}s</b>`
+                        : mType === 'latency'
+                          ? `Avg latency: <b>${bpStats.avgLatencySec || 0}s</b>`
+                          : (mType === 'partial_interval' || mType === 'whole_interval' || mType === 'mts')
+                            ? `Intervals: <b>${bpStats.intervalPct ?? 0}% (${bpStats.intervalNumDenom || '0/0'})</b>`
+                            : `Auto rate: <b>${bpStats.ratePerHour || 0}/hr</b>`
+                    )}
                   </div>
                 </div>
               </div>
@@ -8012,15 +8344,33 @@ function renderModal() {
     const focus = activeModal.focusSection || 'all';
     const ver = bp ? (bp.version || 1) : 1;
     const histCount = bp ? (bp.historical_event_count || 0) : 0;
-    const mType = bp ? (bp.measurement_type || 'frequency') : 'frequency';
-    const fnHyp = bp ? (bp.function_hypothesis || 'Escape') : 'Escape';
+    const fnHyp = activeModal.draftFields ? activeModal.draftFields.function_hypothesis : (bp ? (bp.function_hypothesis || 'Escape') : 'Escape');
+    if (!Array.isArray(activeModal.methods) || activeModal.methods.length === 0) {
+      activeModal.methods = normalizeModalBehaviorMethods(bp);
+    }
+    const methods = activeModal.methods;
+    const draft = activeModal.draftFields || {
+      name: bp ? bp.name : 'Screaming / Vocal Protest',
+      operational_definition: bp ? (bp.operational_definition || bp.definition || '') : '',
+      onset_criteria: bp ? (bp.onset_criteria || '') : '',
+      offset_criteria: bp ? (bp.offset_criteria || '') : '',
+      examples: bp ? (bp.examples || '') : '',
+      non_examples: bp ? (bp.non_examples || '') : '',
+      intensity_criteria: bp ? (bp.intensity_criteria || '') : 'Mild: Whining <15s; Moderate: Loud vocal protest 15s–2m; Severe: High-decibel screaming >2m',
+      reduction_goal: bp ? (bp.reduction_goal || '') : '',
+      replacement_skill_goal: bp ? (bp.replacement_skill_goal || '') : '',
+      status: bp ? (bp.status || 'active') : 'active',
+      change_summary: ''
+    };
+    const primaryM = methods[0] || normalizeModalBehaviorMethods(null)[0];
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:740px;width:96%;max-height:92vh;overflow-y:auto">
+      <div class="modal-card" style="max-width:860px;width:96%;max-height:92vh;overflow-y:auto">
         <div class="flex-between" style="flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--slate-200)">
           <div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span class="badge p">${isEdit ? `Edit Target Behavior · Version v${ver} → v${ver + 1}` : 'New Target Behavior Definition'}</span>
+              <span class="tag approved">${methods.length} Measurement Method${methods.length === 1 ? '' : 's'} Configured</span>
               ${isEdit ? `<button type="button" class="beh-ver-pill" onclick="act.openBehaviorHistoryModal(${bp.id})">🕓 View History (${ver} version${ver === 1 ? '' : 's'})</button>` : ''}
             </div>
             <h3 style="margin:4px 0 0">${isEdit ? `Update Target Behavior: ${esc(bp.name)}` : 'Define Client Target Behavior'}</h3>
@@ -8035,7 +8385,7 @@ function renderModal() {
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
             <button type="button" class="fba-chip ${focus === 'all' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('all')">All Editable Fields</button>
             <button type="button" class="fba-chip ${focus === 'behavior' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('behavior')">✏️ 1. Behavior, Definition, Onset/Offset & Examples</button>
-            <button type="button" class="fba-chip ${focus === 'measurement' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('measurement')">📏 2. Measurement Method & Baseline</button>
+            <button type="button" class="fba-chip ${focus === 'measurement' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('measurement')">📏 2. Multiple Measurement Methods & Baselines (${methods.length})</button>
             <button type="button" class="fba-chip ${focus === 'goals' ? 'active' : ''}" onclick="act.setBehaviorModalFocus('goals')">🎯 3. Acquisition/Reduction Goals & Mastery</button>
           </div>
         ` : ''}
@@ -8054,7 +8404,7 @@ function renderModal() {
           <div class="row">
             <div style="flex:2">
               <label>Behavior Name</label>
-              <input id="bp_name" placeholder="e.g. Screaming / Vocal Protest" value="${esc(bp ? bp.name : 'Vocal Protest / Screaming')}">
+              <input id="bp_name" placeholder="e.g. Screaming / Vocal Protest" value="${esc(draft.name)}">
             </div>
             <div style="flex:1">
               <label>Behavioral Function</label>
@@ -8068,101 +8418,192 @@ function renderModal() {
           </div>
 
           <label>Operational Definition (Objective, Observable & Measurable)</label>
-          <textarea id="bp_def" rows="2" placeholder="Any vocalization above conversational volume lasting ≥ 3 seconds...">${esc(bp ? (bp.operational_definition || bp.definition || '') : '')}</textarea>
+          <textarea id="bp_def" rows="2" placeholder="Any vocalization above conversational volume lasting ≥ 3 seconds...">${esc(draft.operational_definition)}</textarea>
 
           <div class="row">
             <div>
               <label>Onset Criteria (When episode begins)</label>
-              <input id="bp_onset" placeholder="e.g. Begins immediately after 3s of loud vocalization" value="${esc(bp ? (bp.onset_criteria || '') : '')}">
+              <input id="bp_onset" placeholder="e.g. Begins immediately after 3s of loud vocalization" value="${esc(draft.onset_criteria)}">
             </div>
             <div>
               <label>Offset Criteria (When episode ends)</label>
-              <input id="bp_offset" placeholder="e.g. Ends after 5 consecutive seconds of calm voice" value="${esc(bp ? (bp.offset_criteria || '') : '')}">
+              <input id="bp_offset" placeholder="e.g. Ends after 5 consecutive seconds of calm voice" value="${esc(draft.offset_criteria)}">
             </div>
           </div>
 
           <div class="row">
             <div>
               <label>Examples (Topographies included)</label>
-              <input id="bp_examples" placeholder="e.g. High-pitched yelling when presented with clean-up cue" value="${esc(bp ? (bp.examples || '') : '')}">
+              <input id="bp_examples" placeholder="e.g. High-pitched yelling when presented with clean-up cue" value="${esc(draft.examples)}">
             </div>
             <div>
               <label>Non-Examples (Excluded from counting)</label>
-              <input id="bp_non" placeholder="e.g. Laughing or cheering during gross-motor play" value="${esc(bp ? (bp.non_examples || '') : '')}">
+              <input id="bp_non" placeholder="e.g. Laughing or cheering during gross-motor play" value="${esc(draft.non_examples)}">
             </div>
           </div>
         </div>
 
-        <!-- SECTION 2: Measurement Method, Intensity Criteria & Baseline Data -->
-        <div style="margin-top:10px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'measurement' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'measurement' ? '#f0fdfa' : '#ffffff'}">
-          <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
-            2. Measurement Method & Baseline Data
-          </div>
-          <div class="row">
+        <!-- SECTION 2: Multiple Measurement Methods, Independent Baselines, Units & Goals -->
+        <div style="margin-top:10px;padding:14px;border-radius:10px;border:2px solid ${focus === 'measurement' ? '#0f766e' : '#cbd5e1'};background:${focus === 'measurement' ? '#f0fdfa' : '#f8fafc'}">
+          <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
             <div>
-              <label>Measurement Method (9 ABA Methods)</label>
-              <select id="bp_method">
-                <option value="frequency" ${mType === 'frequency' ? 'selected' : ''}>Frequency / Event Recording</option>
-                <option value="rate" ${mType === 'rate' ? 'selected' : ''}>Rate (per Hour / Minute)</option>
-                <option value="duration" ${mType === 'duration' ? 'selected' : ''}>Duration Recording</option>
-                <option value="latency" ${mType === 'latency' ? 'selected' : ''}>Latency Recording</option>
-                <option value="irt" ${mType === 'irt' ? 'selected' : ''}>Inter-Response Time (IRT)</option>
-                <option value="partial_interval" ${mType === 'partial_interval' ? 'selected' : ''}>Partial-Interval Recording</option>
-                <option value="whole_interval" ${mType === 'whole_interval' ? 'selected' : ''}>Whole-Interval Recording</option>
-                <option value="mts" ${mType === 'mts' ? 'selected' : ''}>Momentary Time Sampling (MTS)</option>
-                <option value="abc" ${mType === 'abc' ? 'selected' : ''}>ABC Continuous Recording</option>
-              </select>
+              <div style="font-size:0.78rem;font-weight:800;color:#113f59;text-transform:uppercase;letter-spacing:0.04em;font-family:var(--font-mono)">
+                2. Multiple Measurement Methods — Independent Baselines, Units & Goals
+              </div>
+              <div style="font-size:0.75rem;color:var(--slate-600);margin-top:2px">
+                Each measurement method has its own baseline value, unit/format, observation period, target criterion, mastery criterion, and separate ongoing data stream & graph.
+              </div>
             </div>
-            <div>
-              <label>Baseline Numeric Rate / Value</label>
-              <input id="bp_base" type="number" step="0.1" value="${bp && bp.baseline_rate !== undefined ? bp.baseline_rate : 3.0}">
-            </div>
-            <div>
-              <label>Baseline Data Description</label>
-              <input id="bp_baseline_data" placeholder="e.g. 4.2 episodes/hr across 3 baseline sessions" value="${esc(bp ? (bp.baseline_data || '') : '3.0 episodes/hr across 3 baseline sessions')}">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button type="button" class="sec" style="padding:6px 10px;font-size:0.74rem;border-color:#0f766e;color:#0f766e" onclick="act.loadMultiMethodPreset()">
+                📋 Load Multi-Method Example (Freq + Duration + Intensity)
+              </button>
+              <button type="button" class="ok" style="padding:6px 12px;font-size:0.76rem;background:#113f59" onclick="act.addBehaviorModalMethod()">
+                + Add measurement method
+              </button>
             </div>
           </div>
-          <label>Intensity Criteria (Mild / Moderate / Severe)</label>
-          <input id="bp_intensity" placeholder="Mild: <15s; Moderate: 15s–2m; Severe: >2m" value="${esc(bp ? (bp.intensity_criteria || '') : 'Mild: Whining <15s; Moderate: 15s–2m; Severe: >2m')}">
+
+          <!-- Clinical Guidance Callout (from RBT Sepia Multiple Measurement Methods Spec) -->
+          <div style="background:#eef6fa;border:1px solid #bae6fd;border-left:4px solid #113f59;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.76rem;color:#0f172a;line-height:1.45">
+            <b>Clinical guidance:</b> Select measurement methods based on the behavior's operational definition and the clinical question being answered. Not every behavior needs multiple methods, and intensity ratings should use clearly defined, observable anchors. <b>Never combine different measurement dimensions into one numeric field or one graph.</b>
+          </div>
+
+          <!-- Live Summary Table Preview (Matching Page 1 Spec Table) -->
+          <div style="margin-bottom:12px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;background:#ffffff">
+            <table style="width:100%;border-collapse:collapse;font-size:0.75rem">
+              <thead>
+                <tr style="background:#113f59;color:#ffffff;text-align:left">
+                  <th style="padding:6px 10px">Measurement method</th>
+                  <th style="padding:6px 10px">Baseline value</th>
+                  <th style="padding:6px 10px">Unit / format</th>
+                  <th style="padding:6px 10px">Target criterion</th>
+                  <th style="padding:6px 10px">Ongoing stream & graph</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${methods.map((m) => `
+                  <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:6px 10px;font-weight:700;color:#0f172a">${esc(m.method_label)}</td>
+                    <td style="padding:6px 10px;font-family:var(--font-mono);font-weight:800;color:#0f766e">${esc(m.baseline_value)}</td>
+                    <td style="padding:6px 10px;color:#334155">${esc(m.unit)}</td>
+                    <td style="padding:6px 10px;color:#14532d">${esc(m.target_criterion)} (${esc(m.mastery_criterion)})</td>
+                    <td style="padding:6px 10px;font-size:0.7rem;color:#475569">${esc(m.data_entry_format)} · ${esc(m.graph_type)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Separate Configuration Cards for Each Added Measurement Method -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${methods.map((m, idx) => {
+              const spec = CLIENT_MEASUREMENT_METHODS_SPEC[m.method] || CLIENT_MEASUREMENT_METHODS_SPEC.frequency;
+              const unitOptions = spec.validUnits.includes(m.unit) ? spec.validUnits : [m.unit, ...spec.validUnits];
+              return `
+                <div style="background:#ffffff;border:1.5px solid #94a3b8;border-left:5px solid #0f766e;border-radius:10px;padding:12px">
+                  <div class="flex-between" style="flex-wrap:wrap;gap:8px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px dashed #e2e8f0">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <span class="badge p">Method #${idx + 1}${idx === 0 ? ' (Primary)' : ''}</span>
+                      <b style="font-size:0.88rem;color:#113f59">${esc(spec.label)}</b>
+                      <span style="font-size:0.7rem;color:#64748b;font-family:var(--font-mono)">Dimension: ${esc(spec.dimensionCategory)}</span>
+                    </div>
+                    ${methods.length > 1 ? `
+                      <button type="button" class="bad" style="padding:4px 10px;font-size:0.72rem" onclick="act.removeBehaviorModalMethod(${idx})">
+                        ✕ Remove Method
+                      </button>
+                    ` : `<span style="font-size:0.7rem;color:var(--slate-400)">At least 1 method required</span>`}
+                  </div>
+
+                  <div class="row">
+                    <div style="flex:1.3">
+                      <label>Measurement method</label>
+                      <select onchange="act.updateBehaviorModalMethodField(${idx}, 'method', this.value)">
+                        ${Object.values(CLIENT_MEASUREMENT_METHODS_SPEC).map((opt) => `
+                          <option value="${opt.key}" ${m.method === opt.key ? 'selected' : ''}>${esc(opt.label)}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                    <div style="flex:0.9">
+                      <label>Baseline value</label>
+                      ${m.method === 'intensity' ? `
+                        <input value="${esc(m.baseline_value)}" placeholder="e.g. Moderate" onchange="act.updateBehaviorModalMethodField(${idx}, 'baseline_value', this.value)">
+                      ` : `
+                        <input type="number" step="0.1" value="${esc(m.baseline_value)}" onchange="act.updateBehaviorModalMethodField(${idx}, 'baseline_value', this.value)">
+                      `}
+                    </div>
+                    <div style="flex:1.3">
+                      <label>Unit / format (Validated for ${esc(spec.key)})</label>
+                      <select onchange="act.updateBehaviorModalMethodField(${idx}, 'unit', this.value)">
+                        ${unitOptions.map((u) => `<option value="${esc(u)}" ${m.unit === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="row" style="margin-top:6px">
+                    <div style="flex:1.2">
+                      <label>Baseline observation period / # of observations</label>
+                      <input value="${esc(m.observation_period)}" placeholder="e.g. Across 3 baseline sessions (6 hours total)" onchange="act.updateBehaviorModalMethodField(${idx}, 'observation_period', this.value)">
+                    </div>
+                    <div style="flex:0.8">
+                      <label>Target criterion (${esc(m.unit)})</label>
+                      <input value="${esc(m.target_criterion)}" placeholder="e.g. 0.5" onchange="act.updateBehaviorModalMethodField(${idx}, 'target_criterion', this.value)">
+                    </div>
+                    <div style="flex:1.5">
+                      <label>Mastery criterion & timeframe</label>
+                      <input value="${esc(m.mastery_criterion)}" placeholder="e.g. ≤ 0.5 ${esc(m.unit)} across 3 consecutive sessions" onchange="act.updateBehaviorModalMethodField(${idx}, 'mastery_criterion', this.value)">
+                    </div>
+                  </div>
+
+                  ${m.method === 'intensity' ? `
+                    <div style="margin-top:6px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 10px;font-size:0.74rem;color:#92400e">
+                      <b>Clinical Note:</b> Intensity can be recorded as a separate rating when clinically appropriate; it is not a substitute for a direct measurement dimension.
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="margin-top:10px">
+            <label>Observable Intensity Anchor Scale Definitions (Mild / Moderate / Severe)</label>
+            <input id="bp_intensity" placeholder="Mild: <15s; Moderate: 15s–2m; Severe: >2m" value="${esc(draft.intensity_criteria)}">
+          </div>
+
+          <!-- Hidden legacy inputs kept synced with Primary Method #1 for backward compatibility -->
+          <input type="hidden" id="bp_method" value="${esc(primaryM.method)}">
+          <input type="hidden" id="bp_base" value="${esc(String(parseFloat(primaryM.baseline_value) || 0))}">
+          <input type="hidden" id="bp_baseline_data" value="${esc(`${primaryM.baseline_value} ${primaryM.unit} (${primaryM.observation_period})`)}">
+          <input type="hidden" id="bp_target" value="${esc(String(parseFloat(primaryM.target_criterion) || 0))}">
+          <input type="hidden" id="bp_mastery" value="${esc(primaryM.mastery_criterion)}">
         </div>
 
         <!-- SECTION 3: Behavior Reduction Goal, Skill Acquisition / Replacement Goal & Mastery Criteria -->
         <div style="margin-top:10px;padding:12px;border-radius:10px;border:1.5px solid ${focus === 'goals' ? 'var(--primary)' : 'var(--slate-200)'};background:${focus === 'goals' ? '#f0fdfa' : '#ffffff'}">
           <div style="font-size:0.76rem;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;font-family:var(--font-mono)">
-            3. Skill Acquisition, Behavior Reduction Goals & Mastery Criteria
+            3. Overall Behavior Reduction & Replacement Skill (FCT) Goals
           </div>
           <div class="row">
             <div style="flex:2">
-              <label>Behavior Reduction Goal</label>
-              <input id="bp_reduction_goal" placeholder="e.g. Decrease behavior from 4.2/hr baseline to ≤ 0.5/hr across settings" value="${esc(bp ? (bp.reduction_goal || '') : '')}">
-            </div>
-            <div style="flex:1">
-              <label>Target Criterion Rate</label>
-              <input id="bp_target" type="number" step="0.1" value="${bp && bp.target_rate !== undefined ? bp.target_rate : 0.5}">
-            </div>
-          </div>
-          <label>Skill Acquisition & Functional Replacement Behavior Goal (FCT)</label>
-          <input id="bp_replacement_goal" placeholder="e.g. Independently exchange 'Break Please' FCT card on ≥ 85% of transitions" value="${esc(bp ? (bp.replacement_skill_goal || '') : '')}">
-
-          <div class="row">
-            <div style="flex:2">
-              <label>Mastery Criteria</label>
-              <input id="bp_mastery" placeholder="e.g. ≤ 0.5 episodes/hr across 3 consecutive sessions with 0 severe episodes" value="${esc(bp ? (bp.mastery_criteria || '') : '≤ 0.5 episodes/hr across 3 consecutive sessions')}">
+              <label>Overall Behavior Reduction Goal Summary</label>
+              <input id="bp_reduction_goal" placeholder="e.g. Decrease frequency from 4.2/hr to ≤ 0.5/hr and episode duration from 8m to ≤ 1m" value="${esc(draft.reduction_goal)}">
             </div>
             <div style="flex:1">
               <label>Clinical Status</label>
               <select id="bp_status">
-                <option value="active" ${(!bp || bp.status !== 'archived') ? 'selected' : ''}>Active (In Treatment)</option>
-                <option value="archived" ${(bp && bp.status === 'archived') ? 'selected' : ''}>Archived (Clinical Review Only)</option>
+                <option value="active" ${draft.status !== 'archived' ? 'selected' : ''}>Active (In Treatment)</option>
+                <option value="archived" ${draft.status === 'archived' ? 'selected' : ''}>Archived (Clinical Review Only)</option>
               </select>
             </div>
           </div>
+          <label>Skill Acquisition & Functional Replacement Behavior Goal (FCT)</label>
+          <input id="bp_replacement_goal" placeholder="e.g. Independently exchange 'Break Please' FCT card on ≥ 85% of transitions" value="${esc(draft.replacement_skill_goal)}">
         </div>
 
         ${isEdit ? `
           <div style="margin-top:10px">
             <label>Clinical Modification Note (Optional — auto-summarized in Version History if left blank)</label>
-            <input id="bp_change_summary" placeholder="e.g. Refined onset criteria to 3s and updated measurement method after FBA review">
+            <input id="bp_change_summary" value="${esc(draft.change_summary || '')}" placeholder="e.g. Added Duration and Intensity measurement methods alongside Frequency">
           </div>
         ` : ''}
 
@@ -9735,25 +10176,180 @@ const act = {
   },
   openBehaviorProgramModal: (cid) => {
     openBehMenuId = null;
-    activeModal = { type: 'behavior_program', clientId: cid, behavior: null, focusSection: 'all' };
+    activeModal = {
+      type: 'behavior_program',
+      clientId: cid,
+      behavior: null,
+      focusSection: 'all',
+      methods: normalizeModalBehaviorMethods(null),
+      draftFields: null
+    };
     render();
   },
   openEditBehaviorModal: safe(async (bpId, focusSection = 'all') => {
     openBehMenuId = null;
     const bp = await api('GET', `/api/behaviors/${bpId}`);
-    activeModal = { type: 'behavior_program', clientId: bp.client_id, behavior: bp, focusSection };
+    activeModal = {
+      type: 'behavior_program',
+      clientId: bp.client_id,
+      behavior: bp,
+      focusSection,
+      methods: normalizeModalBehaviorMethods(bp),
+      draftFields: null
+    };
     render();
   }),
+  syncBehaviorModalInputsFromDom: () => {
+    if (!activeModal || activeModal.type !== 'behavior_program') return;
+    if (!document.getElementById('bp_name')) return;
+    activeModal.draftFields = {
+      name: val('bp_name'),
+      function_hypothesis: val('bp_fn') || 'Escape',
+      operational_definition: val('bp_def'),
+      onset_criteria: val('bp_onset'),
+      offset_criteria: val('bp_offset'),
+      examples: val('bp_examples'),
+      non_examples: val('bp_non'),
+      intensity_criteria: val('bp_intensity'),
+      reduction_goal: val('bp_reduction_goal'),
+      replacement_skill_goal: val('bp_replacement_goal'),
+      status: val('bp_status') || 'active',
+      change_summary: val('bp_change_summary')
+    };
+  },
   setBehaviorModalFocus: (focusSection) => {
     if (activeModal && activeModal.type === 'behavior_program') {
+      act.syncBehaviorModalInputsFromDom();
       activeModal.focusSection = focusSection;
       render();
     }
   },
+  addBehaviorModalMethod: () => {
+    if (!activeModal || activeModal.type !== 'behavior_program') return;
+    act.syncBehaviorModalInputsFromDom();
+    const existingKeys = new Set((activeModal.methods || []).map(m => m.method));
+    const candidateOrder = ['duration', 'intensity', 'frequency', 'latency', 'partial_interval', 'rate', 'irt', 'whole_interval', 'mts', 'abc'];
+    const nextKey = candidateOrder.find(k => !existingKeys.has(k)) || 'duration';
+    const spec = CLIENT_MEASUREMENT_METHODS_SPEC[nextKey] || CLIENT_MEASUREMENT_METHODS_SPEC.duration;
+    const defaultBase = nextKey === 'duration' ? '8' : (nextKey === 'intensity' ? 'Moderate' : '4.2');
+    const defaultTarg = nextKey === 'duration' ? '1' : (nextKey === 'intensity' ? 'Mild or 0 Severe' : '0.5');
+    activeModal.methods.push({
+      id: `m_${Date.now()}_${activeModal.methods.length + 1}`,
+      method: spec.key,
+      method_label: spec.label,
+      baseline_value: defaultBase,
+      unit: spec.defaultUnit,
+      observation_period: 'Across 3 baseline sessions',
+      target_criterion: defaultTarg,
+      target_unit: spec.defaultUnit,
+      mastery_criterion: nextKey === 'intensity' ? '0 Severe episodes & ≤ Mild across 3 consecutive sessions' : `≤ ${defaultTarg} ${spec.defaultUnit} across 3 consecutive sessions`,
+      mastery_timeframe: 'Across 3 consecutive sessions',
+      data_entry_format: spec.defaultDataEntryFormat,
+      graph_type: spec.defaultGraphType,
+      clinical_note: spec.clinicalNote || ''
+    });
+    render();
+  },
+  removeBehaviorModalMethod: (idx) => {
+    if (!activeModal || activeModal.type !== 'behavior_program') return;
+    if (!Array.isArray(activeModal.methods) || activeModal.methods.length <= 1) return;
+    act.syncBehaviorModalInputsFromDom();
+    activeModal.methods.splice(idx, 1);
+    render();
+  },
+  updateBehaviorModalMethodField: (idx, field, value) => {
+    if (!activeModal || activeModal.type !== 'behavior_program' || !activeModal.methods || !activeModal.methods[idx]) return;
+    act.syncBehaviorModalInputsFromDom();
+    const m = activeModal.methods[idx];
+    if (field === 'method') {
+      const spec = CLIENT_MEASUREMENT_METHODS_SPEC[value] || CLIENT_MEASUREMENT_METHODS_SPEC.frequency;
+      m.method = spec.key;
+      m.method_label = spec.label;
+      m.unit = spec.defaultUnit;
+      m.target_unit = spec.defaultUnit;
+      m.data_entry_format = spec.defaultDataEntryFormat;
+      m.graph_type = spec.defaultGraphType;
+      m.clinical_note = spec.clinicalNote || '';
+      if (spec.key === 'intensity') {
+        m.baseline_value = 'Moderate';
+        m.target_criterion = 'Mild or 0 Severe';
+        m.mastery_criterion = '0 Severe episodes & ≤ Mild across 3 consecutive sessions';
+      } else if (spec.key === 'duration') {
+        m.baseline_value = '8';
+        m.target_criterion = '1';
+        m.mastery_criterion = `≤ 1 ${spec.defaultUnit} across 3 consecutive sessions`;
+      } else {
+        m.baseline_value = '4.2';
+        m.target_criterion = '0.5';
+        m.mastery_criterion = `≤ 0.5 ${spec.defaultUnit} across 3 consecutive sessions`;
+      }
+    } else {
+      m[field] = value;
+      if (field === 'unit') m.target_unit = value;
+    }
+    render();
+  },
+  loadMultiMethodPreset: () => {
+    if (!activeModal || activeModal.type !== 'behavior_program') return;
+    act.syncBehaviorModalInputsFromDom();
+    activeModal.methods = [
+      {
+        id: 'm_freq',
+        method: 'frequency',
+        method_label: 'Frequency / Event Recording',
+        baseline_value: '4.2',
+        unit: 'episodes per hour',
+        observation_period: 'Across 3 baseline sessions (6 hours total)',
+        target_criterion: '0.5',
+        target_unit: 'episodes per hour',
+        mastery_criterion: '≤ 0.5 episodes per hour across 3 consecutive sessions',
+        mastery_timeframe: 'Across 3 consecutive sessions',
+        data_entry_format: 'event_tally_and_auto_rate',
+        graph_type: 'line_chart_by_session'
+      },
+      {
+        id: 'm_dur',
+        method: 'duration',
+        method_label: 'Duration Recording',
+        baseline_value: '8',
+        unit: 'minutes per episode',
+        observation_period: 'Across 3 baseline sessions (mean episode length)',
+        target_criterion: '1',
+        target_unit: 'minutes per episode',
+        mastery_criterion: '≤ 1 minute per episode across 3 consecutive sessions',
+        mastery_timeframe: 'Across 3 consecutive sessions',
+        data_entry_format: 'start_stop_duration_timer',
+        graph_type: 'line_chart_by_session'
+      },
+      {
+        id: 'm_int',
+        method: 'intensity',
+        method_label: 'Intensity (if used)',
+        baseline_value: 'Moderate',
+        unit: 'defined intensity scale',
+        observation_period: 'Across 3 baseline sessions (anchored Mild / Moderate / Severe scale)',
+        target_criterion: 'Mild or 0 Severe',
+        target_unit: 'defined intensity scale',
+        mastery_criterion: '0 Severe episodes and ≤ Mild intensity across 3 consecutive sessions',
+        mastery_timeframe: 'Across 3 consecutive sessions',
+        data_entry_format: 'anchored_rating_selector',
+        graph_type: 'categorical_bar_or_distribution',
+        clinical_note: 'Intensity can be recorded as a separate rating when clinically appropriate; it is not a substitute for a direct measurement dimension.'
+      }
+    ];
+    render();
+  },
   submitBehaviorProgramModal: safe(async (cid, bpId = null) => {
+    const methods = (activeModal && Array.isArray(activeModal.methods) && activeModal.methods.length > 0)
+      ? activeModal.methods
+      : normalizeModalBehaviorMethods(null);
+    const primary = methods[0];
+    const baselineDesc = methods.map(m => `${m.method_label}: ${m.baseline_value} ${m.unit}`).join(' | ');
+    const masteryDesc = methods.map(m => `${m.method_label}: ${m.mastery_criterion}`).join(' | ');
     const payload = {
       name: val('bp_name'),
-      measurement_type: val('bp_method'),
+      measurement_type: primary.method || val('bp_method') || 'frequency',
+      measurement_methods: methods,
       operational_definition: val('bp_def'),
       definition: val('bp_def'),
       onset_criteria: val('bp_onset'),
@@ -9762,12 +10358,12 @@ const act = {
       non_examples: val('bp_non'),
       function_hypothesis: val('bp_fn'),
       intensity_criteria: val('bp_intensity'),
-      baseline_rate: +val('bp_base') || 0,
-      baseline_data: val('bp_baseline_data'),
-      target_rate: +val('bp_target') || 0,
+      baseline_rate: parseFloat(primary.baseline_value) || +val('bp_base') || 0,
+      baseline_data: baselineDesc || val('bp_baseline_data'),
+      target_rate: parseFloat(primary.target_criterion) || +val('bp_target') || 0,
       reduction_goal: val('bp_reduction_goal'),
       replacement_skill_goal: val('bp_replacement_goal'),
-      mastery_criteria: val('bp_mastery'),
+      mastery_criteria: masteryDesc || val('bp_mastery'),
       status: val('bp_status') || 'active',
       change_summary: val('bp_change_summary')
     };
@@ -9883,6 +10479,28 @@ const act = {
       value: 1,
       setting: 'Clinic',
       notes: '1-Tap Frequency Tally'
+    };
+    localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
+    if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
+    else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
+    render();
+  }),
+  quickIntensityBehavior: safe(async (cid, sid, bpId, intensityLevel = 'Moderate') => {
+    const ts = new Date(Date.now() + (++tallySeq)).toISOString();
+    const behName = bpNameMap[bpId] || 'Target Behavior';
+    const payload = {
+      ts,
+      observed_at: ts,
+      recorded_at: ts,
+      behavior_id: bpId,
+      behavior_program_id: bpId,
+      behavior: behName,
+      behavior_name: behName,
+      measurement_type: 'intensity',
+      count: 1,
+      value: intensityLevel === 'Severe' ? 3 : (intensityLevel === 'Moderate' ? 2 : 1),
+      setting: 'Clinic',
+      notes: `Intensity: ${intensityLevel} (Separate anchored intensity rating)`
     };
     localBehEvents.push({ ...payload, client_id: cid, session_id: sid || null, localUid: tallySeq });
     if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, go
 CREATE TABLE IF NOT EXISTS authorizations(id INTEGER PRIMARY KEY, client_id INTEGER, code TEXT, authorized INTEGER, used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT, setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', intensity TEXT DEFAULT 'Moderate', duration_sec INTEGER DEFAULT 0, start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', original_value_json TEXT DEFAULT '', edit_history_json TEXT DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS supervision_logs(id INTEGER PRIMARY KEY, client_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, session_id INTEGER, ts TEXT, minutes INTEGER, type TEXT, notes TEXT);
-CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', baseline_data TEXT DEFAULT '', baseline_rate REAL DEFAULT 0, target_rate REAL DEFAULT 0, reduction_goal TEXT DEFAULT '', replacement_skill_goal TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', version INTEGER DEFAULT 1, version_history_json TEXT DEFAULT '[]', updated_at TEXT DEFAULT '', updated_by TEXT DEFAULT '', status TEXT DEFAULT 'active');
+CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', baseline_data TEXT DEFAULT '', baseline_rate REAL DEFAULT 0, target_rate REAL DEFAULT 0, reduction_goal TEXT DEFAULT '', replacement_skill_goal TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', measurement_methods_json TEXT DEFAULT '[]', version INTEGER DEFAULT 1, version_history_json TEXT DEFAULT '[]', updated_at TEXT DEFAULT '', updated_by TEXT DEFAULT '', status TEXT DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '', definition_version INTEGER DEFAULT 1, definition_snapshot TEXT DEFAULT '', start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', original_value_json TEXT DEFAULT '', edit_history_json TEXT DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS session_events(id INTEGER PRIMARY KEY, session_id INTEGER, client_id INTEGER, user_id INTEGER, event_type TEXT DEFAULT 'BEHAVIOR_EVENT', ref_entity_type TEXT DEFAULT '', ref_entity_id INTEGER, label TEXT DEFAULT '', start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', duration_sec INTEGER DEFAULT 0, observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', notes TEXT DEFAULT '', value_json TEXT DEFAULT '{}', original_value_json TEXT DEFAULT '{}', edit_history_json TEXT DEFAULT '[]', meta_json TEXT DEFAULT '{}', user_name TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, chaining_type TEXT DEFAULT 'Forward Chaining', steps_json TEXT DEFAULT '[]', logs_json TEXT DEFAULT '[]', status TEXT DEFAULT 'active');
@@ -95,6 +95,7 @@ try { db.exec('ALTER TABLE behavior_programs ADD COLUMN target_rate REAL DEFAULT
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN reduction_goal TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN replacement_skill_goal TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN mastery_criteria TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_programs ADD COLUMN measurement_methods_json TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec('ALTER TABLE behavior_programs ADD COLUMN version INTEGER DEFAULT 1'); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN version_history_json TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_at TEXT DEFAULT ''"); } catch (e) {}
@@ -349,13 +350,70 @@ function buildInitialBehaviorHistory(bpObj, authorName = 'Dr. Dana Rivera, BCBA'
   }];
 }
 
+function buildDefaultScreamMultiMethods() {
+  return [
+    {
+      id: 'mm_1_frequency',
+      method: 'frequency',
+      label: 'Frequency / Event Recording',
+      dimension: 'count_rate',
+      baseline_value: 4.2,
+      baseline_unit: 'episodes per hour',
+      baseline_observation_period: 'Across 3 baseline observation sessions (180 mins total)',
+      target_value: 0.5,
+      target_criterion: '≤ 0.5 episodes per hour',
+      target_unit: 'episodes per hour',
+      mastery_criterion: '≤ 0.5 episodes per hour across 3 consecutive sessions across 2 settings',
+      mastery_timeframe: 'Across 3 consecutive sessions across 2 settings',
+      data_entry_format: '+1 Event Tally Counter',
+      graph_type: 'Frequency / Rate per Hour Line Graph',
+      clinical_note: ''
+    },
+    {
+      id: 'mm_2_duration',
+      method: 'duration',
+      label: 'Duration Recording',
+      dimension: 'time_duration',
+      baseline_value: 8,
+      baseline_unit: 'minutes per episode',
+      baseline_observation_period: 'Across 3 baseline observation sessions (12 episodes)',
+      target_value: 1,
+      target_criterion: '≤ 1 minute per episode',
+      target_unit: 'minutes per episode',
+      mastery_criterion: '≤ 1 minute per episode across 3 consecutive sessions',
+      mastery_timeframe: 'Across 3 consecutive sessions',
+      data_entry_format: 'Start / Stop Episode Duration Timer',
+      graph_type: 'Duration per Episode Line Graph',
+      clinical_note: ''
+    },
+    {
+      id: 'mm_3_intensity',
+      method: 'intensity',
+      label: 'Intensity (if used)',
+      dimension: 'ordinal_scale',
+      baseline_value: 'Moderate',
+      baseline_unit: 'defined intensity scale',
+      baseline_observation_period: 'Across 3 baseline observation sessions',
+      target_value: 'Mild or None',
+      target_criterion: '0 Severe episodes and ≤ Mild intensity',
+      target_unit: 'defined intensity scale',
+      mastery_criterion: '0 Severe or Moderate episodes across 3 consecutive sessions',
+      mastery_timeframe: 'Across 3 consecutive sessions',
+      data_entry_format: 'Observable Anchor Rating (Mild / Moderate / Severe)',
+      graph_type: 'Intensity Distribution Bar Chart',
+      clinical_note: 'Intensity can be recorded as a separate rating when clinically appropriate; it is not a substitute for a direct measurement dimension.'
+    }
+  ];
+}
+
 function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
   if (!get('SELECT COUNT(*) c FROM behavior_programs WHERE client_id=?', el).c) {
     const seedTs = new Date(Date.now() - 5 * 86400000).toISOString();
     const bp1Def = 'Any vocalization above conversational volume lasting ≥ 3 seconds, excluding appropriate cheering during play.';
+    const bp1Methods = buildDefaultScreamMultiMethods();
     const bp1Hist = JSON.stringify(buildInitialBehaviorHistory({ definition: bp1Def, measurement_type: 'frequency', updated_at: seedTs }));
     const bp1 = run(
-      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,measurement_methods_json,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       el,
       'Screaming / Vocal Protest',
       bp1Def,
@@ -372,6 +430,7 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
       'Decrease screaming / vocal protest from 4.2/hr baseline to ≤ 0.5/hr across settings.',
       'Independently exchange "Break Please" or "2 More Minutes" FCT card on ≥ 85% of transition opportunities.',
       '≤ 0.5 episodes/hr across 3 consecutive sessions across 2 settings with 0 severe episodes',
+      JSON.stringify(bp1Methods),
       1,
       bp1Hist,
       seedTs,
@@ -524,6 +583,15 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
       el, 2, bp1, 'Screaming / Vocal Protest', rbt, t2, 'duration', 1, 25, 14, 420, 0, 0, 'Mild', 'School', 'LEGO Center Free Play', 'RBT, Peer', 'Prompted "My turn" FCT card', 1, bp1Def);
     run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       el, 3, bp2, 'Task Refusal / Leaving Tabletop', rbt, t1, 'partial_interval', 1, 20, 18, 0, 10, 2, 'Mild', 'School', 'DTT Tabletop Block', 'RBT', '2/10 intervals (20%) occurred during 15-min block', 1, bp2Def);
+    all('SELECT * FROM behavior_programs').forEach((bpRow) => {
+      const existingMethods = parse(bpRow.measurement_methods_json);
+      if (!Array.isArray(existingMethods) || !existingMethods.length) {
+        const methods = (Number(bpRow.client_id) === Number(el) && /scream/i.test(bpRow.name || ''))
+          ? buildDefaultScreamMultiMethods()
+          : G.validateAndNormalizeMeasurementMethods(null, bpRow, { strictValidation: false }).methods;
+        run('UPDATE behavior_programs SET measurement_methods_json=? WHERE id=?', JSON.stringify(methods), bpRow.id);
+      }
+    });
   }
 
   if (!get('SELECT COUNT(*) c FROM task_analyses WHERE client_id=?', el).c) {
@@ -823,6 +891,14 @@ function upgradeExistingData() {
         'UPDATE behavior_programs SET onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,baseline_data=?,baseline_rate=?,target_rate=?,reduction_goal=?,replacement_skill_goal=?,mastery_criteria=?,version=?,version_history_json=?,updated_at=?,updated_by=? WHERE id=?',
         onset, offset, ex, nonEx, bData, bRate, tRate, redGoal, repGoal, mastCrit, bp.version || 1, histJson, seedTs, bp.updated_by || 'Dr. Dana Rivera, BCBA', bp.id
       );
+    }
+    const curMethods = parse(bp.measurement_methods_json);
+    const isElScream = el && Number(bp.client_id) === Number(el.id) && /scream/i.test(bp.name || '');
+    if (!Array.isArray(curMethods) || !curMethods.length || (isElScream && curMethods.length === 1)) {
+      const methods = isElScream
+        ? buildDefaultScreamMultiMethods()
+        : G.validateAndNormalizeMeasurementMethods(null, bp, { strictValidation: false }).methods;
+      run('UPDATE behavior_programs SET measurement_methods_json=? WHERE id=?', JSON.stringify(methods), bp.id);
     }
   });
   if (!get("SELECT id FROM users WHERE email='owner@eba.test'")) {
@@ -2801,6 +2877,16 @@ function enrichBehaviorProgram(bp, clientEvents = [], clientAbcLogs = []) {
   );
   const linkedAbc = (clientAbcLogs || []).filter((l) => l.behavior === bp.name);
   const histMeasTypes = [...new Set(linkedEvents.map((e) => e.measurement_type || 'frequency'))];
+  const parsedMethods = parse(bp.measurement_methods_json);
+  const normMethods = G.validateAndNormalizeMeasurementMethods(parsedMethods, bp, { strictValidation: false }).methods;
+  const clientSessions = bp.client_id ? all('SELECT * FROM sessions WHERE client_id=?', bp.client_id) : [];
+  const streamsInfo = G.buildBehaviorDataStreamsByMethod(
+    { ...bp, measurement_methods: normMethods },
+    linkedEvents,
+    linkedAbc,
+    clientSessions
+  );
+
   return {
     ...bp,
     operational_definition: bp.operational_definition || bp.definition || '',
@@ -2810,7 +2896,10 @@ function enrichBehaviorProgram(bp, clientEvents = [], clientAbcLogs = []) {
     examples: bp.examples || '',
     non_examples: bp.non_examples || '',
     function_hypothesis: bp.function_hypothesis || 'Escape',
-    measurement_type: bp.measurement_type || 'frequency',
+    measurement_type: bp.measurement_type || (normMethods[0] && normMethods[0].method) || 'frequency',
+    measurement_methods: normMethods,
+    data_streams: streamsInfo.streamsByKey,
+    data_streams_list: streamsInfo.streamsList,
     intensity_criteria: bp.intensity_criteria || 'Mild / Moderate / Severe',
     baseline_data: bp.baseline_data || (bp.baseline_rate ? `${bp.baseline_rate}` : ''),
     baseline_rate: Number(bp.baseline_rate) || 0,
@@ -3724,6 +3813,20 @@ route('POST', '/api/clients/:id/auths', (u, b, p) => {
 });
 
 // Target Behavior Program Definitions & Continuous / Interval Behavior Events
+route('GET', '/api/measurement-methods/spec', () => ({
+  methods: G.BEHAVIOR_MEASUREMENT_METHODS_SPEC,
+  clinicalNote: 'Select measurement methods based on the behavior\'s operational definition and the clinical question being answered. Not every behavior needs multiple methods, and intensity ratings should use clearly defined, observable anchors.'
+}));
+
+route('GET', '/api/clients/:id/behaviors', (u, _b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') return [];
+  const bps = all('SELECT * FROM behavior_programs WHERE client_id=? ORDER BY id ASC', +p.id);
+  const evs = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY ts DESC', +p.id);
+  const abcs = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY ts DESC', +p.id);
+  return bps.map((bp) => enrichBehaviorProgram(bp, evs, abcs));
+});
+
 route('POST', '/api/clients/:id/behaviors', (u, b, p) => {
   clientOr403(u, p.id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
@@ -3731,20 +3834,59 @@ route('POST', '/api/clients/:id/behaviors', (u, b, p) => {
   const nowIso = new Date().toISOString();
   const nameVal = String(b.name).trim();
   const defText = String(b.operational_definition || b.definition || 'Observable maladaptive behavior episode').trim();
-  const measType = b.measurement_type || 'frequency';
   const fnHyp = b.function_hypothesis || b.behavioral_function || 'Escape';
   const intCrit = b.intensity_criteria || 'Mild / Moderate / Severe';
   const onsetCrit = b.onset_criteria ?? b.onset ?? '';
   const offsetCrit = b.offset_criteria ?? b.offset ?? '';
   const exVal = b.examples ?? '';
   const nonExVal = b.non_examples ?? '';
-  const bRate = b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : 0;
-  const bData = b.baseline_data ?? (bRate ? `${bRate}` : '');
-  const tRate = b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : 0;
-  const redGoal = b.reduction_goal ?? (tRate ? `Reduce target behavior to ≤ ${tRate}` : '');
   const repGoal = b.replacement_skill_goal ?? b.skill_acquisition_goal ?? '';
-  const mastCrit = b.mastery_criteria ?? '';
   const statusVal = b.status || 'active';
+
+  const fallbackSingle = {
+    measurement_type: b.measurement_type || 'frequency',
+    baseline_rate: b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : 0,
+    baseline_data: b.baseline_data ?? '',
+    target_rate: b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : 0,
+    reduction_goal: b.reduction_goal ?? '',
+    mastery_criteria: b.mastery_criteria ?? ''
+  };
+
+  let normMethods = [];
+  if (b.measurement_methods !== undefined || b.baseline_unit !== undefined || b.unit !== undefined) {
+    const inputArr = b.measurement_methods !== undefined
+      ? b.measurement_methods
+      : [{
+          method: b.measurement_type || 'frequency',
+          baseline_value: b.baseline_value ?? b.baseline_rate ?? b.baseline_data ?? '',
+          baseline_unit: b.baseline_unit ?? b.unit,
+          baseline_observation_period: b.baseline_observation_period,
+          target_value: b.target_value ?? b.target_rate ?? '',
+          target_criterion: b.target_criterion ?? b.reduction_goal ?? '',
+          target_unit: b.target_unit ?? b.baseline_unit ?? b.unit,
+          mastery_criterion: b.mastery_criterion ?? b.mastery_criteria ?? '',
+          mastery_timeframe: b.mastery_timeframe
+        }];
+    const valRes = G.validateAndNormalizeMeasurementMethods(inputArr, fallbackSingle, { strictValidation: true });
+    if (!valRes.ok) bad(400, valRes.error);
+    normMethods = valRes.methods;
+  } else {
+    normMethods = G.validateAndNormalizeMeasurementMethods(null, fallbackSingle, { strictValidation: false }).methods;
+  }
+
+  const primaryMethod = normMethods[0] || { method: 'frequency', baseline_value: 0, baseline_unit: 'episodes per hour', target_value: 0, target_criterion: '', mastery_criterion: '' };
+  const measType = b.measurement_type || primaryMethod.method || 'frequency';
+  const bRate = b.baseline_rate !== undefined && b.baseline_rate !== ''
+    ? +b.baseline_rate
+    : (!Number.isNaN(Number(primaryMethod.baseline_value)) && primaryMethod.baseline_value !== '' ? Number(primaryMethod.baseline_value) : 0);
+  const bData = b.baseline_data ?? (normMethods.length > 1
+    ? normMethods.map((m) => `${m.label}: ${m.baseline_value} ${m.baseline_unit}`).join(' · ')
+    : (bRate ? `${bRate} ${primaryMethod.baseline_unit || ''}`.trim() : ''));
+  const tRate = b.target_rate !== undefined && b.target_rate !== ''
+    ? +b.target_rate
+    : (!Number.isNaN(Number(primaryMethod.target_value)) && primaryMethod.target_value !== '' ? Number(primaryMethod.target_value) : 0);
+  const redGoal = b.reduction_goal ?? (primaryMethod.target_criterion || (tRate ? `Reduce target behavior to ≤ ${tRate}` : ''));
+  const mastCrit = b.mastery_criteria ?? (primaryMethod.mastery_criterion || '');
 
   const initHist = buildInitialBehaviorHistory(
     { definition: defText, measurement_type: measType, updated_at: nowIso },
@@ -3752,13 +3894,14 @@ route('POST', '/api/clients/:id/behaviors', (u, b, p) => {
   );
 
   const r = run(
-    'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    +p.id, nameVal, defText, measType, fnHyp, intCrit, onsetCrit, offsetCrit, exVal, nonExVal, bData, bRate, tRate, redGoal, repGoal, mastCrit, 1, JSON.stringify(initHist), nowIso, `${u.name} (${u.role})`, statusVal
+    'INSERT INTO behavior_programs(client_id,name,definition,measurement_type,function_hypothesis,intensity_criteria,onset_criteria,offset_criteria,examples,non_examples,baseline_data,baseline_rate,target_rate,reduction_goal,replacement_skill_goal,mastery_criteria,measurement_methods_json,version,version_history_json,updated_at,updated_by,status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, nameVal, defText, measType, fnHyp, intCrit, onsetCrit, offsetCrit, exVal, nonExVal, bData, bRate, tRate, redGoal, repGoal, mastCrit, JSON.stringify(normMethods), 1, JSON.stringify(initHist), nowIso, `${u.name} (${u.role})`, statusVal
   );
   const bid = Number(r.lastInsertRowid);
-  logAudit(u, { client_id: +p.id, entity_type: 'behavior_program', entity_id: bid, action: 'CREATE_BEHAVIOR_PROGRAM', details: `Defined behavior "${nameVal}" (${measType}, v1)` });
+  logAudit(u, { client_id: +p.id, entity_type: 'behavior_program', entity_id: bid, action: 'CREATE_BEHAVIOR_PROGRAM', details: `Defined behavior "${nameVal}" (${normMethods.map((m) => m.method).join('+')}, v1)` });
   const created = get('SELECT * FROM behavior_programs WHERE id=?', bid);
-  return { id: bid, behavior: enrichBehaviorProgram(created, [], []) };
+  const enrichedCreated = enrichBehaviorProgram(created, [], []);
+  return { ...enrichedCreated, id: bid, behavior: enrichedCreated };
 });
 
 route('GET', '/api/behaviors/:id', (u, b, p) => {
@@ -3778,22 +3921,69 @@ route('PUT', '/api/behaviors/:id', (u, b, p) => {
   if (u.role === 'PARENT') bad(403, 'Not allowed');
 
   const nowIso = new Date().toISOString();
+  const prevMethods = G.validateAndNormalizeMeasurementMethods(parse(bp.measurement_methods_json), bp, { strictValidation: false }).methods;
+
+  let nextMethods = prevMethods;
+  if (b.measurement_methods !== undefined) {
+    const valRes = G.validateAndNormalizeMeasurementMethods(b.measurement_methods, bp, { strictValidation: true });
+    if (!valRes.ok) bad(400, valRes.error);
+    nextMethods = valRes.methods;
+  } else if (b.baseline_unit !== undefined || b.unit !== undefined) {
+    const mTypeToCheck = b.measurement_type || bp.measurement_type || 'frequency';
+    const valRes = G.validateAndNormalizeMeasurementMethods([{
+      method: mTypeToCheck,
+      baseline_value: b.baseline_value ?? b.baseline_rate ?? bp.baseline_rate,
+      baseline_unit: b.baseline_unit ?? b.unit,
+      target_value: b.target_value ?? b.target_rate ?? bp.target_rate,
+      target_unit: b.target_unit ?? b.baseline_unit ?? b.unit
+    }], bp, { strictValidation: true });
+    if (!valRes.ok) bad(400, valRes.error);
+    nextMethods = valRes.methods;
+  } else if (b.measurement_type || b.baseline_rate !== undefined || b.target_rate !== undefined || b.reduction_goal !== undefined || b.mastery_criteria !== undefined) {
+    // Sync primary method entry when legacy fields are updated directly
+    const updatedPrimary = {
+      ...(prevMethods[0] || {}),
+      method: b.measurement_type || (prevMethods[0] && prevMethods[0].method) || bp.measurement_type || 'frequency',
+      baseline_value: b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : ((prevMethods[0] && prevMethods[0].baseline_value) ?? bp.baseline_rate),
+      baseline_unit: b.measurement_type && b.measurement_type !== (prevMethods[0] && prevMethods[0].method)
+        ? ((G.BEHAVIOR_MEASUREMENT_METHODS_SPEC[b.measurement_type] && G.BEHAVIOR_MEASUREMENT_METHODS_SPEC[b.measurement_type].defaultUnit) || 'episodes per hour')
+        : ((prevMethods[0] && prevMethods[0].baseline_unit) || 'episodes per hour'),
+      target_value: b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : ((prevMethods[0] && prevMethods[0].target_value) ?? bp.target_rate),
+      target_criterion: b.reduction_goal !== undefined ? String(b.reduction_goal) : ((prevMethods[0] && prevMethods[0].target_criterion) || bp.reduction_goal),
+      mastery_criterion: b.mastery_criteria !== undefined ? String(b.mastery_criteria) : ((prevMethods[0] && prevMethods[0].mastery_criterion) || bp.mastery_criteria)
+    };
+    const syncedArr = [updatedPrimary, ...prevMethods.slice(1)];
+    nextMethods = G.validateAndNormalizeMeasurementMethods(syncedArr, bp, { strictValidation: false }).methods;
+  }
+
+  const primaryNext = nextMethods[0] || {};
   const nextName = b.name !== undefined && String(b.name).trim() ? String(b.name).trim() : bp.name;
   const nextDef = (b.operational_definition !== undefined ? String(b.operational_definition).trim() : (b.definition !== undefined ? String(b.definition).trim() : bp.definition)) || bp.definition;
-  const nextMeas = b.measurement_type || bp.measurement_type || 'frequency';
+  const nextMeas = b.measurement_type || ( b.measurement_methods !== undefined && primaryNext.method ? primaryNext.method : (bp.measurement_type || 'frequency') );
   const nextFn = b.function_hypothesis || b.behavioral_function || bp.function_hypothesis || 'Escape';
   const nextInt = b.intensity_criteria !== undefined ? String(b.intensity_criteria) : (bp.intensity_criteria || '');
   const nextOnset = b.onset_criteria !== undefined ? String(b.onset_criteria) : (b.onset !== undefined ? String(b.onset) : (bp.onset_criteria || ''));
   const nextOffset = b.offset_criteria !== undefined ? String(b.offset_criteria) : (b.offset !== undefined ? String(b.offset) : (bp.offset_criteria || ''));
   const nextEx = b.examples !== undefined ? String(b.examples) : (bp.examples || '');
   const nextNonEx = b.non_examples !== undefined ? String(b.non_examples) : (bp.non_examples || '');
-  const nextBRate = b.baseline_rate !== undefined && b.baseline_rate !== '' ? +b.baseline_rate : (Number(bp.baseline_rate) || 0);
-  const nextBData = b.baseline_data !== undefined ? String(b.baseline_data) : (bp.baseline_data || (nextBRate ? `${nextBRate}` : ''));
-  const nextTRate = b.target_rate !== undefined && b.target_rate !== '' ? +b.target_rate : (Number(bp.target_rate) || 0);
-  const nextRedGoal = b.reduction_goal !== undefined ? String(b.reduction_goal) : (bp.reduction_goal || '');
+  const nextBRate = b.baseline_rate !== undefined && b.baseline_rate !== ''
+    ? +b.baseline_rate
+    : (b.measurement_methods !== undefined && !Number.isNaN(Number(primaryNext.baseline_value)) && primaryNext.baseline_value !== '' ? Number(primaryNext.baseline_value) : (Number(bp.baseline_rate) || 0));
+  const nextBData = b.baseline_data !== undefined
+    ? String(b.baseline_data)
+    : (b.measurement_methods !== undefined
+        ? nextMethods.map((m) => `${m.label}: ${m.baseline_value} ${m.baseline_unit}`).join(' · ')
+        : (bp.baseline_data || (nextBRate ? `${nextBRate}` : '')));
+  const nextTRate = b.target_rate !== undefined && b.target_rate !== ''
+    ? +b.target_rate
+    : (b.measurement_methods !== undefined && !Number.isNaN(Number(primaryNext.target_value)) && primaryNext.target_value !== '' ? Number(primaryNext.target_value) : (Number(bp.target_rate) || 0));
+  const nextRedGoal = b.reduction_goal !== undefined ? String(b.reduction_goal) : (b.measurement_methods !== undefined && primaryNext.target_criterion ? primaryNext.target_criterion : (bp.reduction_goal || ''));
   const nextRepGoal = b.replacement_skill_goal !== undefined ? String(b.replacement_skill_goal) : (b.skill_acquisition_goal !== undefined ? String(b.skill_acquisition_goal) : (bp.replacement_skill_goal || ''));
-  const nextMast = b.mastery_criteria !== undefined ? String(b.mastery_criteria) : (bp.mastery_criteria || '');
+  const nextMast = b.mastery_criteria !== undefined ? String(b.mastery_criteria) : (b.measurement_methods !== undefined && primaryNext.mastery_criterion ? primaryNext.mastery_criterion : (bp.mastery_criteria || ''));
   const nextStatus = b.status || bp.status || 'active';
+
+  const prevMethodsSummary = prevMethods.map((m) => `${m.method}(${m.baseline_value} ${m.baseline_unit} -> ${m.target_criterion})`).join('; ');
+  const nextMethodsSummary = nextMethods.map((m) => `${m.method}(${m.baseline_value} ${m.baseline_unit} -> ${m.target_criterion})`).join('; ');
 
   const FIELD_COMPARISONS = [
     ['name', 'Behavior Name', bp.name || '', nextName],
@@ -3804,6 +3994,7 @@ route('PUT', '/api/behaviors/:id', (u, b, p) => {
     ['non_examples', 'Non-Examples', bp.non_examples || '', nextNonEx],
     ['function_hypothesis', 'Behavioral Function', bp.function_hypothesis || '', nextFn],
     ['measurement_type', 'Measurement Method', bp.measurement_type || '', nextMeas],
+    ['measurement_methods', 'Measurement Methods Configuration', prevMethodsSummary, nextMethodsSummary],
     ['intensity_criteria', 'Intensity Criteria', bp.intensity_criteria || '', nextInt],
     ['baseline_data', 'Baseline Data', bp.baseline_data || '', nextBData],
     ['baseline_rate', 'Baseline Rate', String(bp.baseline_rate ?? 0), String(nextBRate)],
@@ -3853,8 +4044,8 @@ route('PUT', '/api/behaviors/:id', (u, b, p) => {
   const nextHistory = [...existingHistory, newEntry];
 
   run(
-    'UPDATE behavior_programs SET name=?,definition=?,measurement_type=?,function_hypothesis=?,intensity_criteria=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,baseline_data=?,baseline_rate=?,target_rate=?,reduction_goal=?,replacement_skill_goal=?,mastery_criteria=?,version=?,version_history_json=?,updated_at=?,updated_by=?,status=? WHERE id=?',
-    nextName, nextDef, nextMeas, nextFn, nextInt, nextOnset, nextOffset, nextEx, nextNonEx, nextBData, nextBRate, nextTRate, nextRedGoal, nextRepGoal, nextMast, nextVersion, JSON.stringify(nextHistory), nowIso, `${u.name} (${u.role})`, nextStatus, bp.id
+    'UPDATE behavior_programs SET name=?,definition=?,measurement_type=?,function_hypothesis=?,intensity_criteria=?,onset_criteria=?,offset_criteria=?,examples=?,non_examples=?,baseline_data=?,baseline_rate=?,target_rate=?,reduction_goal=?,replacement_skill_goal=?,mastery_criteria=?,measurement_methods_json=?,version=?,version_history_json=?,updated_at=?,updated_by=?,status=? WHERE id=?',
+    nextName, nextDef, nextMeas, nextFn, nextInt, nextOnset, nextOffset, nextEx, nextNonEx, nextBData, nextBRate, nextTRate, nextRedGoal, nextRepGoal, nextMast, JSON.stringify(nextMethods), nextVersion, JSON.stringify(nextHistory), nowIso, `${u.name} (${u.role})`, nextStatus, bp.id
   );
 
   logAudit(u, {
@@ -3868,7 +4059,99 @@ route('PUT', '/api/behaviors/:id', (u, b, p) => {
   const updatedRow = get('SELECT * FROM behavior_programs WHERE id=?', bp.id);
   const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
   const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
-  return { ok: true, id: bp.id, version: nextVersion, behavior: enrichBehaviorProgram(updatedRow, clientEvents, clientAbc) };
+  const enrichedUpd = enrichBehaviorProgram(updatedRow, clientEvents, clientAbc);
+  return { ...enrichedUpd, ok: true, id: bp.id, version: nextVersion, behavior: enrichedUpd };
+});
+
+// Add a measurement method to a behavior program without overwriting existing methods or historical data
+route('POST', '/api/behaviors/:id/methods', (u, b, p) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const valRes = G.validateAndNormalizeMeasurementMethods([b], bp, { strictValidation: true });
+  if (!valRes.ok) bad(400, valRes.error);
+  const newMethod = valRes.methods[0];
+
+  const existingMethods = G.validateAndNormalizeMeasurementMethods(parse(bp.measurement_methods_json), bp, { strictValidation: false }).methods;
+  const idx = existingMethods.findIndex((m) => m.method === newMethod.method);
+  const nextMethods = idx >= 0
+    ? existingMethods.map((m, i) => (i === idx ? { ...m, ...newMethod, id: m.id } : m))
+    : [...existingMethods, { ...newMethod, id: `mm_${existingMethods.length + 1}_${newMethod.method}` }];
+
+  const nowIso = new Date().toISOString();
+  let existingHistory = parse(bp.version_history_json);
+  if (!Array.isArray(existingHistory) || !existingHistory.length) existingHistory = buildInitialBehaviorHistory(bp);
+  const nextVersion = (Number(bp.version) || existingHistory.length || 1) + 1;
+  existingHistory.push({
+    version: nextVersion,
+    ts: nowIso,
+    modified_by: u.name,
+    modified_by_role: u.role,
+    change_summary: `Added/updated measurement method "${newMethod.label}" (${newMethod.baseline_value} ${newMethod.baseline_unit})`,
+    previous_definition: bp.definition || '',
+    updated_definition: bp.definition || '',
+    previous_measurement_type: bp.measurement_type || 'frequency',
+    updated_measurement_type: bp.measurement_type || 'frequency',
+    changes: [{ field: 'measurement_methods', label: 'Measurement Methods', previous: existingMethods.map((m) => m.method).join(', '), updated: nextMethods.map((m) => m.method).join(', ') }]
+  });
+
+  run(
+    'UPDATE behavior_programs SET measurement_methods_json=?, version=?, version_history_json=?, updated_at=?, updated_by=? WHERE id=?',
+    JSON.stringify(nextMethods), nextVersion, JSON.stringify(existingHistory), nowIso, `${u.name} (${u.role})`, bp.id
+  );
+  const updatedRow = get('SELECT * FROM behavior_programs WHERE id=?', bp.id);
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const enrichedAdd = enrichBehaviorProgram(updatedRow, clientEvents, clientAbc);
+  return { ...enrichedAdd, ok: true, id: bp.id, version: nextVersion, behavior: enrichedAdd };
+});
+
+// Remove a measurement method from a behavior without deleting the behavior or erasing historical events
+route('DELETE', '/api/behaviors/:id/methods/:methodKey', (u, b, p) => {
+  const bp = get('SELECT * FROM behavior_programs WHERE id=?', +p.id);
+  if (!bp) bad(404, 'Behavior program not found');
+  clientOr403(u, bp.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const existingMethods = G.validateAndNormalizeMeasurementMethods(parse(bp.measurement_methods_json), bp, { strictValidation: false }).methods;
+  const targetKey = String(p.methodKey || '').trim().toLowerCase();
+  const filtered = existingMethods.filter((m) => String(m.method).toLowerCase() !== targetKey && String(m.id).toLowerCase() !== targetKey);
+  if (filtered.length === existingMethods.length) {
+    bad(404, `Measurement method "${p.methodKey}" not found on behavior "${bp.name}".`);
+  }
+  if (filtered.length === 0) {
+    bad(400, 'Cannot remove the last remaining measurement method. Every target behavior must have at least one measurement method configured.');
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextPrimary = filtered[0].method;
+  let existingHistory = parse(bp.version_history_json);
+  if (!Array.isArray(existingHistory) || !existingHistory.length) existingHistory = buildInitialBehaviorHistory(bp);
+  const nextVersion = (Number(bp.version) || existingHistory.length || 1) + 1;
+  existingHistory.push({
+    version: nextVersion,
+    ts: nowIso,
+    modified_by: u.name,
+    modified_by_role: u.role,
+    change_summary: `Removed measurement method "${p.methodKey}" from behavior "${bp.name}" (historical observations preserved)`,
+    previous_definition: bp.definition || '',
+    updated_definition: bp.definition || '',
+    previous_measurement_type: bp.measurement_type || 'frequency',
+    updated_measurement_type: nextPrimary,
+    changes: [{ field: 'measurement_methods', label: 'Measurement Methods', previous: existingMethods.map((m) => m.method).join(', '), updated: filtered.map((m) => m.method).join(', ') }]
+  });
+
+  run(
+    'UPDATE behavior_programs SET measurement_type=?, measurement_methods_json=?, version=?, version_history_json=?, updated_at=?, updated_by=? WHERE id=?',
+    nextPrimary, JSON.stringify(filtered), nextVersion, JSON.stringify(existingHistory), nowIso, `${u.name} (${u.role})`, bp.id
+  );
+  const updatedRow = get('SELECT * FROM behavior_programs WHERE id=?', bp.id);
+  const clientEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const clientAbc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', bp.client_id);
+  const enrichedRem = enrichBehaviorProgram(updatedRow, clientEvents, clientAbc);
+  return { ...enrichedRem, ok: true, id: bp.id, version: nextVersion, behavior: enrichedRem };
 });
 
 route('POST', '/api/behaviors/:id/archive', (u, b, p) => {
