@@ -948,6 +948,192 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      appJsText.includes('SESSION DOCUMENTATION'),
      'Simplified RBT Session Dashboard renders 3 top-to-bottom sections, single BCBA-assigned behavior action, configured prompt buttons, and break/session tools');
 
+  // --- 39. Firebase Backend Integration & Persistent Cloud Sync ---
+  const fbStatusRes = await r('GET', '/api/firebase/status');
+  ok(fbStatusRes.s === 200 &&
+     fbStatusRes.j.projectId === 'rbt-sepia-aba' &&
+     fbStatusRes.j.connected === true,
+     'Firebase backend status endpoint confirms live connection to project rbt-sepia-aba');
+
+  const regEmail = `clinician_${Date.now()}@eba.test`;
+  const regRes = await r('POST', '/api/auth/register', {
+    name: 'Dr. Alex Morgan, BCBA',
+    email: regEmail,
+    password: 'password123',
+    role: 'BCBA'
+  });
+  ok(regRes.s === 200 &&
+     regRes.j.email === regEmail &&
+     regRes.j.role === 'BCBA' &&
+     regRes.j.firebase_uid &&
+     regRes.j.firebase_connected === true,
+     'Users can register a new account via Firebase Auth endpoint POST /api/auth/register');
+
+  const loginNewUserRes = await r('POST', '/api/login', {
+    email: regEmail,
+    password: 'password123'
+  });
+  ok(loginNewUserRes.s === 200 && loginNewUserRes.j.email === regEmail,
+     'Newly registered user can log in and authenticate via POST /api/login');
+
+  const syncPullRes = await r('POST', '/api/firebase/sync', { action: 'pull' });
+  ok(syncPullRes.s === 200 &&
+     syncPullRes.j.ok === true &&
+     syncPullRes.j.snapshot &&
+     syncPullRes.j.snapshot.tables &&
+     Array.isArray(syncPullRes.j.snapshot.tables.users) &&
+     syncPullRes.j.snapshot.tables.users.some((u) => u.email === regEmail),
+     'Firebase Cloud Vault sync exports full clinical & user snapshot for persistent storage');
+
+  // --- 40. 8 Timestamped Session & Behavior Event Requirements ---
+  // Create a dedicated appointment as BCBA (b) and start a session to test all 8 requirements end-to-end
+  const tsAppt = (await b('POST', '/api/appointments', {
+    client_id: 1,
+    user_id: 2,
+    start: '2026-11-15T09:00',
+    end: '2026-11-15T11:00',
+    setting: 'Clinic'
+  })).j;
+
+  // Requirement 1: Starting a session creates a timestamped session-start event
+  const tsStartRes = await r('POST', `/api/appointments/${tsAppt.id}/start`);
+  const tsSid = tsStartRes.j.session_id;
+  ok(tsStartRes.s === 200 &&
+     tsSid &&
+     tsStartRes.j.session_start_event &&
+     tsStartRes.j.session_start_event.event_type === 'SESSION_START' &&
+     Boolean(tsStartRes.j.session_start_event.ts) &&
+     Boolean(tsStartRes.j.session_start_event.observed_at) &&
+     Boolean(tsStartRes.j.session_start_event.recorded_at),
+     'Requirement 1: Starting a session creates a timestamped SESSION_START event');
+
+  // Requirement 3: Each behavior record receives an automatic timestamp without requiring manual time entry
+  const autoTsBehRes = await r('POST', `/api/sessions/${tsSid}/behavior-events`, {
+    behavior: 'Tantrum / Vocal Protest',
+    measurement_type: 'frequency',
+    count: 1,
+    notes: 'Logged without manual timestamp'
+  });
+  ok(autoTsBehRes.s === 200 &&
+     Boolean(autoTsBehRes.j.ts) &&
+     Boolean(autoTsBehRes.j.observed_at) &&
+     Boolean(autoTsBehRes.j.recorded_at) &&
+     autoTsBehRes.j.is_backdated === false,
+     'Requirement 3: Each behavior record receives an automatic timestamp without requiring manual time entry');
+
+  // Requirement 4: Duration-based events support start and end timestamps and a calculated duration
+  const durStartIso = '2026-11-15T09:10:00.000Z';
+  const durEndIso = '2026-11-15T09:11:35.000Z'; // 95 seconds
+  const durBehRes = await r('POST', `/api/sessions/${tsSid}/behavior-events`, {
+    behavior: 'Vocal Stereotypy',
+    measurement_type: 'duration',
+    start_ts: durStartIso,
+    end_ts: durEndIso,
+    notes: 'Timed duration episode from start_ts to end_ts'
+  });
+  ok(durBehRes.s === 200 &&
+     durBehRes.j.start_ts === durStartIso &&
+     durBehRes.j.end_ts === durEndIso &&
+     durBehRes.j.duration_sec === 95,
+     'Requirement 4: Duration-based events support start and end timestamps and automatically calculate duration (95s)');
+
+  // Requirement 5: Break and pause events are timestamped and included in the session timeline
+  const bStart = await r('POST', `/api/sessions/${tsSid}/breaks`, {
+    action: 'start',
+    start_ts: '2026-11-15T09:15:00.000Z',
+    notes: 'Sensory break started'
+  });
+  const bEnd = await r('POST', `/api/sessions/${tsSid}/breaks`, {
+    action: 'end',
+    end_ts: '2026-11-15T09:17:00.000Z',
+    notes: 'Sensory break ended'
+  });
+  const pStart = await r('POST', `/api/sessions/${tsSid}/pause`, {
+    action: 'start',
+    start_ts: '2026-11-15T09:20:00.000Z',
+    notes: 'Bathroom pause started'
+  });
+  const pEnd = await r('POST', `/api/sessions/${tsSid}/pause`, {
+    action: 'resume',
+    end_ts: '2026-11-15T09:21:30.000Z',
+    notes: 'Bathroom pause resumed'
+  });
+  ok(bStart.s === 200 && bEnd.s === 200 && pStart.s === 200 && pEnd.s === 200 &&
+     bEnd.j.event && bEnd.j.event.event_type === 'BREAK_END' &&
+     pEnd.j.event && pEnd.j.event.event_type === 'PAUSE_END' &&
+     pEnd.j.pauses_count === 1,
+     'Requirement 5: Break (BREAK_START/BREAK_END) and pause (PAUSE_START/PAUSE_END) events are timestamped');
+
+  // Requirement 6: The system distinguishes observed time from recorded time
+  const backdatedObsIso = '2026-11-15T09:05:00.000Z';
+  const backdatedRecIso = '2026-11-15T09:25:00.000Z';
+  const backdatedBehRes = await r('POST', `/api/sessions/${tsSid}/behavior-events`, {
+    behavior: 'Property Destruction',
+    measurement_type: 'frequency',
+    count: 2,
+    observed_at: backdatedObsIso,
+    recorded_at: backdatedRecIso,
+    notes: 'Observed during transition, recorded after de-escalation'
+  });
+  ok(backdatedBehRes.s === 200 &&
+     backdatedBehRes.j.observed_at === backdatedObsIso &&
+     backdatedBehRes.j.recorded_at === backdatedRecIso &&
+     backdatedBehRes.j.is_backdated === true,
+     'Requirement 6: The system distinguishes observed_at from recorded_at and flags backdated entries');
+
+  // Requirement 7: Edits preserve the original value and create an audit-history entry
+  const editBehEventRes = await r('PUT', `/api/behavior-events/${durBehRes.j.id}`, {
+    start_ts: '2026-11-15T09:10:00.000Z',
+    end_ts: '2026-11-15T09:12:00.000Z', // updated to 120 seconds
+    notes: 'Adjusted end timestamp after reviewing stopwatch',
+    edit_reason: 'Video/stopwatch verification'
+  });
+  ok(editBehEventRes.s === 200 &&
+     editBehEventRes.j.duration_sec === 120 &&
+     editBehEventRes.j.is_edited === true &&
+     editBehEventRes.j.original_value &&
+     editBehEventRes.j.original_value.duration_sec === 95 &&
+     Array.isArray(editBehEventRes.j.edit_history) &&
+     editBehEventRes.j.edit_history.length === 1 &&
+     editBehEventRes.j.edit_history[0].previous_value.duration_sec === 95 &&
+     editBehEventRes.j.edit_history[0].new_value.duration_sec === 120,
+     'Requirement 7: Editing a behavior record preserves the immutable original_value (95s) and creates an edit_history + audit_logs entry (120s)');
+
+  // Requirement 2: Ending a session creates a timestamped session-end event
+  const tsEndRes = await r('POST', `/api/sessions/${tsSid}/end`, {
+    end_ts: '2026-11-15T10:00:00.000Z'
+  });
+  ok(tsEndRes.s === 200 &&
+     tsEndRes.j.session_end_event &&
+     tsEndRes.j.session_end_event.event_type === 'SESSION_END' &&
+     Boolean(tsEndRes.j.session_end_event.start_ts) &&
+     Boolean(tsEndRes.j.session_end_event.end_ts) &&
+     typeof tsEndRes.j.session_end_event.duration_sec === 'number',
+     'Requirement 2: Ending a session creates a timestamped SESSION_END event with start_ts, end_ts, and calculated duration');
+
+  // Requirement 8: Time-based dashboard summaries can be traced back to the underlying event records
+  const tlRes = await r('GET', `/api/sessions/${tsSid}/timeline`);
+  const tlTypes = (tlRes.j.sessionTimeline || []).map((e) => e.event_type);
+  const tSum = tlRes.j.traceableSummary || {};
+  ok(tlRes.s === 200 &&
+     tlTypes.includes('SESSION_START') &&
+     tlTypes.includes('BREAK_START') &&
+     tlTypes.includes('BREAK_END') &&
+     tlTypes.includes('PAUSE_START') &&
+     tlTypes.includes('PAUSE_END') &&
+     tlTypes.includes('DURATION_EPISODE') &&
+     tlTypes.includes('BEHAVIOR_EVENT') &&
+     tlTypes.includes('SESSION_END') &&
+     tSum.behaviorDurationSummary &&
+     tSum.behaviorDurationSummary.totalDurationSec === 120 &&
+     Array.isArray(tSum.behaviorDurationSummary.sourceEventIds) &&
+     tSum.behaviorDurationSummary.sourceEventIds.includes(`BEH-${durBehRes.j.id}`) &&
+     Array.isArray(tSum.breaksAndPauses.sourceEventIds) &&
+     tSum.breaksAndPauses.sourceEventIds.length >= 4 &&
+     tSum.integritySummary.backdatedEventsCount >= 1 &&
+     tSum.integritySummary.editedEventsCount >= 1,
+     'Requirement 8: Session timeline includes all timestamped events and time-based dashboard summaries trace back to exact underlying event records');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

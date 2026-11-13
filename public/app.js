@@ -57,6 +57,11 @@ let reauthModalTab = 'structured_template';
 let assessmentCenterClientId = 1;
 let rbtFullClinicalView = false;
 let showSessionNotesBox = false;
+let loginAuthTab = 'signin';
+let firebaseCloudStatus = { connected: true, projectId: 'rbt-sepia-aba', lastSyncAt: null };
+let firebaseBootRestored = false;
+let traceFilterMetric = null;
+let traceFilterEventIds = null;
 
 const PROMPT_SHORT_LABELS = {
   I: 'IND',
@@ -1429,10 +1434,36 @@ const GOAL_STATUS_META = {
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
+const FIREBASE_VAULT_STORAGE_KEY = 'eba_firebase_cloud_vault_v1';
+
+async function syncFirebaseVault(action = 'pull', snapshot = null) {
+  try {
+    const r = await fetch('/api/firebase/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, snapshot })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j) {
+      if (j.snapshot && typeof localStorage !== 'undefined') {
+        try { localStorage.setItem(FIREBASE_VAULT_STORAGE_KEY, JSON.stringify(j.snapshot)); } catch {}
+      }
+      firebaseCloudStatus.connected = true;
+      firebaseCloudStatus.lastSyncAt = j.syncedAt || new Date().toISOString();
+    }
+    return j;
+  } catch {
+    return null;
+  }
+}
+
 async function api(method, url, body) {
   const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { if (r.status === 401 && me) { me = null; render(); } throw new Error(j.error || 'Error'); }
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method).toUpperCase()) && !String(url).includes('/api/firebase/sync')) {
+    syncFirebaseVault('pull').catch(() => {});
+  }
   return j;
 }
 const safe = (fn) => async (...a) => { try { await fn(...a); } catch (e) { alert(e.message); } };
@@ -1588,6 +1619,10 @@ function shell(content, route) {
             <button class="role-switch-btn ${me.role === 'RBT' ? 'active' : ''}" onclick="act.demoLogin('rbt@eba.test')">RBT</button>
             <button class="role-switch-btn ${me.role === 'ADMIN' ? 'active' : ''}" onclick="act.demoLogin('admin@eba.test')">Admin</button>
           </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;padding:5px 8px;background:rgba(16,185,129,0.14);border:1px solid rgba(110,231,183,0.35);border-radius:8px;font-size:0.68rem;color:#ecfeff">
+            <span title="Firebase Cloud Vault Project: rbt-sepia-aba">🔥 Cloud Synced</span>
+            <button type="button" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:2px 7px;border-radius:6px;font-size:0.66rem;cursor:pointer" onclick="act.manualFirebaseSync()">☁️ Save</button>
+          </div>
           <a class="nav-logout" onclick="act.logout()">Sign Out</a>
         </div>
       </div>
@@ -1614,9 +1649,12 @@ function loginView(err) {
       <div class="login-brand">
         ${brandEmblem('lg')}
         <div>
-          <span class="badge p" style="margin-bottom:4px">ABA PRACTICE & CLINICAL PLATFORM</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+            <span class="badge p">ABA PRACTICE & CLINICAL PLATFORM</span>
+            <span class="badge tan" style="background:#dcfce7;color:#166534;border:1px solid #86efac">🔥 Firebase Cloud Connected (rbt-sepia-aba)</span>
+          </div>
           <h2 style="margin:0;font-size:1.45rem;font-weight:700;color:var(--slate-900)">Effective Behavioral Approach</h2>
-          <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">All-in-One Data Collection, Progress Tracking & Practice Management</div>
+          <div style="font-size:0.8rem;color:var(--slate-500);margin-top:2px">All-in-One Data Collection, Progress Tracking & Cloud-Backed Practice Management</div>
         </div>
       </div>
 
@@ -1674,16 +1712,53 @@ function loginView(err) {
         </div>
       </div>
 
-      <details style="margin-top:10px">
-        <summary style="cursor:pointer;font-size:0.82rem;font-weight:600;color:var(--slate-500)">Or sign in with email & password</summary>
-        <div style="margin-top:10px">
-          <label>Email</label>
-          <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
-          <label>Password</label>
-          <input id="pw" type="password" value="password" autocomplete="current-password">
-          <button style="width:100%;padding:10px;margin-top:8px" onclick="act.login()">Sign In</button>
+      <div style="margin-top:12px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:12px;padding:12px 14px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button type="button" class="${loginAuthTab === 'signin' ? 'ok' : 'sec'}" style="flex:1;padding:7px 10px;font-size:0.8rem" onclick="act.setLoginAuthTab('signin')">
+            🔑 Sign In with Email
+          </button>
+          <button type="button" class="${loginAuthTab === 'register' ? 'ok' : 'sec'}" style="flex:1;padding:7px 10px;font-size:0.8rem" onclick="act.setLoginAuthTab('register')">
+            ✨ Create Account (Firebase)
+          </button>
         </div>
-      </details>
+
+        ${loginAuthTab === 'register' ? `
+          <div>
+            <div style="font-size:0.76rem;color:var(--slate-600);margin-bottom:8px">
+              Create a persistent account backed by <b>Firebase Auth & Cloud Vault (rbt-sepia-aba)</b>:
+            </div>
+            <label>Full Name & Credentials</label>
+            <input id="reg_name" placeholder="e.g., Jordan Taylor, BCBA" autocomplete="name">
+            <div class="row">
+              <div>
+                <label>Work Email</label>
+                <input id="reg_em" placeholder="jordan@clinic.com" autocomplete="email">
+              </div>
+              <div>
+                <label>Clinical Role</label>
+                <select id="reg_role">
+                  <option value="BCBA">BCBA Supervisor</option>
+                  <option value="RBT">RBT Therapist</option>
+                  <option value="ADMIN">Clinic Administrator</option>
+                  <option value="OWNER">Practice Owner</option>
+                  <option value="PARENT">Parent / Caregiver</option>
+                </select>
+              </div>
+            </div>
+            <label>Password (min 4 characters)</label>
+            <input id="reg_pw" type="password" placeholder="Create password" autocomplete="new-password">
+            <button style="width:100%;padding:10px;margin-top:8px" class="ok" onclick="act.registerAccount()">🔥 Create Account & Sign In</button>
+          </div>
+        ` : `
+          <div>
+            <label>Email</label>
+            <input id="em" value="bcba@eba.test" placeholder="name@practice.com" autocomplete="username">
+            <label>Password</label>
+            <input id="pw" type="password" value="password" autocomplete="current-password">
+            <button style="width:100%;padding:10px;margin-top:8px" onclick="act.login()">Sign In</button>
+          </div>
+        `}
+      </div>
 
       ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
     </div>
@@ -4459,7 +4534,202 @@ async function sessionView(id) {
   const totalSkillTrialsCount = goals.reduce((acc, g) => acc + ((g.summary && (g.summary.rawTotal ?? g.summary.total)) || 0), 0);
   const breaksCount = v.breaksCount || (s && s.breaks_count) || 0;
   const breakActive = Boolean(v.breakActive || (s && s.break_started_at));
+  const pausesCount = v.pausesCount || (s && s.pauses_count) || 0;
+  const pauseActive = Boolean(v.pauseActive || (s && s.pause_started_at));
   const activeBehPrograms = behaviorPrograms.filter((bp) => bp.status !== 'archived');
+
+  const renderSessionTimelineAndTraceabilityCard = () => {
+    const timeline = Array.isArray(v.sessionTimeline) ? v.sessionTimeline : [];
+    const tsum = v.traceableSummary || {};
+    const st = tsum.sessionTiming || {};
+    const bp = tsum.breaksAndPauses || {};
+    const bd = tsum.behaviorDurationSummary || {};
+    const br = tsum.behaviorRateSummary || {};
+    const integ = tsum.integritySummary || {};
+    const filteredTimeline = (traceFilterMetric && Array.isArray(traceFilterEventIds))
+      ? timeline.filter((ev) => traceFilterEventIds.includes(ev.timeline_id) || traceFilterEventIds.includes(ev.raw_id))
+      : timeline;
+
+    const fmtExactTs = (iso) => {
+      if (!iso) return '—';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch {
+        return String(iso);
+      }
+    };
+
+    const typeColors = {
+      SESSION_START: { bg: '#dcfce7', color: '#166534' },
+      SESSION_END: { bg: '#0f4c5c', color: '#ffffff' },
+      BREAK_START: { bg: '#fef3c7', color: '#92400e' },
+      BREAK_END: { bg: '#fde68a', color: '#78350f' },
+      PAUSE_START: { bg: '#ffedd5', color: '#9a3412' },
+      PAUSE_END: { bg: '#fed7aa', color: '#7c2d12' },
+      DURATION_EPISODE: { bg: '#e0f2fe', color: '#075985' },
+      BEHAVIOR_EVENT: { bg: '#fee2e2', color: '#991b1b' },
+      ABC_EVENT: { bg: '#fef9c3', color: '#854d0e' },
+      TRIAL_EVENT: { bg: '#f1f5f9', color: '#334155' }
+    };
+
+    return `
+      <div id="session_timeline_card" style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:18px 20px;margin-bottom:18px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:1.05rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">
+                ⏱️ SESSION EVENT TIMELINE & TRACEABLE TIME SUMMARY
+              </span>
+              <span class="badge p" style="font-size:0.68rem">Auto-Timestamped</span>
+              <span class="badge tan" style="font-size:0.68rem">Observed vs. Recorded Time</span>
+              <span class="badge sen" style="font-size:0.68rem">Audit Edit History</span>
+            </div>
+            <div style="font-size:0.82rem;color:#475569;margin-top:3px">
+              Every session start/end, break, pause, duration episode, and behavior tally is automatically timestamped, distinguishes observed vs. recorded time, preserves original values on edit, and traces directly from summary metrics.
+            </div>
+          </div>
+          ${!ended ? `
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button type="button" class="sec" style="font-size:0.76rem;padding:6px 11px;border-color:#8abec4;color:#0f4c5c;font-weight:700" onclick="act.openBehaviorEventModal(${client.id}, ${s.id})">
+                + Log Timed / Backdated Behavior
+              </button>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- 4 Traceable Time-Based Dashboard Summary Cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px">
+          <div style="background:#f8fafc;border:1.5px solid ${traceFilterMetric === 'sessionTiming' ? '#0f4c5c' : '#cbd5e1'};border-radius:12px;padding:10px 12px">
+            <div style="font-size:0.73rem;font-weight:800;color:#0f4c5c;text-transform:uppercase">Session Timing & Net Instructional</div>
+            <div style="font-family:var(--font-mono);font-size:0.86rem;font-weight:800;color:#0f172a;margin:4px 0">
+              Elapsed: ${st.totalSessionSec ?? 0}s · Net: ${st.netInstructionalSec ?? 0}s
+            </div>
+            <div style="font-size:0.72rem;color:#475569;margin-bottom:6px">
+              Start: <b>${fmtExactTs(st.sessionStartTs || s.start)}</b> → End: <b>${st.sessionEndTs ? fmtExactTs(st.sessionEndTs) : 'Active'}</b>
+            </div>
+            <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px;width:100%" onclick='act.traceSummaryEvents("sessionTiming", ${JSON.stringify(st.sourceEventIds || [])})'>
+              🔍 Trace Source Events (${(st.sourceEventIds || []).length})
+            </button>
+          </div>
+
+          <div style="background:#f8fafc;border:1.5px solid ${traceFilterMetric === 'breaksAndPauses' ? '#0f4c5c' : '#cbd5e1'};border-radius:12px;padding:10px 12px">
+            <div style="font-size:0.73rem;font-weight:800;color:#92400e;text-transform:uppercase">Breaks & Pauses Timeline</div>
+            <div style="font-family:var(--font-mono);font-size:0.86rem;font-weight:800;color:#0f172a;margin:4px 0">
+              Breaks: ${bp.breaksCount ?? breaksCount} (${bp.totalBreakSec ?? 0}s) · Pauses: ${bp.pausesCount ?? pausesCount} (${bp.totalPauseSec ?? 0}s)
+            </div>
+            <div style="font-size:0.72rem;color:#475569;margin-bottom:6px">
+              Non-Instructional Time: <b>${(bp.totalBreakSec || 0) + (bp.totalPauseSec || 0)}s</b>
+            </div>
+            <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px;width:100%" onclick='act.traceSummaryEvents("breaksAndPauses", ${JSON.stringify(bp.sourceEventIds || [])})'>
+              🔍 Trace Break/Pause Events (${(bp.sourceEventIds || []).length})
+            </button>
+          </div>
+
+          <div style="background:#f8fafc;border:1.5px solid ${traceFilterMetric === 'behaviorDurationSummary' ? '#0f4c5c' : '#cbd5e1'};border-radius:12px;padding:10px 12px">
+            <div style="font-size:0.73rem;font-weight:800;color:#075985;text-transform:uppercase">Duration-Based Episodes</div>
+            <div style="font-family:var(--font-mono);font-size:0.86rem;font-weight:800;color:#0f172a;margin:4px 0">
+              ${bd.episodeCount ?? behaviorSummary.durationEpisodes ?? 0} Episodes · Total ${bd.totalDurationSec ?? behaviorSummary.totalDurationSec ?? 0}s
+            </div>
+            <div style="font-size:0.72rem;color:#475569;margin-bottom:6px">
+              Mean Duration: <b>${bd.avgDurationSec ?? behaviorSummary.avgDurationSec ?? 0}s</b> (Start/End Calculated)
+            </div>
+            <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px;width:100%" onclick='act.traceSummaryEvents("behaviorDurationSummary", ${JSON.stringify(bd.sourceEventIds || [])})'>
+              🔍 Trace Duration Episodes (${(bd.sourceEventIds || []).length})
+            </button>
+          </div>
+
+          <div style="background:#f8fafc;border:1.5px solid ${traceFilterMetric === 'behaviorRateSummary' ? '#0f4c5c' : '#cbd5e1'};border-radius:12px;padding:10px 12px">
+            <div style="font-size:0.73rem;font-weight:800;color:#991b1b;text-transform:uppercase">Rate/Hr & Time Integrity</div>
+            <div style="font-family:var(--font-mono);font-size:0.86rem;font-weight:800;color:#0f172a;margin:4px 0">
+              ${br.frequencyCount ?? behaviorSummary.frequencyCount ?? 0} Events · ${br.ratePerHour ?? behaviorSummary.ratePerHour ?? 0}/hr
+            </div>
+            <div style="font-size:0.72rem;color:#475569;margin-bottom:6px">
+              Backdated: <b>${integ.backdatedEventsCount ?? 0}</b> · Edited (Audited): <b>${integ.editedEventsCount ?? 0}</b>
+            </div>
+            <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px;width:100%" onclick='act.traceSummaryEvents("behaviorRateSummary", ${JSON.stringify(br.sourceEventIds || [])})'>
+              🔍 Trace Behavior Records (${(br.sourceEventIds || []).length})
+            </button>
+          </div>
+        </div>
+
+        ${traceFilterMetric ? `
+          <div style="background:#e0f2fe;border:1.5px solid #38bdf8;border-radius:10px;padding:8px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span style="font-size:0.8rem;font-weight:700;color:#0369a1">
+              🔍 Active Traceability Filter: <b>${esc(traceFilterMetric)}</b> — Showing ${filteredTimeline.length} underlying source event record(s)
+            </span>
+            <button type="button" class="sec" style="font-size:0.73rem;padding:4px 10px;background:#fff" onclick="act.clearTraceSummaryFilter()">
+              ✕ Clear Filter (Show All ${timeline.length} Events)
+            </button>
+          </div>
+        ` : ''}
+
+        <!-- Chronological Event Stream -->
+        <div style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:12px;padding:8px 10px;background:#fcfdfe">
+          ${filteredTimeline.length ? filteredTimeline.map((ev) => {
+            const tc = typeColors[ev.event_type] || { bg: '#f1f5f9', color: '#334155' };
+            const canEditBeh = ev.raw_table === 'behavior_events' && ev.raw_id;
+            const canEditSess = ev.raw_table === 'session_events' && ev.raw_id;
+            const editHist = Array.isArray(ev.edit_history) ? ev.edit_history : [];
+            return `
+              <div style="padding:8px 10px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                <div style="flex:1;min-width:240px">
+                  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                    <span style="background:${tc.bg};color:${tc.color};font-family:var(--font-mono);font-size:0.68rem;font-weight:800;padding:2px 7px;border-radius:6px">
+                      ${esc(ev.event_type)}
+                    </span>
+                    <b style="font-size:0.84rem;color:#0f172a">${esc(ev.label)}</b>
+                    <span style="font-family:var(--font-mono);font-size:0.7rem;color:#64748b">[${esc(ev.timeline_id)}]</span>
+                    ${ev.is_backdated ? `<span class="badge esc" style="font-size:0.66rem" title="Observed time differs from recorded time">⏰ Observed ≠ Recorded</span>` : ''}
+                    ${ev.is_edited ? `<span class="badge sen" style="font-size:0.66rem" title="Edited — Original value preserved in audit history">🛡️ Edited (${editHist.length}x · Original Preserved)</span>` : ''}
+                  </div>
+                  <div style="font-family:var(--font-mono);font-size:0.73rem;color:#475569;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap">
+                    <span>Observed: <b>${fmtExactTs(ev.observed_at || ev.ts)}</b></span>
+                    <span>Recorded: <b>${fmtExactTs(ev.recorded_at || ev.ts)}</b></span>
+                    ${(ev.start_ts || ev.end_ts || ev.duration_sec > 0) ? `
+                      <span style="color:#0f4c5c">
+                        Window: <b>${fmtExactTs(ev.start_ts || ev.ts)} → ${fmtExactTs(ev.end_ts || ev.ts)}</b>
+                        (Calculated Duration: <b>${ev.duration_sec || 0}s</b>)
+                      </span>
+                    ` : ''}
+                  </div>
+                  ${ev.notes ? `<div style="font-size:0.75rem;color:#64748b;margin-top:2px">Note: ${esc(ev.notes)}</div>` : ''}
+                  ${ev.is_edited && ev.original_value ? `
+                    <details style="margin-top:4px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px">
+                      <summary style="cursor:pointer;font-size:0.72rem;font-weight:700;color:#0f4c5c">
+                        📜 View Preserved Original Value & Audit History (${editHist.length} edit${editHist.length === 1 ? '' : 's'})
+                      </summary>
+                      <div style="font-family:var(--font-mono);font-size:0.7rem;color:#334155;margin-top:4px">
+                        <div><b>Original Preserved Record:</b> count=${ev.original_value.count ?? ev.original_value.value ?? '—'}, duration_sec=${ev.original_value.duration_sec ?? 0}s, observed_at=${esc(ev.original_value.observed_at || ev.original_value.ts || '—')}, notes="${esc(ev.original_value.notes || '')}"</div>
+                        ${editHist.map((eh, idx) => `
+                          <div style="margin-top:3px;padding-top:3px;border-top:1px dashed #cbd5e1">
+                            <b>Edit #${idx + 1}:</b> ${esc(eh.edited_by)} (${esc(eh.edited_role)}) at ${fmtExactTs(eh.edited_at)} — Reason: <i>${esc(eh.reason || 'Clinical correction')}</i>
+                          </div>
+                        `).join('')}
+                      </div>
+                    </details>
+                  ` : ''}
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  ${canEditBeh ? `
+                    <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px" onclick="act.openEditBehaviorEventModal(${ev.raw_id}, ${s.id})">
+                      ✏️ Edit / Audit
+                    </button>
+                  ` : ''}
+                  ${canEditSess ? `
+                    <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px" onclick="act.openEditSessionEventModal(${ev.raw_id}, ${s.id})">
+                      ✏️ Edit / Audit
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('') : `<div style="padding:12px;text-align:center;color:#64748b;font-size:0.82rem">No timeline events match the current filter.</div>`}
+        </div>
+      </div>
+    `;
+  };
 
   if (!rbtFullClinicalView) {
     return `
@@ -4470,7 +4740,7 @@ async function sessionView(id) {
           <div style="font-size:1.38rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">RBT SEPIA | SESSION</div>
           <div style="font-size:0.96rem;color:#334155;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
             <span>Client: <b style="color:#0f172a">${esc(client.name)}</b></span>
-            <span>Session: <b style="color:${ended ? '#0d7a68' : (breakActive ? '#d97706' : '#0f4c5c')}">${ended ? 'Completed' : (breakActive ? 'On Break' : 'Active')}</b></span>
+            <span>Session: <b style="color:${ended ? '#0d7a68' : (pauseActive ? '#9a3412' : (breakActive ? '#d97706' : '#0f4c5c'))}">${ended ? 'Completed' : (pauseActive ? 'Paused' : (breakActive ? 'On Break' : 'Active'))}</b></span>
             <span id="clock" style="font-family:var(--font-mono);font-weight:800;font-size:0.88rem;color:#0f4c5c;background:#ffffff;border:1.5px solid #8abec4;padding:2px 9px;border-radius:8px">${ended ? `${s.units} units` : '00:00:00'}</span>
             <span id="calc_units" style="font-family:var(--font-mono);font-size:0.78rem;color:#475569">${ended ? `${s.units} × 15-min units (${s.units * 15} mins)` : '0 units · CMS 8-Minute Rule'}</span>
           </div>
@@ -4494,7 +4764,7 @@ async function sessionView(id) {
         </div>
       </div>
 
-      <!-- 3 KPI Counter Cards Row (Behaviors | Skill trials | Breaks) -->
+      <!-- 3 KPI Counter Cards Row (Behaviors | Skill trials | Breaks & Pauses) -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
         <div style="background:#ffffff;border:2px solid #8abec4;border-radius:14px;padding:12px 18px;display:flex;align-items:baseline;gap:12px">
           <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(totalBehaviorsCount).padStart(2, '0')}</span>
@@ -4505,8 +4775,8 @@ async function sessionView(id) {
           <span style="font-size:0.96rem;color:#334155;font-weight:600">Skill trials</span>
         </div>
         <div style="background:#ffffff;border:2px solid #8abec4;border-radius:14px;padding:12px 18px;display:flex;align-items:baseline;gap:12px">
-          <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(breaksCount).padStart(2, '0')}</span>
-          <span style="font-size:0.96rem;color:#334155;font-weight:600">Breaks${breakActive ? ' <span class="badge tan" style="font-size:0.7rem;margin-left:6px">Active</span>' : ''}</span>
+          <span style="font-size:1.75rem;font-weight:900;color:#0f4c5c;font-family:var(--font-mono)">${String(breaksCount + pausesCount).padStart(2, '0')}</span>
+          <span style="font-size:0.96rem;color:#334155;font-weight:600">Breaks / Pauses${breakActive ? ' <span class="badge tan" style="font-size:0.7rem;margin-left:6px">Break Active</span>' : ''}${pauseActive ? ' <span class="badge esc" style="font-size:0.7rem;margin-left:6px">Paused</span>' : ''}</span>
         </div>
       </div>
 
@@ -4744,28 +5014,38 @@ async function sessionView(id) {
       <!-- Section 3: 3. SESSION TOOLS -->
       <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">3. SESSION TOOLS</span>
-        <span style="font-size:0.88rem;color:#334155;font-weight:600">${breakActive ? '⏸ Break Currently Active' : 'Breaks • ABC • Session notes'}</span>
+        <span style="font-size:0.88rem;color:#334155;font-weight:600">${pauseActive ? '⏸ Session Currently Paused' : (breakActive ? '⏸ Break Currently Active' : 'Breaks • Pauses • ABC • Session notes')}</span>
       </div>
 
-      <!-- 2x2 Action Buttons Grid (START BREAK, END BREAK, ADD ABC, SESSION NOTES) -->
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px">
-        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+      <!-- Action Buttons Grid (START BREAK, END BREAK, PAUSE SESSION, RESUME SESSION, ADD ABC, SESSION NOTES) -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
           onclick="act.sessionBreak(${s.id}, 'start')" ${ended ? 'disabled' : ''}>
           START BREAK
         </button>
-        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+        <button type="button" style="background:#0d7a68;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
           onclick="act.sessionBreak(${s.id}, 'end')" ${ended ? 'disabled' : ''}>
           END BREAK
         </button>
-        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+        <button type="button" style="background:#b45309;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
+          onclick="act.sessionPause(${s.id}, '${pauseActive ? 'resume' : 'start'}')" ${ended ? 'disabled' : ''}>
+          ${pauseActive ? 'RESUME SESSION' : 'PAUSE SESSION'}
+        </button>
+        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
           onclick="act.openAbcModal(${client.id}, ${s.id})" ${ended ? 'disabled' : ''}>
           ADD ABC
         </button>
-        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.98rem;font-weight:800;cursor:pointer"
+        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
+          onclick="act.openBehaviorEventModal(${client.id}, ${s.id})" ${ended ? 'disabled' : ''}>
+          TIMED / BACKDATED ENTRY
+        </button>
+        <button type="button" style="background:#1d5d90;color:#ffffff;border:none;border-radius:12px;padding:14px;font-size:0.94rem;font-weight:800;cursor:pointer"
           onclick="act.openSessionNotesSection(${s.id})">
           SESSION NOTES
         </button>
       </div>
+
+      ${renderSessionTimelineAndTraceabilityCard()}
 
       <!-- SESSION DOCUMENTATION Card -->
       <div id="session_doc_card" style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:18px 20px;margin-bottom:18px">
@@ -4873,6 +5153,8 @@ async function sessionView(id) {
         : `
           <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap">
             <button class="bad" style="padding:12px 24px;font-size:1rem" onclick="act.endSession(${s.id})">⏹ End Clinical Session</button>
+            <button class="sec" style="padding:12px 18px;font-size:0.95rem;background:rgba(255,255,255,0.14);color:#fff;border-color:rgba(255,255,255,0.35)" onclick="act.sessionBreak(${s.id}, '${breakActive ? 'end' : 'start'}')">${breakActive ? '▶ End Break' : '☕ Start Break'}</button>
+            <button class="sec" style="padding:12px 18px;font-size:0.95rem;background:rgba(255,255,255,0.14);color:#fff;border-color:rgba(255,255,255,0.35)" onclick="act.sessionPause(${s.id}, '${pauseActive ? 'resume' : 'start'}')">${pauseActive ? '▶ Resume Session' : '⏸ Pause Session'}</button>
             <button class="ok" style="padding:12px 20px;font-size:1rem" onclick="act.openAbcModal(${client.id}, ${s.id})">⚡ Quick ABC Incident Logger</button>
             <button class="btn" style="background:var(--accent);border-color:#7C3016;box-shadow:0 2px 0 #7C3016;padding:12px 22px;font-size:1rem" onclick="act.toggleKidMode()">★ ${showKidMode ? 'Hide Kid Mode' : 'Open Interactive Kid Mode'}</button>
           </div>
@@ -5318,6 +5600,8 @@ async function sessionView(id) {
       </details>
     ` : ''}
   `}
+
+  ${renderSessionTimelineAndTraceabilityCard()}
 
   <!-- Clinical Session Documentation & Dual Sign-off -->
   <div class="card">
@@ -8040,14 +8324,19 @@ function renderModal() {
     const sid = activeModal.sessionId;
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:640px;width:95%">
+      <div class="modal-card" style="max-width:680px;width:95%">
         <div class="flex-between">
           <div>
-            <span class="badge p">Continuous & Discontinuous Interval Recording</span>
+            <span class="badge p">Continuous, Duration Start/End & Observed vs. Recorded Time</span>
             <h3 style="margin:4px 0 0">Log Behavior Measurement Data</h3>
           </div>
           <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
         </div>
+
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px 12px;margin-top:10px;font-size:0.78rem;color:#166534">
+          <b>✓ Automatic Timestamping:</b> Every behavior record automatically receives a recorded timestamp upon save without requiring manual time entry. Optional <b>Start/End Timestamps</b> auto-calculate duration, and optional <b>Observed Time</b> distinguishes when the behavior occurred from when it was recorded.
+        </div>
+
         <div class="row" style="margin-top:12px">
           <div>
             <label>Behavior Topography</label>
@@ -8057,7 +8346,7 @@ function renderModal() {
             <label>Measurement Method</label>
             <select id="be_type">
               <option value="frequency">Frequency / Event Count</option>
-              <option value="duration">Duration (Seconds)</option>
+              <option value="duration">Duration (Start/End or Seconds)</option>
               <option value="latency">Latency from SD (Seconds)</option>
               <option value="irt">Inter-Response Time / IRT (Seconds)</option>
               <option value="partial_interval">Partial-Interval Recording</option>
@@ -8072,7 +8361,7 @@ function renderModal() {
             <input id="be_val" type="number" min="1" value="1">
           </div>
           <div>
-            <label>Duration (Seconds)</label>
+            <label>Duration (Seconds — or Auto from Start/End below)</label>
             <input id="be_dur" type="number" min="0" value="45">
           </div>
           <div>
@@ -8084,6 +8373,22 @@ function renderModal() {
             <input id="be_irt" type="number" min="0" value="180">
           </div>
         </div>
+
+        <div class="row" style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:10px;margin:8px 0">
+          <div>
+            <label>Duration Start Timestamp (Optional)</label>
+            <input id="be_start_ts" type="datetime-local" onchange="act.recalcModalDuration('be_start_ts','be_end_ts','be_dur')">
+          </div>
+          <div>
+            <label>Duration End Timestamp (Optional)</label>
+            <input id="be_end_ts" type="datetime-local" onchange="act.recalcModalDuration('be_start_ts','be_end_ts','be_dur')">
+          </div>
+          <div>
+            <label>Observed Time (Optional — if earlier than Recorded Time)</label>
+            <input id="be_observed_at" type="datetime-local">
+          </div>
+        </div>
+
         <div class="row">
           <div>
             <label>Interval Outcome (For Partial / Whole / MTS)</label>
@@ -8110,6 +8415,159 @@ function renderModal() {
         <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
           <button class="sec" onclick="act.closeModal()">Cancel</button>
           <button class="ok" onclick="act.submitBehaviorEventModal(${cid}, ${sid || 'null'})">✓ Save Measurement Entry</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'edit_behavior_event') {
+    const ev = activeModal.event || {};
+    const sid = activeModal.sessionId;
+    const orig = ev.original_value || ev;
+    const hist = Array.isArray(ev.edit_history) ? ev.edit_history : [];
+    const toLocalInput = (iso) => {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch { return ''; }
+    };
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:680px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge sen">Immutable Original Value & Clinical Edit Audit Log</span>
+            <h3 style="margin:4px 0 0">Edit Behavior Event #${ev.id} (${esc(ev.behavior_name || ev.behavior)})</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 12px;margin-top:10px;font-family:var(--font-mono);font-size:0.75rem;color:#334155">
+          <div style="font-weight:800;color:#0f4c5c;margin-bottom:4px">🔒 Preserved Original Value (Never Overwritten):</div>
+          <div>Behavior: <b>${esc(orig.behavior_name || orig.behavior)}</b> · Method: <b>${esc(orig.measurement_type)}</b> · Count: <b>${orig.count ?? orig.value ?? 1}</b> · Duration: <b>${orig.duration_sec ?? 0}s</b></div>
+          <div>Original Observed Time: <b>${esc(orig.observed_at || orig.ts || '—')}</b> · Original Recorded Time: <b>${esc(orig.recorded_at || orig.ts || '—')}</b></div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Count / Value</label>
+            <input id="ebe_count" type="number" min="0" value="${ev.count ?? ev.value ?? 1}">
+          </div>
+          <div>
+            <label>Duration (Seconds)</label>
+            <input id="ebe_dur" type="number" min="0" value="${ev.duration_sec ?? 0}">
+          </div>
+          <div>
+            <label>Latency (Seconds)</label>
+            <input id="ebe_lat" type="number" min="0" value="${ev.latency_sec ?? 0}">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Start Timestamp (ISO or Local)</label>
+            <input id="ebe_start_ts" type="datetime-local" value="${toLocalInput(ev.start_ts)}" onchange="act.recalcModalDuration('ebe_start_ts','ebe_end_ts','ebe_dur')">
+          </div>
+          <div>
+            <label>End Timestamp (ISO or Local)</label>
+            <input id="ebe_end_ts" type="datetime-local" value="${toLocalInput(ev.end_ts)}" onchange="act.recalcModalDuration('ebe_start_ts','ebe_end_ts','ebe_dur')">
+          </div>
+          <div>
+            <label>Observed Time (Distinguished from Recorded Time)</label>
+            <input id="ebe_observed_at" type="datetime-local" value="${toLocalInput(ev.observed_at || ev.ts)}">
+          </div>
+        </div>
+
+        <label>Clinical Notes</label>
+        <input id="ebe_notes" value="${esc(ev.notes || '')}">
+
+        <label>Reason for Edit (Recorded in Audit History)</label>
+        <input id="ebe_reason" placeholder="e.g., Adjusted episode end time based on video review" value="Clinical verification update">
+
+        ${hist.length ? `
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:0.75rem;color:#78350f">
+            <div style="font-weight:800;margin-bottom:4px">📜 Existing Edit Audit History (${hist.length}):</div>
+            ${hist.map((h, i) => `
+              <div style="margin-bottom:4px">
+                #${i + 1} · <b>${esc(h.edited_by)} (${esc(h.edited_role)})</b> at ${esc(h.edited_at)} — Reason: <i>${esc(h.reason)}</i>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitEditBehaviorEventModal(${ev.id}, ${sid || 'null'})">💾 Save Edit & Append Audit History</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if (activeModal.type === 'edit_session_event') {
+    const se = activeModal.sessionEvent || {};
+    const sid = activeModal.sessionId;
+    const orig = se.original_value || se;
+    const hist = Array.isArray(se.edit_history) ? se.edit_history : [];
+    const toLocalInput = (iso) => {
+      if (!iso) return '';
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch { return ''; }
+    };
+    return `
+    <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
+      <div class="modal-card" style="max-width:640px;width:95%">
+        <div class="flex-between">
+          <div>
+            <span class="badge sen">Session Timeline Event Audit & Edit</span>
+            <h3 style="margin:4px 0 0">Edit Session Event #${se.id} (${esc(se.event_type)})</h3>
+          </div>
+          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+        </div>
+
+        <div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px 12px;margin-top:10px;font-family:var(--font-mono);font-size:0.75rem;color:#334155">
+          <div style="font-weight:800;color:#0f4c5c;margin-bottom:4px">🔒 Preserved Original Value:</div>
+          <div>Type: <b>${esc(orig.event_type)}</b> · Duration: <b>${orig.duration_sec ?? 0}s</b> · Observed: <b>${esc(orig.observed_at || orig.ts || '—')}</b> · Recorded: <b>${esc(orig.recorded_at || orig.ts || '—')}</b></div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Start Timestamp</label>
+            <input id="ese_start_ts" type="datetime-local" value="${toLocalInput(se.start_ts || se.ts)}" onchange="act.recalcModalDuration('ese_start_ts','ese_end_ts','ese_dur')">
+          </div>
+          <div>
+            <label>End Timestamp</label>
+            <input id="ese_end_ts" type="datetime-local" value="${toLocalInput(se.end_ts || se.ts)}" onchange="act.recalcModalDuration('ese_start_ts','ese_end_ts','ese_dur')">
+          </div>
+          <div>
+            <label>Duration (Seconds)</label>
+            <input id="ese_dur" type="number" min="0" value="${se.duration_sec ?? 0}">
+          </div>
+        </div>
+
+        <label>Observed Time (Distinguished from Recorded Time)</label>
+        <input id="ese_observed_at" type="datetime-local" value="${toLocalInput(se.observed_at || se.ts)}">
+
+        <label>Notes</label>
+        <input id="ese_notes" value="${esc(se.notes || '')}">
+
+        <label>Reason for Edit (Audit History)</label>
+        <input id="ese_reason" value="Updated session timeline event">
+
+        ${hist.length ? `
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:0.75rem;color:#78350f">
+            <div style="font-weight:800;margin-bottom:4px">📜 Existing Edit Audit History (${hist.length}):</div>
+            ${hist.map((h, i) => `<div>#${i + 1} · <b>${esc(h.edited_by)}</b> at ${esc(h.edited_at)} — ${esc(h.reason)}</div>`).join('')}
+          </div>
+        ` : ''}
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="sec" onclick="act.closeModal()">Cancel</button>
+          <button class="ok" onclick="act.submitEditSessionEventModal(${se.id}, ${sid || 'null'})">💾 Save Session Event Edit</button>
         </div>
       </div>
     </div>`;
@@ -9044,9 +9502,33 @@ const act = {
     if (inp) inp.value = '';
     render();
   },
+  setLoginAuthTab: (t) => {
+    loginAuthTab = t;
+    $app.innerHTML = loginView();
+  },
+  registerAccount: safe(async () => {
+    try {
+      const name = val('reg_name').trim();
+      const email = val('reg_em').trim();
+      const password = val('reg_pw');
+      const role = val('reg_role') || 'BCBA';
+      me = await api('POST', '/api/auth/register', { name, email, password, role });
+      await syncFirebaseVault('pull');
+      location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
+      render();
+    } catch (e) {
+      $app.innerHTML = loginView(e.message);
+    }
+  }),
+  manualFirebaseSync: safe(async () => {
+    const res = await syncFirebaseVault('pull');
+    alert(`🔥 Firebase Cloud Vault Synced (rbt-sepia-aba)\nSynced At: ${res && res.syncedAt ? res.syncedAt : new Date().toISOString()}`);
+    render();
+  }),
   login: safe(async () => {
     try {
       me = await api('POST', '/api/login', { email: val('em'), password: val('pw') });
+      await syncFirebaseVault('pull');
       location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
       render();
     } catch (e) { $app.innerHTML = loginView(e.message); }
@@ -9328,17 +9810,47 @@ const act = {
     render();
   }),
   openBehaviorEventModal: (cid, sid = null) => { activeModal = { type: 'behavior_event', clientId: cid, sessionId: sid }; render(); },
+  recalcModalDuration: (startId, endId, durId) => {
+    const sVal = val(startId);
+    const eVal = val(endId);
+    const durEl = document.getElementById(durId);
+    if (sVal && eVal && durEl) {
+      const sMs = new Date(sVal).getTime();
+      const eMs = new Date(eVal).getTime();
+      if (!Number.isNaN(sMs) && !Number.isNaN(eMs) && eMs >= sMs) {
+        durEl.value = Math.max(0, Math.round((eMs - sMs) / 1000));
+      }
+    }
+  },
   submitBehaviorEventModal: safe(async (cid, sid) => {
-    const ts = new Date(Date.now() + (++tallySeq)).toISOString();
+    const recordedAt = new Date(Date.now() + (++tallySeq)).toISOString();
+    const rawStart = val('be_start_ts');
+    const rawEnd = val('be_end_ts');
+    const rawObs = val('be_observed_at');
+    const start_ts = rawStart ? new Date(rawStart).toISOString() : null;
+    const end_ts = rawEnd ? new Date(rawEnd).toISOString() : null;
+    let calcDur = +val('be_dur') || 0;
+    if (start_ts && end_ts) {
+      const sMs = new Date(start_ts).getTime();
+      const eMs = new Date(end_ts).getTime();
+      if (!Number.isNaN(sMs) && !Number.isNaN(eMs) && eMs >= sMs) {
+        calcDur = Math.max(0, Math.round((eMs - sMs) / 1000));
+      }
+    }
+    const observed_at = rawObs ? new Date(rawObs).toISOString() : (start_ts || recordedAt);
     const bName = val('be_behavior');
     const payload = {
-      ts,
+      ts: observed_at,
+      observed_at,
+      recorded_at: recordedAt,
+      start_ts,
+      end_ts,
       behavior: bName,
       behavior_name: bName,
       measurement_type: val('be_type'),
       count: +val('be_val') || 1,
       value: +val('be_val') || 1,
-      duration_sec: +val('be_dur') || 0,
+      duration_sec: calcDur,
       latency_sec: +val('be_lat') || 0,
       irt_sec: +val('be_irt') || 0,
       interval_occurred: +val('be_int_occ') ? 1 : 0,
@@ -9360,6 +9872,8 @@ const act = {
     const behName = bpNameMap[bpId] || 'Target Behavior';
     const payload = {
       ts,
+      observed_at: ts,
+      recorded_at: ts,
       behavior_id: bpId,
       behavior_program_id: bpId,
       behavior: behName,
@@ -9378,11 +9892,18 @@ const act = {
   toggleBehaviorTimer: safe(async (cid, sid, bpId, mode = 'duration') => {
     const behName = bpNameMap[bpId] || 'Target Behavior';
     if (behTimers[bpId]) {
-      const elapsedSec = Math.max(1, Math.round((Date.now() - behTimers[bpId].startMs) / 1000));
+      const endMs = Date.now();
+      const startMs = behTimers[bpId].startMs;
+      const startIso = behTimers[bpId].startIso || new Date(startMs).toISOString();
+      const endIso = new Date(endMs + (++tallySeq)).toISOString();
+      const elapsedSec = Math.max(1, Math.round((endMs - startMs) / 1000));
       delete behTimers[bpId];
-      const ts = new Date(Date.now() + (++tallySeq)).toISOString();
       const payload = {
-        ts,
+        ts: startIso,
+        observed_at: startIso,
+        recorded_at: endIso,
+        start_ts: startIso,
+        end_ts: endIso,
         behavior_id: bpId,
         behavior_program_id: bpId,
         behavior: behName,
@@ -9399,10 +9920,72 @@ const act = {
       if (sid) await api('POST', `/api/sessions/${sid}/behavior-events`, payload);
       else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
     } else {
-      behTimers[bpId] = { startMs: Date.now(), mode };
+      behTimers[bpId] = { startMs: Date.now(), startIso: new Date().toISOString(), mode };
     }
     render();
   }),
+  openEditBehaviorEventModal: safe(async (evId, sid = null) => {
+    const ev = await api('GET', `/api/behavior-events/${evId}`);
+    activeModal = { type: 'edit_behavior_event', event: ev, sessionId: sid };
+    render();
+  }),
+  submitEditBehaviorEventModal: safe(async (evId, sid = null) => {
+    const rawStart = val('ebe_start_ts');
+    const rawEnd = val('ebe_end_ts');
+    const rawObs = val('ebe_observed_at');
+    const payload = {
+      count: +val('ebe_count') || 1,
+      value: +val('ebe_count') || 1,
+      duration_sec: +val('ebe_dur') || 0,
+      latency_sec: +val('ebe_lat') || 0,
+      start_ts: rawStart ? new Date(rawStart).toISOString() : undefined,
+      end_ts: rawEnd ? new Date(rawEnd).toISOString() : undefined,
+      observed_at: rawObs ? new Date(rawObs).toISOString() : undefined,
+      notes: val('ebe_notes'),
+      edit_reason: val('ebe_reason') || 'Clinical verification update'
+    };
+    await api('PUT', `/api/behavior-events/${evId}`, payload);
+    localBehEvents = [];
+    activeModal = null;
+    render();
+  }),
+  openEditSessionEventModal: safe(async (seId, sid = null) => {
+    const tl = sid ? await api('GET', `/api/sessions/${sid}/timeline`) : null;
+    const se = (tl && Array.isArray(tl.sessionEvents) && tl.sessionEvents.find((x) => Number(x.id) === Number(seId))) || { id: seId };
+    activeModal = { type: 'edit_session_event', sessionEvent: se, sessionId: sid };
+    render();
+  }),
+  submitEditSessionEventModal: safe(async (seId) => {
+    const rawStart = val('ese_start_ts');
+    const rawEnd = val('ese_end_ts');
+    const rawObs = val('ese_observed_at');
+    const payload = {
+      start_ts: rawStart ? new Date(rawStart).toISOString() : undefined,
+      end_ts: rawEnd ? new Date(rawEnd).toISOString() : undefined,
+      observed_at: rawObs ? new Date(rawObs).toISOString() : undefined,
+      duration_sec: +val('ese_dur') || 0,
+      notes: val('ese_notes'),
+      edit_reason: val('ese_reason') || 'Updated session timeline event'
+    };
+    await api('PUT', `/api/session-events/${seId}`, payload);
+    activeModal = null;
+    render();
+  }),
+  traceSummaryEvents: (metricKey, eventIds = []) => {
+    if (traceFilterMetric === metricKey) {
+      traceFilterMetric = null;
+      traceFilterEventIds = null;
+    } else {
+      traceFilterMetric = metricKey;
+      traceFilterEventIds = Array.isArray(eventIds) ? eventIds : [];
+    }
+    render();
+  },
+  clearTraceSummaryFilter: () => {
+    traceFilterMetric = null;
+    traceFilterEventIds = null;
+    render();
+  },
   quickIntervalBehavior: safe(async (cid, sid, bpId, occurred) => {
     const ts = new Date(Date.now() + (++tallySeq)).toISOString();
     const behName = bpNameMap[bpId] || 'Target Behavior';
@@ -9566,6 +10149,10 @@ const act = {
   }),
   sessionBreak: safe(async (sid, action = 'start') => {
     await api('POST', `/api/sessions/${sid}/breaks`, { action });
+    render();
+  }),
+  sessionPause: safe(async (sid, action = 'start') => {
+    await api('POST', `/api/sessions/${sid}/pause`, { action });
     render();
   }),
   openSessionNotesSection: safe(async (sid) => {
@@ -10859,6 +11446,18 @@ async function render() {
   if (rawRoute === 'website' || rawRoute === 'marketing') {
     window.location.href = '/website.html';
     return;
+  }
+  if (!firebaseBootRestored) {
+    firebaseBootRestored = true;
+    try {
+      const savedVault = typeof localStorage !== 'undefined' ? localStorage.getItem(FIREBASE_VAULT_STORAGE_KEY) : null;
+      if (savedVault) {
+        const parsed = JSON.parse(savedVault);
+        if (parsed && typeof parsed === 'object') {
+          await syncFirebaseVault('push', parsed);
+        }
+      }
+    } catch {}
   }
   if (!me) {
     try { me = await api('GET', '/api/me'); } catch {

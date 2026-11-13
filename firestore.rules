@@ -1,0 +1,865 @@
+rules_version = '2';
+
+// ===============================================================
+// Effective Behavioral Approach (EBA) — ABA Clinical Platform
+// Production Firestore Security Rules (Project: rbt-sepia)
+// ===============================================================
+//
+// Assumed Data Model
+// ===============================================================
+//
+// 1. Collection: users/{userId}
+//    Document ID: Firebase Auth UID or staff identifier
+//    Fields:
+//      - name: string (required, 1..120 chars) - Clinician or caregiver full name
+//      - email: string (required, valid email format, <= 254 chars) - Login email (PII)
+//      - role: string (required, enum: 'OWNER' | 'ADMIN' | 'BCBA' | 'RBT' | 'PARENT')
+//      - updatedAt: timestamp | string (optional, ISO-8601 or Firestore Timestamp)
+//      - createdAt: timestamp | string (optional, immutable on update)
+//      - uid: string (optional, immutable, must match userId)
+//      - id: int | string (optional, immutable internal numeric/string ID)
+//      - updatedBy: string (optional, <= 128 chars)
+//      - status: string (optional, <= 40 chars)
+//      - workspaceId: string (optional, <= 128 chars)
+//      - clinicId: string (optional, <= 128 chars)
+//
+// 2. Collection: workspaces/{workspaceId}
+//    Document ID: Workspace / clinic identifier (e.g., 'default', clinic slug)
+//    Fields:
+//      - name: string (optional, 1..200 chars)
+//      - updatedAt: timestamp | string (required if updatedBy absent)
+//      - updatedBy: string (required if updatedAt absent, 1..256 chars)
+//      - createdAt: timestamp | string (optional, immutable on update)
+//      - version: int | number (optional, >= 0)
+//      - status: string (optional, <= 64 chars)
+//      - ownerId: string (optional, immutable on update, <= 128 chars)
+//
+// 3. Subcollection: workspaces/{workspaceId}/tables/{tableName}
+//    Document ID: Clinical table name synced by the EBA Cloud Sync Engine:
+//      ('clients', 'goals', 'sessions', 'session_events', 'trials',
+//       'behavior_programs', 'behavior_events', 'abc_logs', 'plans', 'stories',
+//       'appointments', 'authorizations', 'supervision_logs', 'task_analyses',
+//       'fidelity_ioa_logs', 'audit_logs', 'client_assessments',
+//       'assessment_findings', 'smart_goal_drafts', 'users', 'assignments',
+//       'leads', 'facility_models', 'facility_signups', 'clinic_licenses')
+//    Fields:
+//      - rows / items / records: list (optional, <= 10000 items) - Serialized table rows
+//      - data: list | map | string (optional, bounded size) - Snapshot payload
+//      - autoId / count / version: int | number (optional, >= 0)
+//      - tableName / table: string (optional, <= 64 chars)
+//      - checksum: string (optional, <= 128 chars)
+//      - updatedAt: timestamp | string (required if updatedBy absent)
+//      - updatedBy: string (required if updatedAt absent, 1..256 chars)
+//      - createdAt / syncedAt: timestamp | string (optional)
+//      - workspaceId: string (optional, <= 128 chars)
+//
+// 4. Collection: clients/{clientId}
+//    Document ID: Client identifier
+//    Fields:
+//      - name: string (required, 1..200 chars)
+//      - dob, diagnosis, guardian, school, emergency, insurance: string (optional)
+//      - reinforcers, sensory, triggers, communication, crisis_plan, crisisPlan: string (optional)
+//      - parent_id, parentId: int | string (optional)
+//      - updatedAt, updated_at, createdAt, created_at: timestamp | string (optional)
+//      - updatedBy, updated_by: string (optional, <= 256 chars)
+//
+// 5. Subcollections under clients/{clientId}:
+//    - sessions/{sessionId}: Active Session Cockpit & SOAP note records
+//    - session_events/{eventId}: Real-time DTT trial & session cockpit events
+//    - behavior_events/{eventId}: Maladaptive behavior & ABC event logs
+//    - goals/{goalId}: Skill acquisition & program targets
+//    - audit_logs/{logId}: Append-only clinical audit trail (create/read only; never updated/deleted)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Standard Helper Functions
+    // ===============================================================
+
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user owns the resource by userId parameter
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if user is owner based on existing document's uid field
+    function isDocOwner() {
+      return isAuthenticated() && ('uid' in resource.data) && request.auth.uid == resource.data.uid;
+    }
+
+    // Verify UID hasn't been tampered with on create
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) ||
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    // Ensure uid field is not modified on update
+    function uidNotModified() {
+      return !('uid' in request.resource.data) ||
+        !('uid' in resource.data) ||
+        request.resource.data.uid == resource.data.uid;
+    }
+
+    // Validate required fields exist on the incoming document
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the document contains only explicitly allowed fields
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that immutable fields have not been modified on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate string length bounds
+    function validStringLength(field, minLen, maxLen) {
+      return (field in request.resource.data) &&
+        request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string field (if present and non-null, must be string within bounds)
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) ||
+        data[field] == null ||
+        (data[field] is string && data[field].size() >= minLen && data[field].size() <= maxLen);
+    }
+
+    // Validate optional non-negative number (if present and non-null, must be int/float >= 0)
+    function isValidOptionalNonNegativeNumber(data, field, maxVal) {
+      return !(field in data) ||
+        data[field] == null ||
+        ((data[field] is int || data[field] is float) && data[field] >= 0 && data[field] <= maxVal);
+    }
+
+    // Validate optional ID field (int or bounded string)
+    function isValidOptionalId(data, field) {
+      return !(field in data) ||
+        data[field] == null ||
+        data[field] is int ||
+        (data[field] is string && data[field].size() >= 1 && data[field].size() <= 128);
+    }
+
+    // Validate email format and length
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() >= 3 &&
+        email.size() <= 254 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Validate ISO-8601 date or datetime string format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS...)
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.size() >= 10 &&
+        dateStr.size() <= 64 &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}.*)?$");
+    }
+
+    // Validate timestamp or ISO-8601 date string
+    function isValidTimeOrString(val) {
+      return (val is timestamp) || isValidDateString(val);
+    }
+
+    // Validate optional timestamp or ISO-8601 date string
+    function isValidOptionalTime(data, field) {
+      return !(field in data) || data[field] == null || isValidTimeOrString(data[field]);
+    }
+
+    // Validate list type and size bound
+    function isValidList(listVal, maxSize) {
+      return listVal is list && listVal.size() <= maxSize;
+    }
+
+    // ===============================================================
+    // Role-Based Access Control (RBAC) Helpers
+    // ===============================================================
+
+    // Check if the caller holds one of the specified roles via custom token claim or users/{uid} lookup
+    function hasRole(allowedRoles) {
+      return isAuthenticated() && (
+        (('role' in request.auth.token) && (request.auth.token.role in allowedRoles)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in allowedRoles))
+      );
+    }
+
+    // System Owner check ('OWNER')
+    function isSystemOwner() {
+      return hasRole(['OWNER']);
+    }
+
+    // Practice Owner or Administrator check ('OWNER' | 'ADMIN')
+    function isOwnerOrAdmin() {
+      return hasRole(['OWNER', 'ADMIN']);
+    }
+
+    // Clinical Manager / Supervisor check ('OWNER' | 'ADMIN' | 'BCBA')
+    function isClinicalManager() {
+      return hasRole(['OWNER', 'ADMIN', 'BCBA']);
+    }
+
+    // Check if the caller is explicitly assigned the restricted 'PARENT' role
+    function isExplicitParent() {
+      return isAuthenticated() && (
+        (('role' in request.auth.token) && request.auth.token.role == 'PARENT') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'PARENT')
+      );
+    }
+
+    // Authenticated clinician or EBA Cloud Sync Engine session (excludes restricted PARENT accounts)
+    function isClinician() {
+      return isAuthenticated() && !isExplicitParent();
+    }
+
+    // Check if a PARENT user is linked to the specified client document data
+    function isParentOfClientData(clientData) {
+      return isAuthenticated() && (
+        (('parentId' in clientData) && clientData.parentId == request.auth.uid) ||
+        (('parent_id' in clientData) && clientData.parent_id == request.auth.uid)
+      );
+    }
+
+    // Check if a PARENT user is linked to the parent client/{clientId} document
+    function isParentOfClient(clientId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/clients/$(clientId)) &&
+        isParentOfClientData(get(/databases/$(database)/documents/clients/$(clientId)).data);
+    }
+
+    // ===============================================================
+    // Domain Validators (Used in BOTH create and update rules)
+    // ===============================================================
+
+    // 1. Validator for users/{userId}
+    function isValidUser(data, userId) {
+      let allowedFields = [
+        'id', 'uid', 'name', 'email', 'role', 'title', 'credentials', 'phone',
+        'updatedAt', 'updated_at', 'createdAt', 'created_at', 'lastLoginAt',
+        'updatedBy', 'updated_by', 'status', 'workspaceId', 'clinicId'
+      ];
+      let validRoles = ['OWNER', 'ADMIN', 'BCBA', 'RBT', 'PARENT'];
+      return hasRequiredFields(['name', 'email', 'role']) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        isValidEmail(data.email) &&
+        data.role is string && (data.role in validRoles) &&
+        (!('uid' in data) || (data.uid is string && data.uid == userId && data.uid.size() <= 128)) &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalString(data, 'title', 0, 120) &&
+        isValidOptionalString(data, 'credentials', 0, 120) &&
+        isValidOptionalString(data, 'phone', 0, 40) &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'lastLoginAt') &&
+        isValidOptionalString(data, 'updatedBy', 1, 128) &&
+        isValidOptionalString(data, 'updated_by', 1, 128) &&
+        isValidOptionalString(data, 'status', 1, 40) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalString(data, 'clinicId', 1, 128);
+    }
+
+    // Verify that role assignment on user creation/update prevents privilege escalation
+    function canAssignUserRole(newRole) {
+      return (newRole == 'OWNER' && isOwnerOrAdmin()) ||
+        (newRole == 'ADMIN' && isOwnerOrAdmin()) ||
+        (newRole in ['BCBA', 'RBT', 'PARENT']);
+    }
+
+    // 2. Validator for workspaces/{workspaceId}
+    function hasAuditTimestampOrAuthor(data) {
+      let hasValidUpdatedAt = ('updatedAt' in data) && isValidTimeOrString(data.updatedAt);
+      let hasValidUpdatedAtSnake = ('updated_at' in data) && isValidTimeOrString(data.updated_at);
+      let hasValidUpdatedBy = ('updatedBy' in data) && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 256;
+      let hasValidUpdatedBySnake = ('updated_by' in data) && data.updated_by is string && data.updated_by.size() >= 1 && data.updated_by.size() <= 256;
+      return hasValidUpdatedAt || hasValidUpdatedAtSnake || hasValidUpdatedBy || hasValidUpdatedBySnake;
+    }
+
+    function isValidWorkspace(data) {
+      let allowedFields = [
+        'id', 'workspaceId', 'name', 'clinicName', 'status', 'version', 'schemaVersion',
+        'ownerId', 'licenseKey', 'tables', 'autoIds', 'rowCounts',
+        'updatedAt', 'updated_at', 'updatedBy', 'updated_by',
+        'createdAt', 'created_at', 'syncedAt', 'notes'
+      ];
+      return hasOnlyAllowedFields(allowedFields) &&
+        hasAuditTimestampOrAuthor(data) &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalString(data, 'name', 1, 200) &&
+        isValidOptionalString(data, 'clinicName', 1, 200) &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalNonNegativeNumber(data, 'version', 1000000000) &&
+        isValidOptionalNonNegativeNumber(data, 'schemaVersion', 1000000) &&
+        isValidOptionalString(data, 'ownerId', 1, 128) &&
+        isValidOptionalString(data, 'licenseKey', 1, 128) &&
+        (!('tables' in data) || (data.tables is list && data.tables.size() <= 100) || (data.tables is map && data.tables.size() <= 100)) &&
+        (!('autoIds' in data) || (data.autoIds is map && data.autoIds.size() <= 100)) &&
+        (!('rowCounts' in data) || (data.rowCounts is map && data.rowCounts.size() <= 100)) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'syncedAt') &&
+        isValidOptionalString(data, 'notes', 0, 5000);
+    }
+
+    // 3. Validator for workspaces/{workspaceId}/tables/{tableName}
+    function isValidClinicalTableName(tableName) {
+      let allowedTables = [
+        'clients', 'goals', 'sessions', 'session_events', 'trials',
+        'behavior_programs', 'behavior_events', 'abc_logs', 'plans', 'stories',
+        'appointments', 'authorizations', 'supervision_logs', 'task_analyses',
+        'fidelity_ioa_logs', 'audit_logs', 'client_assessments',
+        'assessment_findings', 'smart_goal_drafts',
+        'users', 'assignments', 'leads', 'facility_models',
+        'facility_signups', 'clinic_licenses', 'meta', 'sync_state'
+      ];
+      return tableName in allowedTables;
+    }
+
+    function isValidWorkspaceTableSnapshot(data, tableName) {
+      let allowedFields = [
+        'table', 'tableName', 'workspaceId', 'rows', 'items', 'records', 'data',
+        'autoId', 'count', 'version', 'checksum',
+        'updatedAt', 'updated_at', 'updatedBy', 'updated_by',
+        'createdAt', 'created_at', 'syncedAt'
+      ];
+      return isValidClinicalTableName(tableName) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        hasAuditTimestampOrAuthor(data) &&
+        (!('table' in data) || (data.table is string && data.table == tableName)) &&
+        (!('tableName' in data) || (data.tableName is string && data.tableName == tableName)) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        (!('rows' in data) || isValidList(data.rows, 10000)) &&
+        (!('items' in data) || isValidList(data.items, 10000)) &&
+        (!('records' in data) || isValidList(data.records, 10000)) &&
+        (!('data' in data) ||
+          isValidList(data.data, 10000) ||
+          (data.data is map && data.data.size() <= 10000) ||
+          (data.data is string && data.data.size() <= 950000)) &&
+        isValidOptionalNonNegativeNumber(data, 'autoId', 1000000000) &&
+        isValidOptionalNonNegativeNumber(data, 'count', 1000000) &&
+        isValidOptionalNonNegativeNumber(data, 'version', 1000000000) &&
+        isValidOptionalString(data, 'checksum', 1, 128) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'syncedAt');
+    }
+
+    // 4. Validator for clients/{clientId}
+    function isValidClientRecord(data) {
+      let allowedFields = [
+        'id', 'clientId', 'client_id', 'name', 'dob', 'diagnosis', 'guardian',
+        'school', 'emergency', 'insurance', 'reinforcers', 'sensory', 'triggers',
+        'communication', 'crisis_plan', 'crisisPlan', 'parent_id', 'parentId',
+        'status', 'workspaceId', 'notes',
+        'createdAt', 'created_at', 'updatedAt', 'updated_at', 'updatedBy', 'updated_by'
+      ];
+      return hasRequiredFields(['name']) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalString(data, 'dob', 0, 40) &&
+        isValidOptionalString(data, 'diagnosis', 0, 500) &&
+        isValidOptionalString(data, 'guardian', 0, 200) &&
+        isValidOptionalString(data, 'school', 0, 200) &&
+        isValidOptionalString(data, 'emergency', 0, 300) &&
+        isValidOptionalString(data, 'insurance', 0, 300) &&
+        isValidOptionalString(data, 'reinforcers', 0, 2000) &&
+        isValidOptionalString(data, 'sensory', 0, 2000) &&
+        isValidOptionalString(data, 'triggers', 0, 2000) &&
+        isValidOptionalString(data, 'communication', 0, 2000) &&
+        isValidOptionalString(data, 'crisis_plan', 0, 5000) &&
+        isValidOptionalString(data, 'crisisPlan', 0, 5000) &&
+        isValidOptionalId(data, 'parent_id') &&
+        isValidOptionalId(data, 'parentId') &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalString(data, 'notes', 0, 5000) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // 5. Validator for clients/{clientId}/sessions/{sessionId}
+    function isValidSessionRecord(data) {
+      let allowedFields = [
+        'id', 'sessionId', 'session_id', 'appointment_id', 'appointmentId',
+        'client_id', 'clientId', 'user_id', 'userId', 'rbt_id', 'rbtId',
+        'client', 'rbt', 'duration', 'cpt_code', 'cptCode', 'workspaceId', 'notes',
+        'start', 'end', 'units', 'note', 'note_status', 'noteStatus',
+        'signed_by', 'signedBy', 'submitted_by', 'submittedBy',
+        'rbt_signed_at', 'rbtSignedAt', 'bcba_signed_at', 'bcbaSignedAt',
+        'attendance_status', 'attendanceStatus', 'barriers',
+        'breaks_count', 'breaksCount', 'break_started_at', 'breakStartedAt',
+        'status', 'createdAt', 'created_at', 'updatedAt', 'updated_at',
+        'updatedBy', 'updated_by'
+      ];
+      let validNoteStatuses = ['none', 'draft', 'pending_approval', 'signed', 'approved', 'rejected', 'locked'];
+      return hasOnlyAllowedFields(allowedFields) &&
+        data.size() >= 1 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'sessionId') &&
+        isValidOptionalId(data, 'session_id') &&
+        isValidOptionalId(data, 'appointment_id') &&
+        isValidOptionalId(data, 'appointmentId') &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalId(data, 'user_id') &&
+        isValidOptionalId(data, 'userId') &&
+        isValidOptionalId(data, 'rbt_id') &&
+        isValidOptionalId(data, 'rbtId') &&
+        isValidOptionalString(data, 'client', 0, 200) &&
+        isValidOptionalString(data, 'rbt', 0, 200) &&
+        isValidOptionalNonNegativeNumber(data, 'duration', 86400) &&
+        isValidOptionalString(data, 'cpt_code', 0, 20) &&
+        isValidOptionalString(data, 'cptCode', 0, 20) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalString(data, 'notes', 0, 5000) &&
+        isValidOptionalTime(data, 'start') &&
+        isValidOptionalTime(data, 'end') &&
+        isValidOptionalNonNegativeNumber(data, 'units', 1000) &&
+        isValidOptionalString(data, 'note', 0, 50000) &&
+        (!('note_status' in data) || (data.note_status is string && data.note_status in validNoteStatuses)) &&
+        (!('noteStatus' in data) || (data.noteStatus is string && data.noteStatus in validNoteStatuses)) &&
+        isValidOptionalString(data, 'signed_by', 0, 200) &&
+        isValidOptionalString(data, 'signedBy', 0, 200) &&
+        isValidOptionalString(data, 'submitted_by', 0, 200) &&
+        isValidOptionalString(data, 'submittedBy', 0, 200) &&
+        isValidOptionalTime(data, 'rbt_signed_at') &&
+        isValidOptionalTime(data, 'rbtSignedAt') &&
+        isValidOptionalTime(data, 'bcba_signed_at') &&
+        isValidOptionalTime(data, 'bcbaSignedAt') &&
+        isValidOptionalString(data, 'attendance_status', 0, 100) &&
+        isValidOptionalString(data, 'attendanceStatus', 0, 100) &&
+        isValidOptionalString(data, 'barriers', 0, 5000) &&
+        isValidOptionalNonNegativeNumber(data, 'breaks_count', 1000) &&
+        isValidOptionalNonNegativeNumber(data, 'breaksCount', 1000) &&
+        isValidOptionalString(data, 'break_started_at', 0, 64) &&
+        isValidOptionalString(data, 'breakStartedAt', 0, 64) &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // 6. Validator for clients/{clientId}/session_events/{eventId}
+    function isValidSessionEvent(data) {
+      let allowedFields = [
+        'id', 'eventId', 'event_id', 'client_id', 'clientId',
+        'session_id', 'sessionId', 'goal_id', 'goalId', 'user_id', 'userId',
+        'event_type', 'eventType', 'type', 'level', 'prompt_level', 'promptLevel',
+        'trial_type', 'trialType', 'response', 'score', 'correct',
+        'elapsed_sec', 'elapsedSec', 'action', 'details', 'workspaceId',
+        'value', 'payload', 'data', 'notes', 'ts', 'timestamp',
+        'createdAt', 'created_at', 'updatedAt', 'updated_at', 'updatedBy', 'updated_by'
+      ];
+      return hasOnlyAllowedFields(allowedFields) &&
+        data.size() >= 1 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'eventId') &&
+        isValidOptionalId(data, 'event_id') &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalId(data, 'session_id') &&
+        isValidOptionalId(data, 'sessionId') &&
+        isValidOptionalId(data, 'goal_id') &&
+        isValidOptionalId(data, 'goalId') &&
+        isValidOptionalId(data, 'user_id') &&
+        isValidOptionalId(data, 'userId') &&
+        isValidOptionalString(data, 'event_type', 1, 100) &&
+        isValidOptionalString(data, 'eventType', 1, 100) &&
+        isValidOptionalString(data, 'type', 1, 100) &&
+        isValidOptionalString(data, 'level', 1, 40) &&
+        isValidOptionalString(data, 'prompt_level', 1, 40) &&
+        isValidOptionalString(data, 'promptLevel', 1, 40) &&
+        isValidOptionalString(data, 'trial_type', 1, 64) &&
+        isValidOptionalString(data, 'trialType', 1, 64) &&
+        isValidOptionalString(data, 'response', 0, 500) &&
+        isValidOptionalNonNegativeNumber(data, 'score', 100000) &&
+        (!('correct' in data) || data.correct == null || data.correct is bool || data.correct is int) &&
+        isValidOptionalNonNegativeNumber(data, 'elapsed_sec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'elapsedSec', 86400) &&
+        isValidOptionalString(data, 'action', 0, 120) &&
+        isValidOptionalString(data, 'details', 0, 5000) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        (!('value' in data) || data.value == null || data.value is number || data.value is bool || (data.value is string && data.value.size() <= 2000)) &&
+        (!('payload' in data) || data.payload == null || (data.payload is map && data.payload.size() <= 100) || (data.payload is string && data.payload.size() <= 10000)) &&
+        (!('data' in data) || data.data == null || (data.data is map && data.data.size() <= 100) || (data.data is string && data.data.size() <= 10000)) &&
+        isValidOptionalString(data, 'notes', 0, 5000) &&
+        isValidOptionalTime(data, 'ts') &&
+        isValidOptionalTime(data, 'timestamp') &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // 7. Validator for clients/{clientId}/behavior_events/{eventId}
+    function isValidBehaviorEvent(data) {
+      let allowedFields = [
+        'id', 'eventId', 'event_id', 'client_id', 'clientId',
+        'session_id', 'sessionId', 'behavior_id', 'behaviorId',
+        'behavior_name', 'behaviorName', 'user_id', 'userId', 'staff', 'workspaceId',
+        'ts', 'timestamp', 'measurement_type', 'measurementType',
+        'count', 'duration_sec', 'durationSec', 'latency_sec', 'latencySec',
+        'irt_sec', 'irtSec', 'interval_total', 'intervalTotal',
+        'interval_occurred', 'intervalOccurred', 'intensity',
+        'setting', 'activity', 'people_present', 'peoplePresent',
+        'antecedent', 'behavior', 'consequence',
+        'perceived_function', 'perceivedFunction', 'notes',
+        'definition_version', 'definitionVersion',
+        'definition_snapshot', 'definitionSnapshot',
+        'createdAt', 'created_at', 'updatedAt', 'updated_at', 'updatedBy', 'updated_by'
+      ];
+      return hasOnlyAllowedFields(allowedFields) &&
+        data.size() >= 1 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'eventId') &&
+        isValidOptionalId(data, 'event_id') &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalId(data, 'session_id') &&
+        isValidOptionalId(data, 'sessionId') &&
+        isValidOptionalId(data, 'behavior_id') &&
+        isValidOptionalId(data, 'behaviorId') &&
+        isValidOptionalString(data, 'behavior_name', 0, 200) &&
+        isValidOptionalString(data, 'behaviorName', 0, 200) &&
+        isValidOptionalId(data, 'user_id') &&
+        isValidOptionalId(data, 'userId') &&
+        isValidOptionalString(data, 'staff', 0, 200) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalTime(data, 'ts') &&
+        isValidOptionalTime(data, 'timestamp') &&
+        isValidOptionalString(data, 'measurement_type', 1, 64) &&
+        isValidOptionalString(data, 'measurementType', 1, 64) &&
+        isValidOptionalNonNegativeNumber(data, 'count', 100000) &&
+        isValidOptionalNonNegativeNumber(data, 'duration_sec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'durationSec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'latency_sec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'latencySec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'irt_sec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'irtSec', 86400) &&
+        isValidOptionalNonNegativeNumber(data, 'interval_total', 10000) &&
+        isValidOptionalNonNegativeNumber(data, 'intervalTotal', 10000) &&
+        isValidOptionalNonNegativeNumber(data, 'interval_occurred', 10000) &&
+        isValidOptionalNonNegativeNumber(data, 'intervalOccurred', 10000) &&
+        isValidOptionalString(data, 'intensity', 0, 100) &&
+        isValidOptionalString(data, 'setting', 0, 200) &&
+        isValidOptionalString(data, 'activity', 0, 200) &&
+        isValidOptionalString(data, 'people_present', 0, 500) &&
+        isValidOptionalString(data, 'peoplePresent', 0, 500) &&
+        isValidOptionalString(data, 'antecedent', 0, 2000) &&
+        isValidOptionalString(data, 'behavior', 0, 2000) &&
+        isValidOptionalString(data, 'consequence', 0, 2000) &&
+        isValidOptionalString(data, 'perceived_function', 0, 200) &&
+        isValidOptionalString(data, 'perceivedFunction', 0, 200) &&
+        isValidOptionalString(data, 'notes', 0, 5000) &&
+        isValidOptionalNonNegativeNumber(data, 'definition_version', 10000) &&
+        isValidOptionalNonNegativeNumber(data, 'definitionVersion', 10000) &&
+        isValidOptionalString(data, 'definition_snapshot', 0, 10000) &&
+        isValidOptionalString(data, 'definitionSnapshot', 0, 10000) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // 8. Validator for clients/{clientId}/goals/{goalId}
+    function isValidGoalRecord(data) {
+      let allowedFields = [
+        'id', 'goalId', 'goal_id', 'client_id', 'clientId',
+        'title', 'baseline', 'target', 'status', 'domain',
+        'prompt_strategy', 'promptStrategy', 'scoring_rule', 'scoringRule',
+        'mastery_sessions', 'masterySessions',
+        'operational_definition', 'operationalDefinition',
+        'onset_criteria', 'onsetCriteria', 'offset_criteria', 'offsetCriteria',
+        'examples', 'non_examples', 'nonExamples',
+        'measurement_type', 'measurementType',
+        'secondary_measurement', 'secondaryMeasurement',
+        'data_fields_json', 'dataFieldsJson',
+        'linked_finding_id', 'linkedFindingId',
+        'approved_by', 'approvedBy', 'approved_at', 'approvedAt',
+        'configured_prompts', 'configuredPrompts', 'workspaceId', 'notes',
+        'createdAt', 'created_at', 'updatedAt', 'updated_at', 'updatedBy', 'updated_by'
+      ];
+      return hasRequiredFields(['title']) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 500 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'goalId') &&
+        isValidOptionalId(data, 'goal_id') &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalNonNegativeNumber(data, 'baseline', 100000) &&
+        isValidOptionalNonNegativeNumber(data, 'target', 100000) &&
+        isValidOptionalString(data, 'status', 1, 64) &&
+        isValidOptionalString(data, 'domain', 0, 200) &&
+        isValidOptionalString(data, 'prompt_strategy', 0, 200) &&
+        isValidOptionalString(data, 'promptStrategy', 0, 200) &&
+        isValidOptionalString(data, 'scoring_rule', 0, 200) &&
+        isValidOptionalString(data, 'scoringRule', 0, 200) &&
+        isValidOptionalNonNegativeNumber(data, 'mastery_sessions', 1000) &&
+        isValidOptionalNonNegativeNumber(data, 'masterySessions', 1000) &&
+        isValidOptionalString(data, 'operational_definition', 0, 5000) &&
+        isValidOptionalString(data, 'operationalDefinition', 0, 5000) &&
+        isValidOptionalString(data, 'onset_criteria', 0, 2000) &&
+        isValidOptionalString(data, 'onsetCriteria', 0, 2000) &&
+        isValidOptionalString(data, 'offset_criteria', 0, 2000) &&
+        isValidOptionalString(data, 'offsetCriteria', 0, 2000) &&
+        isValidOptionalString(data, 'examples', 0, 5000) &&
+        isValidOptionalString(data, 'non_examples', 0, 5000) &&
+        isValidOptionalString(data, 'nonExamples', 0, 5000) &&
+        isValidOptionalString(data, 'measurement_type', 0, 100) &&
+        isValidOptionalString(data, 'measurementType', 0, 100) &&
+        isValidOptionalString(data, 'secondary_measurement', 0, 100) &&
+        isValidOptionalString(data, 'secondaryMeasurement', 0, 100) &&
+        isValidOptionalString(data, 'data_fields_json', 0, 10000) &&
+        isValidOptionalString(data, 'dataFieldsJson', 0, 10000) &&
+        isValidOptionalId(data, 'linked_finding_id') &&
+        isValidOptionalId(data, 'linkedFindingId') &&
+        isValidOptionalString(data, 'approved_by', 0, 200) &&
+        isValidOptionalString(data, 'approvedBy', 0, 200) &&
+        isValidOptionalString(data, 'approved_at', 0, 64) &&
+        isValidOptionalString(data, 'approvedAt', 0, 64) &&
+        isValidOptionalString(data, 'configured_prompts', 0, 100) &&
+        isValidOptionalString(data, 'configuredPrompts', 0, 100) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalString(data, 'notes', 0, 5000) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalTime(data, 'updatedAt') &&
+        isValidOptionalTime(data, 'updated_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // 9. Validator for append-only audit_logs/{logId}
+    function isValidAuditLog(data) {
+      let allowedFields = [
+        'id', 'logId', 'log_id', 'ts', 'timestamp',
+        'user_id', 'userId', 'user_name', 'userName', 'role', 'workspaceId',
+        'client_id', 'clientId', 'session_id', 'sessionId',
+        'entity_type', 'entityType', 'entity_id', 'entityId',
+        'action', 'details', 'ip',
+        'createdAt', 'created_at', 'updatedBy', 'updated_by'
+      ];
+      return hasRequiredFields(['action']) &&
+        hasOnlyAllowedFields(allowedFields) &&
+        data.action is string && data.action.size() >= 1 && data.action.size() <= 120 &&
+        isValidOptionalId(data, 'id') &&
+        isValidOptionalId(data, 'logId') &&
+        isValidOptionalId(data, 'log_id') &&
+        isValidOptionalTime(data, 'ts') &&
+        isValidOptionalTime(data, 'timestamp') &&
+        isValidOptionalId(data, 'user_id') &&
+        isValidOptionalId(data, 'userId') &&
+        isValidOptionalString(data, 'user_name', 0, 200) &&
+        isValidOptionalString(data, 'userName', 0, 200) &&
+        isValidOptionalString(data, 'role', 0, 40) &&
+        isValidOptionalString(data, 'workspaceId', 1, 128) &&
+        isValidOptionalId(data, 'client_id') &&
+        isValidOptionalId(data, 'clientId') &&
+        isValidOptionalId(data, 'session_id') &&
+        isValidOptionalId(data, 'sessionId') &&
+        isValidOptionalString(data, 'entity_type', 0, 100) &&
+        isValidOptionalString(data, 'entityType', 0, 100) &&
+        isValidOptionalId(data, 'entity_id') &&
+        isValidOptionalId(data, 'entityId') &&
+        isValidOptionalString(data, 'details', 0, 10000) &&
+        isValidOptionalString(data, 'ip', 0, 64) &&
+        isValidOptionalTime(data, 'createdAt') &&
+        isValidOptionalTime(data, 'created_at') &&
+        isValidOptionalString(data, 'updatedBy', 1, 256) &&
+        isValidOptionalString(data, 'updated_by', 1, 256);
+    }
+
+    // ===============================================================
+    // Collection Security Rules
+    // ===============================================================
+
+    // 1. User Profiles: users/{userId}
+    match /users/{userId} {
+      // Clinicians and the user themselves can read user profiles; PARENT accounts can only read their own doc
+      allow read: if isOwner(userId) || isClinician();
+
+      // A user can create their own profile (without escalating to OWNER/ADMIN unless already authorized),
+      // or an OWNER/ADMIN/BCBA can create staff/user docs (only OWNER/ADMIN can assign OWNER/ADMIN).
+      allow create: if isAuthenticated() &&
+        isValidUser(request.resource.data, userId) &&
+        canAssignUserRole(request.resource.data.role) &&
+        (isOwner(userId) || isClinicalManager());
+
+      // A user can update their own profile (role must remain unchanged unless they are OWNER/ADMIN),
+      // or an OWNER/ADMIN/BCBA can update staff/user docs (non-owners/non-admins cannot escalate role to OWNER/ADMIN,
+      // and a BCBA cannot overwrite an OWNER/ADMIN account).
+      allow update: if isAuthenticated() &&
+        isValidUser(request.resource.data, userId) &&
+        uidNotModified() &&
+        areImmutableFieldsUnchanged(['id', 'uid', 'createdAt', 'created_at']) &&
+        canAssignUserRole(request.resource.data.role) &&
+        (
+          (isOwner(userId) && (request.resource.data.role == resource.data.role || isOwnerOrAdmin())) ||
+          (isClinicalManager() && (!(resource.data.role in ['OWNER', 'ADMIN']) || isOwnerOrAdmin()))
+        );
+
+      // Only OWNER or ADMIN can delete user profiles (cannot delete an OWNER unless caller is OWNER)
+      allow delete: if isOwnerOrAdmin() &&
+        (resource.data.role != 'OWNER' || isSystemOwner());
+    }
+
+    // 2. EBA Cloud Sync Engine Workspaces: workspaces/{workspaceId}
+    match /workspaces/{workspaceId} {
+      allow read: if isClinician();
+
+      allow create: if isClinician() &&
+        isValidWorkspace(request.resource.data);
+
+      allow update: if isClinician() &&
+        isValidWorkspace(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id', 'ownerId', 'createdAt', 'created_at']);
+
+      allow delete: if isOwnerOrAdmin();
+
+      // Workspace Clinical Table Snapshots: workspaces/{workspaceId}/tables/{tableName}
+      match /tables/{tableName} {
+        allow read: if isClinician();
+
+        allow create: if isClinician() &&
+          isValidWorkspaceTableSnapshot(request.resource.data, tableName);
+
+        allow update: if isClinician() &&
+          isValidWorkspaceTableSnapshot(request.resource.data, tableName) &&
+          areImmutableFieldsUnchanged(['createdAt', 'created_at']);
+
+        // Never allow erasing the audit_logs table snapshot; only OWNER/ADMIN can delete other table snapshots
+        allow delete: if isOwnerOrAdmin() && tableName != 'audit_logs';
+      }
+    }
+
+    // 3. Client Records & Clinical Subcollections: clients/{clientId}
+    match /clients/{clientId} {
+      // Clinicians can read all client records; parents can read their linked child's record
+      allow read: if isClinician() || isParentOfClientData(resource.data);
+
+      allow create: if isClinician() &&
+        isValidClientRecord(request.resource.data);
+
+      allow update: if isClinician() &&
+        isValidClientRecord(request.resource.data) &&
+        areImmutableFieldsUnchanged(['id', 'createdAt', 'created_at']);
+
+      allow delete: if isClinicalManager();
+
+      // 3a. Clinical Sessions: clients/{clientId}/sessions/{sessionId}
+      match /sessions/{sessionId} {
+        allow read: if isClinician() || isParentOfClient(clientId);
+
+        allow create: if isClinician() &&
+          isValidSessionRecord(request.resource.data);
+
+        allow update: if isClinician() &&
+          isValidSessionRecord(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'client_id', 'clientId', 'createdAt', 'created_at']);
+
+        allow delete: if isClinicalManager();
+      }
+
+      // 3b. Real-Time Session Cockpit Events: clients/{clientId}/session_events/{eventId}
+      match /session_events/{eventId} {
+        allow read: if isClinician();
+
+        allow create: if isClinician() &&
+          isValidSessionEvent(request.resource.data);
+
+        allow update: if isClinician() &&
+          isValidSessionEvent(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'client_id', 'clientId', 'session_id', 'sessionId', 'createdAt', 'created_at']);
+
+        // Clinicians can delete individual session events to support 1-tap instant trial undo in the Active Session Cockpit
+        allow delete: if isClinician();
+      }
+
+      // 3c. Maladaptive Behavior & ABC Events: clients/{clientId}/behavior_events/{eventId}
+      match /behavior_events/{eventId} {
+        allow read: if isClinician();
+
+        allow create: if isClinician() &&
+          isValidBehaviorEvent(request.resource.data);
+
+        allow update: if isClinician() &&
+          isValidBehaviorEvent(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'client_id', 'clientId', 'createdAt', 'created_at']);
+
+        allow delete: if isClinician();
+      }
+
+      // 3d. Skill Acquisition Goals: clients/{clientId}/goals/{goalId}
+      match /goals/{goalId} {
+        allow read: if isClinician() || isParentOfClient(clientId);
+
+        allow create: if isClinician() &&
+          isValidGoalRecord(request.resource.data);
+
+        allow update: if isClinician() &&
+          isValidGoalRecord(request.resource.data) &&
+          areImmutableFieldsUnchanged(['id', 'client_id', 'clientId', 'createdAt', 'created_at']);
+
+        allow delete: if isClinicalManager();
+      }
+
+      // 3e. Append-Only Clinical Audit Logs: clients/{clientId}/audit_logs/{logId}
+      match /audit_logs/{logId} {
+        allow read: if isClinician();
+
+        allow create: if isClinician() &&
+          isValidAuditLog(request.resource.data);
+
+        // Append-only: historical audit entries can never be modified or erased
+        allow update, delete: if false;
+      }
+    }
+
+    // Top-level Append-Only Audit Logs: audit_logs/{logId}
+    match /audit_logs/{logId} {
+      allow read: if isClinician();
+
+      allow create: if isClinician() &&
+        isValidAuditLog(request.resource.data);
+
+      // Append-only: historical audit entries can never be modified or erased
+      allow update, delete: if false;
+    }
+
+    // Default Deny: Explicitly reject all reads and writes to any other path
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

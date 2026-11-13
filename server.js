@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { createDatabase, MemoryDB } = require('./lib/db');
 const G = require('./lib/generators');
+const FB = require('./lib/firebase');
 
 const PORT = process.env.PORT || 3000;
 const ON_VERCEL = !!process.env.VERCEL;
@@ -14,20 +15,21 @@ const db = ON_VERCEL ? new MemoryDB() : createDatabase(dbPath);
 const SECRET = process.env.SESSION_SECRET || 'dev-only-secret-change-me';
 db.exec('PRAGMA foreign_keys = ON');
 db.exec(`
-CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, pw TEXT, role TEXT);
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, email TEXT UNIQUE, pw TEXT, role TEXT, firebase_uid TEXT DEFAULT '', created_at TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS clients(id INTEGER PRIMARY KEY, name TEXT, dob TEXT, diagnosis TEXT, guardian TEXT, school TEXT, emergency TEXT, insurance TEXT, reinforcers TEXT, sensory TEXT, triggers TEXT, communication TEXT, crisis_plan TEXT, parent_id INTEGER);
 CREATE TABLE IF NOT EXISTS assignments(client_id INTEGER, user_id INTEGER);
 CREATE TABLE IF NOT EXISTS goals(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, baseline INTEGER, target INTEGER, status TEXT DEFAULT 'active', domain TEXT DEFAULT 'DTT / Skill Acquisition', prompt_strategy TEXT DEFAULT 'Least-to-Most', scoring_rule TEXT DEFAULT 'independent_only', mastery_sessions INTEGER DEFAULT 3);
 CREATE TABLE IF NOT EXISTS plans(id INTEGER PRIMARY KEY, client_id INTEGER, behavior TEXT, data TEXT, status TEXT DEFAULT 'draft', approved_by TEXT);
 CREATE TABLE IF NOT EXISTS stories(id INTEGER PRIMARY KEY, client_id INTEGER, inputs TEXT, content TEXT, status TEXT DEFAULT 'draft', approved_by TEXT, token TEXT);
 CREATE TABLE IF NOT EXISTS appointments(id INTEGER PRIMARY KEY, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, role TEXT, setting TEXT);
-CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT, submitted_by TEXT, rbt_signed_at TEXT, bcba_signed_at TEXT, attendance_status TEXT DEFAULT 'Completed', barriers TEXT DEFAULT '');
-CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, goal_id INTEGER, level TEXT, ts TEXT, trial_type TEXT DEFAULT 'acquisition', notes TEXT DEFAULT '', user_id INTEGER);
+CREATE TABLE IF NOT EXISTS sessions(id INTEGER PRIMARY KEY, appointment_id INTEGER, client_id INTEGER, user_id INTEGER, start TEXT, end TEXT, units INTEGER, note TEXT DEFAULT '', note_status TEXT DEFAULT 'none', signed_by TEXT, submitted_by TEXT, rbt_signed_at TEXT, bcba_signed_at TEXT, attendance_status TEXT DEFAULT 'Completed', barriers TEXT DEFAULT '', breaks_count INTEGER DEFAULT 0, break_started_at TEXT DEFAULT '', pauses_count INTEGER DEFAULT 0, pause_started_at TEXT DEFAULT '', total_break_sec INTEGER DEFAULT 0, total_pause_sec INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS trials(id INTEGER PRIMARY KEY, session_id INTEGER, goal_id INTEGER, level TEXT, ts TEXT, trial_type TEXT DEFAULT 'acquisition', notes TEXT DEFAULT '', user_id INTEGER, observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', original_value_json TEXT DEFAULT '', edit_history_json TEXT DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS authorizations(id INTEGER PRIMARY KEY, client_id INTEGER, code TEXT, authorized INTEGER, used INTEGER DEFAULT 0);
-CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT, setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', intensity TEXT DEFAULT 'Moderate', duration_sec INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS abc_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, user_id INTEGER, ts TEXT, antecedent TEXT, behavior TEXT, consequence TEXT, perceived_function TEXT, notes TEXT, setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', intensity TEXT DEFAULT 'Moderate', duration_sec INTEGER DEFAULT 0, start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', original_value_json TEXT DEFAULT '', edit_history_json TEXT DEFAULT '[]');
 CREATE TABLE IF NOT EXISTS supervision_logs(id INTEGER PRIMARY KEY, client_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, session_id INTEGER, ts TEXT, minutes INTEGER, type TEXT, notes TEXT);
 CREATE TABLE IF NOT EXISTS behavior_programs(id INTEGER PRIMARY KEY, client_id INTEGER, name TEXT, definition TEXT, measurement_type TEXT DEFAULT 'frequency', function_hypothesis TEXT DEFAULT 'Escape', intensity_criteria TEXT, onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', baseline_data TEXT DEFAULT '', baseline_rate REAL DEFAULT 0, target_rate REAL DEFAULT 0, reduction_goal TEXT DEFAULT '', replacement_skill_goal TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', version INTEGER DEFAULT 1, version_history_json TEXT DEFAULT '[]', updated_at TEXT DEFAULT '', updated_by TEXT DEFAULT '', status TEXT DEFAULT 'active');
-CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '', definition_version INTEGER DEFAULT 1, definition_snapshot TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS behavior_events(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, behavior_id INTEGER, behavior_name TEXT, user_id INTEGER, ts TEXT, measurement_type TEXT DEFAULT 'frequency', count INTEGER DEFAULT 1, duration_sec INTEGER DEFAULT 0, latency_sec INTEGER DEFAULT 0, irt_sec INTEGER DEFAULT 0, interval_total INTEGER DEFAULT 0, interval_occurred INTEGER DEFAULT 0, intensity TEXT DEFAULT 'Moderate', setting TEXT DEFAULT 'School', activity TEXT DEFAULT 'Structured Tabletop', people_present TEXT DEFAULT 'RBT, Peer', notes TEXT DEFAULT '', definition_version INTEGER DEFAULT 1, definition_snapshot TEXT DEFAULT '', start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', original_value_json TEXT DEFAULT '', edit_history_json TEXT DEFAULT '[]');
+CREATE TABLE IF NOT EXISTS session_events(id INTEGER PRIMARY KEY, session_id INTEGER, client_id INTEGER, user_id INTEGER, event_type TEXT DEFAULT 'BEHAVIOR_EVENT', ref_entity_type TEXT DEFAULT '', ref_entity_id INTEGER, label TEXT DEFAULT '', start_ts TEXT DEFAULT '', end_ts TEXT DEFAULT '', duration_sec INTEGER DEFAULT 0, observed_at TEXT DEFAULT '', recorded_at TEXT DEFAULT '', notes TEXT DEFAULT '', value_json TEXT DEFAULT '{}', original_value_json TEXT DEFAULT '{}', edit_history_json TEXT DEFAULT '[]', meta_json TEXT DEFAULT '{}', user_name TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS task_analyses(id INTEGER PRIMARY KEY, client_id INTEGER, title TEXT, chaining_type TEXT DEFAULT 'Forward Chaining', steps_json TEXT DEFAULT '[]', logs_json TEXT DEFAULT '[]', status TEXT DEFAULT 'active');
 CREATE TABLE IF NOT EXISTS fidelity_ioa_logs(id INTEGER PRIMARY KEY, client_id INTEGER, session_id INTEGER, bcba_id INTEGER, rbt_id INTEGER, ts TEXT, log_type TEXT DEFAULT 'both', fidelity_pct INTEGER DEFAULT 100, ioa_pct INTEGER DEFAULT 100, data_json TEXT DEFAULT '{}', notes TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS audit_logs(id INTEGER PRIMARY KEY, ts TEXT, user_id INTEGER, user_name TEXT, client_id INTEGER, session_id INTEGER, entity_type TEXT, entity_id INTEGER, action TEXT, details TEXT);
@@ -39,6 +41,8 @@ CREATE TABLE IF NOT EXISTS client_assessments(id INTEGER PRIMARY KEY, client_id 
 CREATE TABLE IF NOT EXISTS assessment_findings(id INTEGER PRIMARY KEY, client_id INTEGER, assessment_id INTEGER, assessment_name TEXT, domain TEXT, finding_text TEXT, result_value TEXT DEFAULT '', evidence_source TEXT DEFAULT '', context TEXT DEFAULT '', strengths TEXT DEFAULT '', support_needs TEXT DEFAULT '', missing_info_flag TEXT DEFAULT '', priority_status TEXT DEFAULT 'priority_goal', entered_by TEXT DEFAULT '', created_at TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS smart_goal_drafts(id INTEGER PRIMARY KEY, client_id INTEGER, finding_id INTEGER, goal_type TEXT DEFAULT 'skill_acquisition', raw_goal_text TEXT DEFAULT '', refined_goal_text TEXT DEFAULT '', domain TEXT DEFAULT 'Skill Acquisition', operational_definition TEXT DEFAULT '', onset_criteria TEXT DEFAULT '', offset_criteria TEXT DEFAULT '', episode_rule TEXT DEFAULT '', examples TEXT DEFAULT '', non_examples TEXT DEFAULT '', exclusions TEXT DEFAULT '', primary_measurement TEXT DEFAULT 'trial_by_trial', secondary_measurement TEXT DEFAULT '', measurement_rationale TEXT DEFAULT '', data_fields_json TEXT DEFAULT '[]', sample_rows_json TEXT DEFAULT '[]', clarity_json TEXT DEFAULT '{}', baseline_data TEXT DEFAULT '', mastery_criteria TEXT DEFAULT '', status TEXT DEFAULT 'draft', created_by TEXT DEFAULT '', approved_by TEXT DEFAULT '', approved_at TEXT DEFAULT '', activated_entity_type TEXT DEFAULT '', activated_entity_id INTEGER, created_at TEXT DEFAULT '');
 `);
+try { db.exec("ALTER TABLE users ADD COLUMN firebase_uid TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE users ADD COLUMN created_at TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE goals ADD COLUMN operational_definition TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE goals ADD COLUMN onset_criteria TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE goals ADD COLUMN offset_criteria TEXT DEFAULT ''"); } catch (e) {}
@@ -66,11 +70,21 @@ try { db.exec('ALTER TABLE goals ADD COLUMN mastery_sessions INTEGER DEFAULT 3')
 try { db.exec("ALTER TABLE trials ADD COLUMN trial_type TEXT DEFAULT 'acquisition'"); } catch (e) {}
 try { db.exec("ALTER TABLE trials ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec('ALTER TABLE trials ADD COLUMN user_id INTEGER'); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN observed_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN recorded_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN original_value_json TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE trials ADD COLUMN edit_history_json TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN setting TEXT DEFAULT 'School'"); } catch (e) {}
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN activity TEXT DEFAULT 'Structured Tabletop'"); } catch (e) {}
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN people_present TEXT DEFAULT 'RBT, Peer'"); } catch (e) {}
 try { db.exec("ALTER TABLE abc_logs ADD COLUMN intensity TEXT DEFAULT 'Moderate'"); } catch (e) {}
 try { db.exec('ALTER TABLE abc_logs ADD COLUMN duration_sec INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN start_ts TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN end_ts TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN observed_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN recorded_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN original_value_json TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE abc_logs ADD COLUMN edit_history_json TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN onset_criteria TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN offset_criteria TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN examples TEXT DEFAULT ''"); } catch (e) {}
@@ -87,11 +101,35 @@ try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_at TEXT DEFAULT 
 try { db.exec("ALTER TABLE behavior_programs ADD COLUMN updated_by TEXT DEFAULT ''"); } catch (e) {}
 try { db.exec('ALTER TABLE behavior_events ADD COLUMN definition_version INTEGER DEFAULT 1'); } catch (e) {}
 try { db.exec("ALTER TABLE behavior_events ADD COLUMN definition_snapshot TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN start_ts TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN end_ts TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN observed_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN recorded_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN original_value_json TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE behavior_events ADD COLUMN edit_history_json TEXT DEFAULT '[]'"); } catch (e) {}
 try { db.exec("ALTER TABLE goals ADD COLUMN configured_prompts TEXT DEFAULT 'I,V,G'"); } catch (e) {}
 try { db.exec('ALTER TABLE sessions ADD COLUMN breaks_count INTEGER DEFAULT 0'); } catch (e) {}
 try { db.exec("ALTER TABLE sessions ADD COLUMN break_started_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN pauses_count INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE sessions ADD COLUMN pause_started_at TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN total_break_sec INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec('ALTER TABLE sessions ADD COLUMN total_pause_sec INTEGER DEFAULT 0'); } catch (e) {}
+try { db.exec("ALTER TABLE session_events ADD COLUMN notes TEXT DEFAULT ''"); } catch (e) {}
+try { db.exec("ALTER TABLE session_events ADD COLUMN meta_json TEXT DEFAULT '{}'"); } catch (e) {}
+try { db.exec("ALTER TABLE session_events ADD COLUMN original_value_json TEXT DEFAULT '{}'"); } catch (e) {}
+try { db.exec("ALTER TABLE session_events ADD COLUMN edit_history_json TEXT DEFAULT '[]'"); } catch (e) {}
 
 // ---------- helpers ----------
+let isSeeding = false;
+let syncPending = false;
+function scheduleVaultSave() {
+  if (isSeeding || syncPending) return;
+  syncPending = true;
+  queueMicrotask(() => {
+    syncPending = false;
+    FB.saveVaultSnapshot(db);
+  });
+}
 const getLocalDate = (d = new Date()) => {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
@@ -100,7 +138,11 @@ const hash = (p) => { const s = crypto.randomBytes(8).toString('hex'); return s 
 const verify = (p, h) => { const [s, k] = h.split(':'); return crypto.scryptSync(p, s, 32).toString('hex') === k; };
 const all = (sql, ...a) => db.prepare(sql).all(...a);
 const get = (sql, ...a) => db.prepare(sql).get(...a);
-const run = (sql, ...a) => db.prepare(sql).run(...a);
+const run = (sql, ...a) => {
+  const res = db.prepare(sql).run(...a);
+  scheduleVaultSave();
+  return res;
+};
 const parse = (s) => { try { return JSON.parse(s); } catch { return null; } };
 const logAudit = (u, { client_id = null, session_id = null, entity_type = 'record', entity_id = null, action = 'UPDATE', details = '' } = {}) => {
   try {
@@ -697,6 +739,7 @@ function seedClinicalModules(el, le, bcba = 1, rbt = 2) {
   }
 }
 
+isSeeding = true;
 if (!get('SELECT COUNT(*) c FROM users').c) seed();
 
 function upgradeExistingData() {
@@ -787,6 +830,103 @@ function upgradeExistingData() {
   }
   if (!get("SELECT id FROM users WHERE email='admin@eba.test'")) {
     run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', 'Marcus Vance', 'admin@eba.test', hash('password'), 'ADMIN');
+  }
+  // Backfill firebase_uid & created_at on existing users
+  all('SELECT * FROM users').forEach((usr) => {
+    if (!usr.firebase_uid) {
+      run('UPDATE users SET firebase_uid=?, created_at=? WHERE id=?', FB.generateFirebaseUid(usr.email), usr.created_at || new Date().toISOString(), usr.id);
+    }
+  });
+  // Backfill observed_at, recorded_at, start_ts, end_ts, original_value_json, edit_history_json on behavior_events
+  all('SELECT * FROM behavior_events').forEach((ev) => {
+    if (!ev.observed_at || !ev.recorded_at || !ev.original_value_json) {
+      const obsAt = ev.observed_at || ev.ts || new Date().toISOString();
+      const recAt = ev.recorded_at || ev.ts || obsAt;
+      const durSec = Number(ev.duration_sec) || 0;
+      const startTs = ev.start_ts || (durSec > 0 ? new Date(new Date(obsAt).getTime() - durSec * 1000).toISOString() : obsAt);
+      const endTs = ev.end_ts || (durSec > 0 ? obsAt : '');
+      const origSnap = ev.original_value_json || JSON.stringify({
+        behavior_name: ev.behavior_name,
+        measurement_type: ev.measurement_type || 'frequency',
+        count: Number(ev.count) || 1,
+        duration_sec: durSec,
+        latency_sec: Number(ev.latency_sec) || 0,
+        irt_sec: Number(ev.irt_sec) || 0,
+        interval_total: Number(ev.interval_total) || 0,
+        interval_occurred: Number(ev.interval_occurred) || 0,
+        intensity: ev.intensity || 'Moderate',
+        notes: ev.notes || '',
+        start_ts: startTs,
+        end_ts: endTs,
+        observed_at: obsAt,
+        recorded_at: recAt
+      });
+      run(
+        'UPDATE behavior_events SET start_ts=?, end_ts=?, observed_at=?, recorded_at=?, original_value_json=?, edit_history_json=? WHERE id=?',
+        startTs, endTs, obsAt, recAt, origSnap, ev.edit_history_json || '[]', ev.id
+      );
+    }
+  });
+  // Backfill observed_at, recorded_at, original_value_json on abc_logs
+  all('SELECT * FROM abc_logs').forEach((a) => {
+    if (!a.observed_at || !a.recorded_at || !a.original_value_json) {
+      const obsAt = a.observed_at || a.ts || new Date().toISOString();
+      const recAt = a.recorded_at || a.ts || obsAt;
+      const durSec = Number(a.duration_sec) || 0;
+      const startTs = a.start_ts || (durSec > 0 ? new Date(new Date(obsAt).getTime() - durSec * 1000).toISOString() : obsAt);
+      const endTs = a.end_ts || (durSec > 0 ? obsAt : '');
+      const origSnap = a.original_value_json || JSON.stringify({
+        antecedent: a.antecedent,
+        behavior: a.behavior,
+        consequence: a.consequence,
+        perceived_function: a.perceived_function,
+        intensity: a.intensity,
+        duration_sec: durSec,
+        notes: a.notes || '',
+        observed_at: obsAt,
+        recorded_at: recAt
+      });
+      run(
+        'UPDATE abc_logs SET start_ts=?, end_ts=?, observed_at=?, recorded_at=?, original_value_json=?, edit_history_json=? WHERE id=?',
+        startTs, endTs, obsAt, recAt, origSnap, a.edit_history_json || '[]', a.id
+      );
+    }
+  });
+  // Seed session_events for existing sessions if session_events is empty
+  if (!get('SELECT COUNT(*) c FROM session_events').c) {
+    const userMap = Object.fromEntries(all('SELECT * FROM users').map((u) => [u.id, u.name]));
+    all('SELECT * FROM sessions').forEach((s) => {
+      const staffName = userMap[s.user_id] || 'Sam Lee, RBT';
+      const durMin = (Number(s.units) || 8) * 15;
+      const endIso = s.end || new Date().toISOString();
+      const startIso = (s.start && s.start !== s.end)
+        ? s.start
+        : new Date(new Date(endIso).getTime() - durMin * 60000).toISOString();
+      const startPayload = JSON.stringify({ session_id: s.id, status: 'started', start_ts: startIso, observed_at: startIso, recorded_at: startIso });
+      run(
+        'INSERT INTO session_events(client_id,session_id,event_type,ref_entity_type,ref_entity_id,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,value_json,original_value_json,edit_history_json,user_id,user_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        s.client_id, s.id, 'SESSION_START', 'session', s.id, 'Session Started', startIso, startIso, 0, startIso, startIso, startPayload, startPayload, '[]', s.user_id, staffName
+      );
+      all('SELECT * FROM behavior_events WHERE session_id=?', s.id).forEach((ev) => {
+        const isDur = ev.measurement_type === 'duration' || Number(ev.duration_sec) > 0;
+        const evType = isDur ? 'DURATION_EPISODE' : 'BEHAVIOR_EVENT';
+        const valJson = ev.original_value_json || JSON.stringify({ behavior_name: ev.behavior_name, count: ev.count, duration_sec: ev.duration_sec });
+        run(
+          'INSERT INTO session_events(client_id,session_id,event_type,ref_entity_type,ref_entity_id,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,value_json,original_value_json,edit_history_json,user_id,user_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          s.client_id, s.id, evType, 'behavior_event', ev.id, `${ev.behavior_name} (${ev.measurement_type})`,
+          ev.start_ts || ev.ts, ev.end_ts || ev.ts, Number(ev.duration_sec) || 0, ev.observed_at || ev.ts, ev.recorded_at || ev.ts,
+          valJson, valJson, ev.edit_history_json || '[]', ev.user_id || s.user_id, userMap[ev.user_id || s.user_id] || staffName
+        );
+      });
+      if (s.end) {
+        const durSec = Math.max(60, Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000));
+        const endPayload = JSON.stringify({ session_id: s.id, status: 'ended', units: s.units, start_ts: startIso, end_ts: endIso, duration_sec: durSec });
+        run(
+          'INSERT INTO session_events(client_id,session_id,event_type,ref_entity_type,ref_entity_id,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,value_json,original_value_json,edit_history_json,user_id,user_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          s.client_id, s.id, 'SESSION_END', 'session', s.id, `Session Ended (${s.units || 0} units)`, startIso, endIso, durSec, endIso, endIso, endPayload, endPayload, '[]', s.user_id, staffName
+        );
+      }
+    });
   }
   if (!get("SELECT COUNT(*) c FROM leads").c) {
     const tLead1 = new Date(Date.now() - 4 * 3600000).toISOString();
@@ -921,8 +1061,56 @@ function upgradeExistingData() {
       'MSA signed; awaiting HIPAA BAA & Clinical EULA execution before onboarding RBT tablets.'
     );
   }
+  // Backfill firebase_uid on existing users & timestamps on existing behavior_events / sessions
+  for (const usr of all('SELECT * FROM users')) {
+    if (!usr.firebase_uid) {
+      run('UPDATE users SET firebase_uid=?, created_at=? WHERE id=?', FB.generateFirebaseUid(), usr.created_at || new Date().toISOString(), usr.id);
+    }
+  }
+  for (const ev of all('SELECT * FROM behavior_events')) {
+    if (!ev.observed_at || !ev.recorded_at) {
+      const obs = ev.observed_at || ev.ts || new Date().toISOString();
+      const rec = ev.recorded_at || ev.ts || obs;
+      const dur = Number(ev.duration_sec) || 0;
+      const startTs = ev.start_ts || (dur > 0 ? new Date(new Date(obs).getTime() - dur * 1000).toISOString() : '');
+      const endTs = ev.end_ts || (dur > 0 ? obs : '');
+      const orig = ev.original_value_json || JSON.stringify({
+        behavior_name: ev.behavior_name,
+        measurement_type: ev.measurement_type,
+        count: ev.count,
+        duration_sec: dur,
+        latency_sec: ev.latency_sec || 0,
+        irt_sec: ev.irt_sec || 0,
+        start_ts: startTs,
+        end_ts: endTs,
+        observed_at: obs,
+        recorded_at: rec,
+        intensity: ev.intensity || 'Moderate',
+        notes: ev.notes || ''
+      });
+      run('UPDATE behavior_events SET start_ts=?, end_ts=?, observed_at=?, recorded_at=?, original_value_json=?, edit_history_json=? WHERE id=?',
+        startTs, endTs, obs, rec, orig, ev.edit_history_json || '[]', ev.id);
+    }
+  }
+  for (const s of all('SELECT * FROM sessions')) {
+    if (!get('SELECT id FROM session_events WHERE session_id=? AND event_type=?', s.id, 'SESSION_START')) {
+      const startIso = s.start || new Date().toISOString();
+      const origStart = JSON.stringify({ event_type: 'SESSION_START', label: 'Session Started', start_ts: startIso, observed_at: startIso, recorded_at: startIso });
+      run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        s.id, s.client_id, s.user_id, 'SESSION_START', 'Session Started', startIso, startIso, 0, startIso, startIso, 'Timestamped session-start event', origStart, '[]', '{}');
+      if (s.end) {
+        const endIso = s.end;
+        const durSec = Math.max(0, Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000)) || ((Number(s.units) || 0) * 900);
+        const origEnd = JSON.stringify({ event_type: 'SESSION_END', label: 'Session Ended', start_ts: startIso, end_ts: endIso, duration_sec: durSec, observed_at: endIso, recorded_at: endIso });
+        run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          s.id, s.client_id, s.user_id, 'SESSION_END', `Session Ended (${s.units || 0} units)`, startIso, endIso, durSec, endIso, endIso, 'Timestamped session-end event', origEnd, '[]', '{}');
+      }
+    }
+  }
 }
 upgradeExistingData();
+if (ON_VERCEL) FB.loadVaultSnapshot(db);
+isSeeding = false;
 
 // ---------- access control ----------
 function canSeeClient(u, cid) {
@@ -1208,19 +1396,196 @@ const bad = (code, msg) => { const e = new Error(msg); e.code = code; throw e; }
 const need = (u, ...roles) => { if (!roles.includes(u.role)) bad(403, 'Not allowed'); };
 const clientOr403 = (u, cid) => { if (!canSeeClient(u, +cid)) bad(403, 'No access to this client'); };
 
-route('POST', '/api/login', (u, b, p, ctx) => {
-  const row = get('SELECT * FROM users WHERE email=?', (b.email || '').toLowerCase());
+route('POST', '/api/login', async (u, b, p, ctx) => {
+  const emailClean = (b.email || '').trim().toLowerCase();
+  let row = get('SELECT * FROM users WHERE email=?', emailClean);
+  // If a cold serverless instance on Vercel receives a login for a user in the client's synced vault, restore that user first
+  if (!row && b.vaultUser && String(b.vaultUser.email || '').toLowerCase() === emailClean && b.vaultUser.pw) {
+    const r = run('INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
+      b.vaultUser.name || 'Clinician', emailClean, b.vaultUser.pw, b.vaultUser.role || 'BCBA',
+      b.vaultUser.firebase_uid || FB.generateFirebaseUid(emailClean), b.vaultUser.created_at || new Date().toISOString());
+    row = get('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid));
+  }
   if (!row || !verify(b.password || '', row.pw)) bad(401, 'Invalid email or password');
   const primaryLic = getPrimaryLicense();
   if (row.role !== 'OWNER' && isLicenseLockedOut(primaryLic)) {
     bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner logins are blocked until the Practice Owner renews the clinic license key.');
   }
+  const fbAuth = await FB.firebaseAuthRequest('accounts:signInWithPassword', { email: emailClean, password: b.password || '' });
+  const fbUid = (fbAuth && fbAuth.localId) || row.firebase_uid || FB.generateFirebaseUid(emailClean);
+  if (!row.firebase_uid && fbUid) {
+    try { run('UPDATE users SET firebase_uid=? WHERE id=?', fbUid, row.id); } catch (e) {}
+  }
   const tok = makeToken(row.id);
   ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
-  return { id: row.id, name: row.name, role: row.role };
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    firebase_uid: fbUid,
+    firebase: FB.getFirebaseStatus(db)
+  };
 }, { public: true });
+
+route('POST', '/api/auth/register', async (u, b, p, ctx) => {
+  const name = String(b.name || '').trim();
+  const email = String(b.email || '').trim().toLowerCase();
+  const password = String(b.password || '');
+  const allowedRoles = ['BCBA', 'RBT', 'ADMIN', 'OWNER', 'PARENT'];
+  const role = allowedRoles.includes(String(b.role || '').toUpperCase()) ? String(b.role).toUpperCase() : 'BCBA';
+
+  if (!name) bad(400, 'Full name is required');
+  if (!email || !email.includes('@')) bad(400, 'Valid email address is required');
+  if (password.length < 4) bad(400, 'Password must be at least 4 characters');
+
+  const existing = get('SELECT * FROM users WHERE email=?', email);
+  if (existing) bad(409, 'An account with this email already exists. Please sign in.');
+
+  const fbAuth = await FB.firebaseAuthRequest('accounts:signUp', { email, password, displayName: name });
+  if (fbAuth && fbAuth.error === 'EMAIL_EXISTS') {
+    bad(409, 'This email is already registered in Firebase Auth.');
+  }
+  const fbUid = (fbAuth && fbAuth.localId) || FB.generateFirebaseUid(email);
+  const nowIso = new Date().toISOString();
+  const pwHash = hash(password);
+
+  const r = run(
+    'INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
+    name, email, pwHash, role, fbUid, nowIso
+  );
+  const uid = Number(r.lastInsertRowid);
+
+  // Automatically assign demo clients if the newly registered user is an RBT so they can immediately run sessions in the demo
+  if (role === 'RBT') {
+    const clientsList = all('SELECT id FROM clients');
+    clientsList.forEach((c) => {
+      if (!get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', c.id, uid)) {
+        run('INSERT INTO assignments VALUES(?,?)', c.id, uid);
+      }
+    });
+    // Also create a today appointment for the new RBT if none exists
+    const firstClient = clientsList[0];
+    if (firstClient) {
+      const day = getLocalDate();
+      run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)',
+        firstClient.id, uid, `${day}T10:00`, `${day}T12:00`, 'RBT', 'Clinic');
+    }
+  }
+
+  logAudit({ id: uid, name, role }, { entity_type: 'user', entity_id: uid, action: 'FIREBASE_REGISTER_USER', details: `Registered ${role} account ${email} (Firebase UID: ${fbUid})` });
+  FB.saveVaultSnapshot(db);
+
+  const tok = makeToken(uid);
+  ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
+  return {
+    ok: true,
+    id: uid,
+    name,
+    email,
+    role,
+    firebase_uid: fbUid,
+    firebase_connected: true,
+    firebase: FB.getFirebaseStatus(db),
+    vaultUser: { id: uid, name, email, pw: pwHash, role, firebase_uid: fbUid, created_at: nowIso }
+  };
+}, { public: true });
+
+route('POST', '/api/auth/firebase', async (u, b, p, ctx) => {
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!email) bad(400, 'Email is required for Firebase authentication');
+  let row = get('SELECT * FROM users WHERE email=?', email);
+  const fbUid = String(b.firebase_uid || b.uid || FB.generateFirebaseUid(email));
+  if (!row) {
+    const name = String(b.name || b.displayName || email.split('@')[0]).trim();
+    const role = ['BCBA', 'RBT', 'ADMIN', 'OWNER', 'PARENT'].includes(String(b.role || '').toUpperCase())
+      ? String(b.role).toUpperCase()
+      : 'BCBA';
+    const r = run(
+      'INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
+      name, email, hash(b.password || crypto.randomBytes(8).toString('hex')), role, fbUid, new Date().toISOString()
+    );
+    row = get('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid));
+  } else if (!row.firebase_uid) {
+    run('UPDATE users SET firebase_uid=? WHERE id=?', fbUid, row.id);
+  }
+  const tok = makeToken(row.id);
+  ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
+  return {
+    ok: true,
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    firebase_uid: fbUid,
+    firebase: FB.getFirebaseStatus(db)
+  };
+}, { public: true });
+
+route('GET', '/api/firebase/status', () => {
+  return {
+    ...FB.getFirebaseStatus(db),
+    config: FB.getFirebaseConfig()
+  };
+}, { public: true });
+
+route('POST', '/api/firebase/config', (u, b) => {
+  need(u, 'OWNER', 'ADMIN', 'BCBA');
+  const nextCfg = FB.setFirebaseConfig(b || {});
+  logAudit(u, { entity_type: 'firebase_config', entity_id: 1, action: 'UPDATE_FIREBASE_CONFIG', details: `Updated Firebase project configuration (${nextCfg.projectId})` });
+  return {
+    ok: true,
+    ...FB.getFirebaseStatus(db),
+    config: nextCfg
+  };
+});
+
+route('POST', '/api/firebase/sync', (u, b) => {
+  const action = String((b && b.action) || 'pull').toLowerCase();
+  if ((action === 'push' || action === 'merge') && b && b.snapshot && typeof b.snapshot === 'object') {
+    if (action === 'push') {
+      db.importSnapshot(b.snapshot);
+    } else {
+      // Merge custom users and records from client vault if missing on a fresh serverless cold-start
+      const incomingTables = b.snapshot.tables || {};
+      if (Array.isArray(incomingTables.users)) {
+        incomingTables.users.forEach((usr) => {
+          if (usr.email && !get('SELECT id FROM users WHERE email=?', String(usr.email).toLowerCase())) {
+            run('INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
+              usr.name || 'Clinician', String(usr.email).toLowerCase(), usr.pw || hash('password'), usr.role || 'BCBA',
+              usr.firebase_uid || FB.generateFirebaseUid(usr.email), usr.created_at || new Date().toISOString());
+          }
+        });
+      }
+      // If the incoming snapshot has more recent sessions, trials, behavior_events, or session_events than a freshly seeded cold start, import the full snapshot
+      const curEvents = (get('SELECT COUNT(*) c FROM behavior_events') || {}).c || 0;
+      const incEvents = Array.isArray(incomingTables.behavior_events) ? incomingTables.behavior_events.length : 0;
+      const curTrials = (get('SELECT COUNT(*) c FROM trials') || {}).c || 0;
+      const incTrials = Array.isArray(incomingTables.trials) ? incomingTables.trials.length : 0;
+      const curSessions = (get('SELECT COUNT(*) c FROM sessions') || {}).c || 0;
+      const incSessions = Array.isArray(incomingTables.sessions) ? incomingTables.sessions.length : 0;
+      if (incEvents > curEvents || incTrials > curTrials || incSessions > curSessions || b.forceImport) {
+        db.importSnapshot(b.snapshot);
+      }
+    }
+    FB.saveVaultSnapshot(db);
+  }
+  const snap = FB.saveVaultSnapshot(db) || (db.exportSnapshot ? db.exportSnapshot() : null);
+  return {
+    ok: true,
+    action,
+    firebase: FB.getFirebaseStatus(db),
+    snapshot: snap
+  };
+}, { public: true });
+
 route('POST', '/api/logout', (u, b, p, ctx) => { ctx.setCookie = 'tok=; Max-Age=0; Path=/'; return {}; });
-route('GET', '/api/me', (u) => ({ id: u.id, name: u.name, role: u.role }));
+route('GET', '/api/me', (u) => ({
+  id: u.id,
+  name: u.name,
+  role: u.role,
+  firebase: FB.getFirebaseStatus(db)
+}));
 
 // ---------- B2B Commercial Software Licensing, Hybrid Caps & Legal Agreements API ----------
 function enrichLicenseRow(lic, activeClientsCount = 0, activeSeatsCount = 0) {
@@ -2604,16 +2969,14 @@ route('GET', '/api/clients/:id', (u, b, p) => {
   const supervisionLogs = isParent ? [] : all('SELECT s.*, u.name bcba, r.name rbt FROM supervision_logs s JOIN users u ON u.id=s.bcba_id JOIN users r ON r.id=s.rbt_id WHERE s.client_id=? ORDER BY s.id DESC', c.id);
 
   // Target Behavior Programs & Continuous/Interval Measurement Events
-  const behaviorEvents = isParent ? [] : all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id).map((ev) => ({
-    ...ev,
-    behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
-  }));
+  const behaviorEvents = isParent ? [] : all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id).map((ev) => enrichBehaviorEvent(ev));
   const behaviorPrograms = isParent ? [] : all('SELECT * FROM behavior_programs WHERE client_id=?', c.id).map((bp) =>
     enrichBehaviorProgram(bp, behaviorEvents, rawAbc)
   );
   const clientSessions = isParent ? [] : all('SELECT * FROM sessions WHERE client_id=?', c.id);
   const totalSessionMins = Math.max(60, clientSessions.reduce((acc, s) => acc + ((s.units || 4) * 15), 0));
   const behaviorSummary = isParent ? null : G.summarizeBehaviorEvents(behaviorEvents, totalSessionMins);
+  const sessionEvents = isParent ? [] : all('SELECT * FROM session_events WHERE client_id=? ORDER BY id DESC', c.id).map((se) => enrichSessionEvent(se));
 
   // Task Analysis & Chaining Programs
   const taskAnalyses = isParent ? [] : all('SELECT * FROM task_analyses WHERE client_id=?', c.id).map((ta) => {
@@ -2687,6 +3050,7 @@ route('GET', '/api/clients/:id', (u, b, p) => {
     behaviorPrograms,
     behaviorEvents,
     behaviorSummary,
+    sessionEvents,
     taskAnalyses,
     fidelityIoaLogs,
     auditLogs,
@@ -3583,25 +3947,353 @@ route('DELETE', '/api/behaviors/:id', (u, b, p, ctx) => {
   return { ok: true, deleted: true, id: bp.id, preservedEventsCount: linkedEvents.length };
 });
 
-route('POST', '/api/clients/:id/behavior-events', (u, b, p) => {
-  clientOr403(u, p.id);
-  if (u.role === 'PARENT') bad(403, 'Not allowed');
-  const ts = b.ts || new Date().toISOString();
+function enrichBehaviorEvent(ev) {
+  if (!ev) return null;
+  const recordedAt = ev.recorded_at || ev.ts || new Date().toISOString();
+  const observedAt = ev.observed_at || ev.ts || recordedAt;
+  const startTs = ev.start_ts || '';
+  const endTs = ev.end_ts || '';
+  let durationSec = Number(ev.duration_sec) || 0;
+  if (!durationSec && startTs && endTs) {
+    const d = Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000);
+    if (d > 0) durationSec = d;
+  }
+  const origVal = parse(ev.original_value_json) || {
+    behavior_name: ev.behavior_name || ev.behavior || 'Target Behavior',
+    measurement_type: ev.measurement_type || 'frequency',
+    count: Number(ev.count) || 1,
+    duration_sec: durationSec,
+    latency_sec: Number(ev.latency_sec) || 0,
+    irt_sec: Number(ev.irt_sec) || 0,
+    start_ts: startTs,
+    end_ts: endTs,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    intensity: ev.intensity || 'Moderate',
+    notes: ev.notes || ''
+  };
+  const editHistory = parse(ev.edit_history_json) || [];
+  return {
+    ...ev,
+    behavior: ev.behavior_name || ev.behavior || 'Target Behavior',
+    duration_sec: durationSec,
+    start_ts: startTs,
+    end_ts: endTs,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    is_backdated: observedAt !== recordedAt,
+    is_edited: editHistory.length > 0,
+    original_value: origVal,
+    edit_history: editHistory
+  };
+}
+
+function enrichSessionEvent(se) {
+  if (!se) return null;
+  const recordedAt = se.recorded_at || se.end_ts || se.start_ts || new Date().toISOString();
+  const observedAt = se.observed_at || se.start_ts || recordedAt;
+  const origVal = parse(se.original_value_json) || {
+    event_type: se.event_type,
+    label: se.label,
+    start_ts: se.start_ts || '',
+    end_ts: se.end_ts || '',
+    duration_sec: Number(se.duration_sec) || 0,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    notes: se.notes || ''
+  };
+  const editHistory = parse(se.edit_history_json) || [];
+  return {
+    ...se,
+    ts: observedAt,
+    timeline_id: `SE-${se.id}`,
+    raw_id: se.id,
+    raw_table: 'session_events',
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    is_backdated: observedAt !== recordedAt,
+    is_edited: editHistory.length > 0,
+    original_value: origVal,
+    edit_history: editHistory,
+    meta: parse(se.meta_json) || {}
+  };
+}
+
+function insertBehaviorEventWithTimeline(u, clientId, sessionId, b) {
+  const nowIso = new Date().toISOString();
+  const recordedAt = b.recorded_at || nowIso;
+  const observedAt = b.observed_at || b.ts || recordedAt;
+  const ts = observedAt;
   const bid = b.behavior_id || b.behavior_program_id;
   const bp = bid ? get('SELECT * FROM behavior_programs WHERE id=?', +bid) : null;
   const bName = b.behavior_name || b.behavior || (bp ? bp.name : 'Target Behavior');
   const mType = b.measurement_type || (bp ? bp.measurement_type : 'frequency');
   const countVal = b.count !== undefined ? +b.count : (b.value !== undefined && (mType === 'frequency' || mType === 'rate') ? +b.value : 1);
-  const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
+
+  let startTs = b.start_ts || '';
+  let endTs = b.end_ts || '';
+  let durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
+
+  if (startTs && endTs && !durVal) {
+    const calc = Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000);
+    if (calc > 0) durVal = calc;
+  } else if (durVal > 0 && !startTs && !endTs) {
+    endTs = observedAt;
+    startTs = new Date(new Date(endTs).getTime() - durVal * 1000).toISOString();
+  } else if (startTs && !endTs && durVal > 0) {
+    endTs = new Date(new Date(startTs).getTime() + durVal * 1000).toISOString();
+  }
+
   const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
   const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
   const defVer = bp ? (Number(bp.version) || 1) : (Number(b.definition_version) || 1);
   const defSnap = bp ? (bp.definition || '') : (b.definition_snapshot || '');
-  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    +p.id, b.session_id ? +b.session_id : null, bid ? +bid : null, bName, u.id, ts, mType,
+
+  const origPayload = {
+    behavior_name: bName,
+    measurement_type: mType,
+    count: countVal,
+    duration_sec: durVal,
+    latency_sec: latVal,
+    irt_sec: irtVal,
+    interval_total: +b.interval_total || 0,
+    interval_occurred: +b.interval_occurred || 0,
+    start_ts: startTs,
+    end_ts: endTs,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    intensity: b.intensity || 'Moderate',
+    setting: b.setting || 'School',
+    activity: b.activity || 'Structured Tabletop',
+    people_present: b.people_present || 'RBT, Peer',
+    notes: b.notes || ''
+  };
+
+  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot,start_ts,end_ts,observed_at,recorded_at,original_value_json,edit_history_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +clientId, sessionId ? +sessionId : null, bid ? +bid : null, bName, u.id, ts, mType,
     countVal, durVal, latVal, irtVal,
-    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '', defVer, defSnap);
-  return { id: Number(r.lastInsertRowid), definition_version: defVer };
+    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '', defVer, defSnap,
+    startTs, endTs, observedAt, recordedAt, JSON.stringify(origPayload), '[]');
+
+  const evId = Number(r.lastInsertRowid);
+
+  if (sessionId) {
+    const evtLabel = durVal > 0
+      ? `${bName} (${mType}: ${durVal}s [${startTs ? startTs.slice(11, 19) : ''} -> ${endTs ? endTs.slice(11, 19) : ''}])`
+      : `${bName} (${mType}: ${mType === 'latency' ? latVal + 's' : mType === 'irt' ? irtVal + 's' : '+' + countVal})`;
+    run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      +sessionId, +clientId, u.id, durVal > 0 ? 'DURATION_EPISODE' : 'BEHAVIOR_EVENT', evtLabel,
+      startTs || observedAt, endTs || observedAt, durVal, observedAt, recordedAt, b.notes || '',
+      JSON.stringify({ behavior_event_id: evId, ...origPayload }), '[]',
+      JSON.stringify({ source_table: 'behavior_events', source_id: evId, behavior_id: bid ? +bid : null, measurement_type: mType }));
+  }
+
+  const created = get('SELECT * FROM behavior_events WHERE id=?', evId);
+  return {
+    ...enrichBehaviorEvent(created),
+    id: evId,
+    definition_version: defVer
+  };
+}
+
+route('POST', '/api/clients/:id/behavior-events', (u, b, p) => {
+  clientOr403(u, p.id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  return insertBehaviorEventWithTimeline(u, +p.id, b.session_id ? +b.session_id : null, b);
+});
+
+// Edit behavior event record while preserving original value and creating an audit-history entry
+route('GET', '/api/behavior-events/:id', (u, b, p) => {
+  const ev = get('SELECT * FROM behavior_events WHERE id=?', +p.id);
+  if (!ev) bad(404, 'Behavior event not found');
+  clientOr403(u, ev.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  return enrichBehaviorEvent(ev);
+});
+
+route('PUT', '/api/behavior-events/:id', (u, b, p) => {
+  const ev = get('SELECT * FROM behavior_events WHERE id=?', +p.id);
+  if (!ev) bad(404, 'Behavior event not found');
+  clientOr403(u, ev.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const nowIso = new Date().toISOString();
+  const prevEnriched = enrichBehaviorEvent(ev);
+  const preservedOriginal = prevEnriched.original_value;
+  const editHistory = Array.isArray(prevEnriched.edit_history) ? [...prevEnriched.edit_history] : [];
+
+  const nextBehaviorName = b.behavior_name !== undefined ? String(b.behavior_name).trim() : ev.behavior_name;
+  const nextMeasurementType = b.measurement_type !== undefined ? String(b.measurement_type).trim() : ev.measurement_type;
+  const nextCount = b.count !== undefined ? +b.count : Number(ev.count) || 1;
+  const nextStartTs = b.start_ts !== undefined ? String(b.start_ts) : (ev.start_ts || '');
+  const nextEndTs = b.end_ts !== undefined ? String(b.end_ts) : (ev.end_ts || '');
+  let nextDurationSec = b.duration_sec !== undefined ? +b.duration_sec : (Number(ev.duration_sec) || 0);
+  if (nextStartTs && nextEndTs && (b.duration_sec === undefined || !nextDurationSec)) {
+    const calc = Math.round((new Date(nextEndTs).getTime() - new Date(nextStartTs).getTime()) / 1000);
+    if (calc > 0) nextDurationSec = calc;
+  }
+  const nextLatencySec = b.latency_sec !== undefined ? +b.latency_sec : (Number(ev.latency_sec) || 0);
+  const nextIrtSec = b.irt_sec !== undefined ? +b.irt_sec : (Number(ev.irt_sec) || 0);
+  const nextIntervalTotal = b.interval_total !== undefined ? +b.interval_total : (Number(ev.interval_total) || 0);
+  const nextIntervalOccurred = b.interval_occurred !== undefined ? +b.interval_occurred : (Number(ev.interval_occurred) || 0);
+  const nextObservedAt = b.observed_at !== undefined ? String(b.observed_at) : (ev.observed_at || ev.ts);
+  const nextRecordedAt = ev.recorded_at || ev.ts; // recorded_at stays anchored to initial creation time
+  const nextIntensity = b.intensity !== undefined ? String(b.intensity) : (ev.intensity || 'Moderate');
+  const nextSetting = b.setting !== undefined ? String(b.setting) : (ev.setting || 'School');
+  const nextActivity = b.activity !== undefined ? String(b.activity) : (ev.activity || 'Structured Tabletop');
+  const nextNotes = b.notes !== undefined ? String(b.notes) : (ev.notes || '');
+
+  const changes = [];
+  if (nextBehaviorName !== ev.behavior_name) changes.push(`behavior_name: "${ev.behavior_name}" -> "${nextBehaviorName}"`);
+  if (nextMeasurementType !== ev.measurement_type) changes.push(`measurement_type: "${ev.measurement_type}" -> "${nextMeasurementType}"`);
+  if (nextCount !== Number(ev.count)) changes.push(`count: ${ev.count} -> ${nextCount}`);
+  if (nextDurationSec !== Number(ev.duration_sec || 0)) changes.push(`duration_sec: ${ev.duration_sec || 0}s -> ${nextDurationSec}s`);
+  if (nextLatencySec !== Number(ev.latency_sec || 0)) changes.push(`latency_sec: ${ev.latency_sec || 0}s -> ${nextLatencySec}s`);
+  if (nextIrtSec !== Number(ev.irt_sec || 0)) changes.push(`irt_sec: ${ev.irt_sec || 0}s -> ${nextIrtSec}s`);
+  if (nextStartTs !== (ev.start_ts || '')) changes.push(`start_ts: "${ev.start_ts || ''}" -> "${nextStartTs}"`);
+  if (nextEndTs !== (ev.end_ts || '')) changes.push(`end_ts: "${ev.end_ts || ''}" -> "${nextEndTs}"`);
+  if (nextObservedAt !== (ev.observed_at || ev.ts)) changes.push(`observed_at: "${ev.observed_at || ev.ts}" -> "${nextObservedAt}"`);
+  if (nextIntensity !== (ev.intensity || 'Moderate')) changes.push(`intensity: "${ev.intensity}" -> "${nextIntensity}"`);
+  if (nextNotes !== (ev.notes || '')) changes.push(`notes: "${ev.notes || ''}" -> "${nextNotes}"`);
+
+  const previousSnapshot = {
+    behavior_name: ev.behavior_name,
+    measurement_type: ev.measurement_type,
+    count: Number(ev.count) || 1,
+    duration_sec: Number(ev.duration_sec) || 0,
+    latency_sec: Number(ev.latency_sec) || 0,
+    irt_sec: Number(ev.irt_sec) || 0,
+    start_ts: ev.start_ts || '',
+    end_ts: ev.end_ts || '',
+    observed_at: ev.observed_at || ev.ts,
+    recorded_at: nextRecordedAt,
+    intensity: ev.intensity || 'Moderate',
+    notes: ev.notes || ''
+  };
+  const updatedSnapshot = {
+    behavior_name: nextBehaviorName,
+    measurement_type: nextMeasurementType,
+    count: nextCount,
+    duration_sec: nextDurationSec,
+    latency_sec: nextLatencySec,
+    irt_sec: nextIrtSec,
+    start_ts: nextStartTs,
+    end_ts: nextEndTs,
+    observed_at: nextObservedAt,
+    recorded_at: nextRecordedAt,
+    intensity: nextIntensity,
+    notes: nextNotes
+  };
+
+  const historyEntry = {
+    edited_at: nowIso,
+    edited_by: u.name,
+    edited_by_role: u.role,
+    reason: b.edit_reason || b.reason || 'Clinical data correction',
+    changes: changes.length ? changes : ['Updated behavior event record'],
+    previous_value: previousSnapshot,
+    new_value: updatedSnapshot
+  };
+  editHistory.push(historyEntry);
+
+  run('UPDATE behavior_events SET behavior_name=?, measurement_type=?, count=?, duration_sec=?, latency_sec=?, irt_sec=?, interval_total=?, interval_occurred=?, start_ts=?, end_ts=?, observed_at=?, ts=?, intensity=?, setting=?, activity=?, notes=?, original_value_json=?, edit_history_json=? WHERE id=?',
+    nextBehaviorName, nextMeasurementType, nextCount, nextDurationSec, nextLatencySec, nextIrtSec, nextIntervalTotal, nextIntervalOccurred,
+    nextStartTs, nextEndTs, nextObservedAt, nextObservedAt, nextIntensity, nextSetting, nextActivity, nextNotes,
+    JSON.stringify(preservedOriginal), JSON.stringify(editHistory), ev.id);
+
+  const auditEntry = logAudit(u, {
+    client_id: ev.client_id,
+    session_id: ev.session_id,
+    entity_type: 'behavior_event',
+    entity_id: ev.id,
+    action: 'EDIT_BEHAVIOR_EVENT',
+    details: `Edited behavior event #${ev.id} (${nextBehaviorName}): ${historyEntry.changes.join('; ')} · Original value preserved`
+  });
+
+  const updatedEv = enrichBehaviorEvent(get('SELECT * FROM behavior_events WHERE id=?', ev.id));
+  return {
+    ok: true,
+    ...updatedEv,
+    event: updatedEv,
+    original_value: updatedEv.original_value,
+    edit_history: updatedEv.edit_history,
+    audit_entry: auditEntry
+  };
+});
+
+// Edit session timeline event (e.g. break, pause, duration episode) while preserving original value + audit history
+route('PUT', '/api/session-events/:id', (u, b, p) => {
+  const se = get('SELECT * FROM session_events WHERE id=?', +p.id);
+  if (!se) bad(404, 'Session event not found');
+  clientOr403(u, se.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+
+  const nowIso = new Date().toISOString();
+  const prevEnriched = enrichSessionEvent(se);
+  const preservedOriginal = prevEnriched.original_value;
+  const editHistory = Array.isArray(prevEnriched.edit_history) ? [...prevEnriched.edit_history] : [];
+
+  const nextLabel = b.label !== undefined ? String(b.label) : se.label;
+  const nextStartTs = b.start_ts !== undefined ? String(b.start_ts) : (se.start_ts || '');
+  const nextEndTs = b.end_ts !== undefined ? String(b.end_ts) : (se.end_ts || '');
+  let nextDurationSec = b.duration_sec !== undefined ? +b.duration_sec : (Number(se.duration_sec) || 0);
+  if (nextStartTs && nextEndTs && (b.duration_sec === undefined || !nextDurationSec)) {
+    const calc = Math.round((new Date(nextEndTs).getTime() - new Date(nextStartTs).getTime()) / 1000);
+    if (calc >= 0) nextDurationSec = calc;
+  }
+  const nextObservedAt = b.observed_at !== undefined ? String(b.observed_at) : (se.observed_at || se.start_ts);
+  const nextNotes = b.notes !== undefined ? String(b.notes) : (se.notes || '');
+
+  const changes = [];
+  if (nextLabel !== se.label) changes.push(`label: "${se.label}" -> "${nextLabel}"`);
+  if (nextStartTs !== (se.start_ts || '')) changes.push(`start_ts: "${se.start_ts || ''}" -> "${nextStartTs}"`);
+  if (nextEndTs !== (se.end_ts || '')) changes.push(`end_ts: "${se.end_ts || ''}" -> "${nextEndTs}"`);
+  if (nextDurationSec !== Number(se.duration_sec || 0)) changes.push(`duration_sec: ${se.duration_sec || 0}s -> ${nextDurationSec}s`);
+  if (nextObservedAt !== (se.observed_at || se.start_ts)) changes.push(`observed_at: "${se.observed_at || se.start_ts}" -> "${nextObservedAt}"`);
+  if (nextNotes !== (se.notes || '')) changes.push(`notes: "${se.notes || ''}" -> "${nextNotes}"`);
+
+  editHistory.push({
+    edited_at: nowIso,
+    edited_by: u.name,
+    edited_by_role: u.role,
+    reason: b.edit_reason || b.reason || 'Timeline adjustment',
+    changes: changes.length ? changes : ['Updated session event'],
+    previous_value: {
+      label: se.label,
+      start_ts: se.start_ts || '',
+      end_ts: se.end_ts || '',
+      duration_sec: Number(se.duration_sec) || 0,
+      observed_at: se.observed_at || se.start_ts,
+      notes: se.notes || ''
+    },
+    new_value: {
+      label: nextLabel,
+      start_ts: nextStartTs,
+      end_ts: nextEndTs,
+      duration_sec: nextDurationSec,
+      observed_at: nextObservedAt,
+      notes: nextNotes
+    }
+  });
+
+  run('UPDATE session_events SET label=?, start_ts=?, end_ts=?, duration_sec=?, observed_at=?, notes=?, original_value_json=?, edit_history_json=? WHERE id=?',
+    nextLabel, nextStartTs, nextEndTs, nextDurationSec, nextObservedAt, nextNotes,
+    JSON.stringify(preservedOriginal), JSON.stringify(editHistory), se.id);
+
+  const auditEntry = logAudit(u, {
+    client_id: se.client_id,
+    session_id: se.session_id,
+    entity_type: 'session_event',
+    entity_id: se.id,
+    action: 'EDIT_SESSION_EVENT',
+    details: `Edited session timeline event #${se.id} (${se.event_type}): ${changes.join('; ') || 'Updated'} · Original value preserved`
+  });
+
+  return {
+    ok: true,
+    event: enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', se.id)),
+    audit_entry: auditEntry
+  };
 });
 
 // Task Analysis & Chaining Endpoints
@@ -3651,15 +4343,38 @@ route('POST', '/api/task-analysis/:id/log', (u, b, p) => {
   return { ok: true, entry, ...entry };
 });
 
-// ABC Data collection (with extended contextual fields)
+// ABC Data collection (with extended contextual fields & automatic observed/recorded timestamps)
 route('POST', '/api/clients/:id/abc', (u, b, p) => {
   clientOr403(u, p.id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.behavior) bad(400, 'Behavior required');
-  const ts = b.ts || new Date().toISOString();
-  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    +p.id, b.session_id ? +b.session_id : null, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
-    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', +b.duration_sec || 0);
-  return { id: Number(r.lastInsertRowid) };
+  const nowIso = new Date().toISOString();
+  const recordedAt = b.recorded_at || nowIso;
+  const observedAt = b.observed_at || b.ts || recordedAt;
+  const startTs = b.start_ts || '';
+  const endTs = b.end_ts || '';
+  let durSec = +b.duration_sec || 0;
+  if (!durSec && startTs && endTs) {
+    const d = Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000);
+    if (d > 0) durSec = d;
+  }
+  const origVal = {
+    antecedent: b.antecedent || 'Unspecified',
+    behavior: b.behavior,
+    consequence: b.consequence || 'Prompted replacement',
+    perceived_function: b.perceived_function || 'Escape',
+    duration_sec: durSec,
+    start_ts: startTs,
+    end_ts: endTs,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    intensity: b.intensity || 'Moderate',
+    notes: b.notes || ''
+  };
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec,start_ts,end_ts,observed_at,recorded_at,original_value_json,edit_history_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    +p.id, b.session_id ? +b.session_id : null, u.id, observedAt, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
+    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', durSec,
+    startTs, endTs, observedAt, recordedAt, JSON.stringify(origVal), '[]');
+  return { id: Number(r.lastInsertRowid), observed_at: observedAt, recorded_at: recordedAt, duration_sec: durSec };
 });
 route('GET', '/api/clients/:id/abc', (u, b, p) => {
   clientOr403(u, p.id); if (u.role === 'PARENT') bad(403, 'Not allowed');
@@ -3677,11 +4392,11 @@ route('GET', '/api/clients/:id/export-csv', (u, b, p, ctx) => {
 
   if (exportType === 'behaviors') {
     const abc = all('SELECT * FROM abc_logs WHERE client_id=? ORDER BY id DESC', c.id);
-    const bev = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id);
-    const header = ['RecordType', 'Timestamp', 'Behavior', 'MeasurementType', 'Count', 'DurationSec', 'LatencySec', 'IRTSec', 'IntervalRatio', 'Intensity', 'Antecedent', 'Consequence', 'Function', 'Setting', 'Activity', 'PeoplePresent', 'Notes'];
+    const bev = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', c.id).map(enrichBehaviorEvent);
+    const header = ['RecordType', 'ObservedTime', 'RecordedTime', 'StartTimestamp', 'EndTimestamp', 'Behavior', 'MeasurementType', 'Count', 'DurationSec', 'LatencySec', 'IRTSec', 'IntervalRatio', 'Intensity', 'Antecedent', 'Consequence', 'Function', 'Setting', 'Activity', 'PeoplePresent', 'Edited', 'Notes'];
     const rows = [
-      ...bev.map((e) => ['Continuous/Interval', e.ts, e.behavior_name, e.measurement_type, e.count, e.duration_sec, e.latency_sec, e.irt_sec, e.interval_total ? `${e.interval_occurred}/${e.interval_total}` : 'N/A', e.intensity, '', '', '', e.setting, e.activity, e.people_present, e.notes]),
-      ...abc.map((a) => ['ABC Episode', a.ts, a.behavior, 'abc', 1, a.duration_sec || 0, 0, 0, 'N/A', a.intensity || 'Moderate', a.antecedent, a.consequence, a.perceived_function, a.setting || 'School', a.activity || 'Tabletop', a.people_present || 'RBT', a.notes])
+      ...bev.map((e) => ['Continuous/Interval', e.observed_at, e.recorded_at, e.start_ts || '', e.end_ts || '', e.behavior_name, e.measurement_type, e.count, e.duration_sec, e.latency_sec, e.irt_sec, e.interval_total ? `${e.interval_occurred}/${e.interval_total}` : 'N/A', e.intensity, '', '', '', e.setting, e.activity, e.people_present, e.is_edited ? 'Yes' : 'No', e.notes]),
+      ...abc.map((a) => ['ABC Episode', a.observed_at || a.ts, a.recorded_at || a.ts, a.start_ts || '', a.end_ts || '', a.behavior, 'abc', 1, a.duration_sec || 0, 0, 0, 'N/A', a.intensity || 'Moderate', a.antecedent, a.consequence, a.perceived_function, a.setting || 'School', a.activity || 'Tabletop', a.people_present || 'RBT', 'No', a.notes])
     ];
     const csv = [header.map(csvEsc).join(','), ...rows.map((r) => r.map(csvEsc).join(','))].join('\n');
     return { filename: `${c.name}_Behavior_Observations_${getLocalDate()}.csv`, type: 'behaviors', rowCount: rows.length, csv };
@@ -3691,12 +4406,13 @@ route('GET', '/api/clients/:id/export-csv', (u, b, p, ctx) => {
   const goals = all('SELECT * FROM goals WHERE client_id=?', c.id).map(goalProgress);
   const goalMap = Object.fromEntries(goals.map((g) => [g.id, g]));
   const rawTrials = all('SELECT * FROM trials ORDER BY id DESC').filter((t) => !!goalMap[t.goal_id]);
-  const header = ['TrialID', 'Timestamp', 'SessionID', 'GoalID', 'GoalTitle', 'Domain', 'ScoringRule', 'TrialType', 'ResponseCode', 'ResponseLabel', 'GoalOverallIndependentRatio', 'GoalOverallCorrectRatio', 'Notes'];
+  const header = ['TrialID', 'ObservedTime', 'RecordedTime', 'SessionID', 'GoalID', 'GoalTitle', 'Domain', 'ScoringRule', 'TrialType', 'ResponseCode', 'ResponseLabel', 'GoalOverallIndependentRatio', 'GoalOverallCorrectRatio', 'Notes'];
   const rows = rawTrials.map((t) => {
     const g = goalMap[t.goal_id] || {};
     return [
       t.id,
-      t.ts,
+      t.observed_at || t.ts,
+      t.recorded_at || t.ts,
       t.session_id,
       t.goal_id,
       g.title || '',
@@ -3819,17 +4535,18 @@ route('GET', '/api/schedule', (u, b, p, ctx) => {
 route('POST', '/api/appointments', (u, b) => {
   need(u, 'BCBA', 'OWNER', 'ADMIN');
   const today = new Date().toISOString().slice(0, 10);
-  const startVal = b.start || (b.date && b.start_time ? `${b.date}T${b.start_time}` : `${today}T09:00`);
+  const startVal = b.start || b.scheduled_for || (b.date && b.start_time ? `${b.date}T${b.start_time}` : `${today}T09:00`);
   const endVal = b.end || (b.date && b.end_time ? `${b.date}T${b.end_time}` : `${today}T12:00`);
-  if (!b.client_id || !b.user_id || !startVal || !endVal) bad(400, 'All fields required');
-  const staff = get('SELECT * FROM users WHERE id=?', +b.user_id);
+  const staffUid = b.user_id || b.staff_id;
+  if (!b.client_id || !staffUid || !startVal || !endVal) bad(400, 'All fields required');
+  const staff = get('SELECT * FROM users WHERE id=?', +staffUid);
   if (!staff) bad(404, 'Clinician not found');
-  const settingVal = b.setting || 'Clinic';
-  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +b.user_id, startVal, endVal, staff.role, settingVal);
+  const settingVal = b.setting || b.location || 'Clinic';
+  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +staffUid, startVal, endVal, staff.role, settingVal);
   if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) {
     run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
   }
-  return { id: Number(r.lastInsertRowid), client_id: +b.client_id, user_id: +b.user_id, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
+  return { id: Number(r.lastInsertRowid), client_id: +b.client_id, user_id: +staffUid, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
 });
 route('PUT', '/api/appointments/:id', (u, b, p) => {
   need(u, 'BCBA', 'OWNER', 'ADMIN');
@@ -3863,40 +4580,297 @@ route('POST', '/api/staff', (u, b) => {
       bad(403, `License Clinician Seat Cap Reached (${primaryLic.max_seats} staff seats max on ${primaryLic.tier.toUpperCase()} tier). Upgrade clinic license or increase the Per-Seat Cap.`);
     }
   }
-  const r = run('INSERT INTO users(name,email,pw,role) VALUES(?,?,?,?)', String(b.name).trim(), String(b.email).trim().toLowerCase(), hash(b.password || 'password'), role);
+  const r = run('INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)', String(b.name).trim(), String(b.email).trim().toLowerCase(), hash(b.password || 'password'), role, FB.generateFirebaseUid(), new Date().toISOString());
   return { id: Number(r.lastInsertRowid), name: b.name, email: b.email, role };
 });
 
-// sessions
+// sessions & timestamped session/behavior timeline
 route('POST', '/api/appointments/:id/start', (u, b, p) => {
   const a = get('SELECT * FROM appointments WHERE id=?', +p.id); if (!a) bad(404, 'Not found');
   if (u.role === 'PARENT') bad(403, 'Not allowed'); clientOr403(u, a.client_id);
-  const ex = get('SELECT id FROM sessions WHERE appointment_id=?', a.id); if (ex) return { id: ex.id };
-  const r = run('INSERT INTO sessions(appointment_id,client_id,user_id,start) VALUES(?,?,?,?)', a.id, a.client_id, u.id, new Date().toISOString());
-  return { id: Number(r.lastInsertRowid) };
+  const ex = get('SELECT * FROM sessions WHERE appointment_id=?', a.id);
+  if (ex) {
+    const existingStartEvt = get('SELECT * FROM session_events WHERE session_id=? AND event_type=?', ex.id, 'SESSION_START');
+    return { id: ex.id, session_id: ex.id, start: ex.start, session_start_event: enrichSessionEvent(existingStartEvt) };
+  }
+  const recordedAt = new Date().toISOString();
+  const observedAt = b && b.observed_at ? String(b.observed_at) : recordedAt;
+  const r = run('INSERT INTO sessions(appointment_id,client_id,user_id,start) VALUES(?,?,?,?)', a.id, a.client_id, u.id, observedAt);
+  const sid = Number(r.lastInsertRowid);
+  const origStart = { event_type: 'SESSION_START', label: 'Session Started', start_ts: observedAt, observed_at: observedAt, recorded_at: recordedAt };
+  const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    sid, a.client_id, u.id, 'SESSION_START', `Session Started (${a.setting || 'Clinic'})`, observedAt, observedAt, 0, observedAt, recordedAt, (b && b.notes) || '', JSON.stringify(origStart), '[]', JSON.stringify({ appointment_id: a.id, setting: a.setting || 'Clinic' }));
+  logAudit(u, { client_id: a.client_id, session_id: sid, entity_type: 'session', entity_id: sid, action: 'START_SESSION', details: `Started session #${sid} at ${observedAt} (recorded ${recordedAt})` });
+  const startEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+  return { id: sid, session_id: sid, start: observedAt, recorded_at: recordedAt, session_start_event: startEvent };
 });
+
+function buildSessionTimelineAndTraceability(s, behaviorEvents, abcLogs, trials) {
+  const rawSessionEvents = all('SELECT * FROM session_events WHERE session_id=? ORDER BY id ASC', s.id).map(enrichSessionEvent);
+  const timeline = [];
+  const hasStartEvent = rawSessionEvents.some((e) => e.event_type === 'SESSION_START');
+  if (!hasStartEvent && s.start) {
+    timeline.push({
+      id: `synth-start-${s.id}`,
+      session_id: s.id,
+      client_id: s.client_id,
+      event_type: 'SESSION_START',
+      category: 'session',
+      label: 'Session Started',
+      start_ts: s.start,
+      end_ts: s.start,
+      duration_sec: 0,
+      observed_at: s.start,
+      recorded_at: s.start,
+      is_backdated: false,
+      is_edited: false,
+      source_table: 'sessions',
+      source_id: s.id
+    });
+  }
+
+  for (const se of rawSessionEvents) {
+    // Skip duplicate behavior event rows if we already include behavior_events directly with richer detail
+    if (se.meta && se.meta.source_table === 'behavior_events') continue;
+    timeline.push({
+      ...se,
+      timeline_id: `SE-${se.id}`,
+      raw_id: se.id,
+      raw_table: 'session_events',
+      ts: se.observed_at || se.start_ts || se.recorded_at,
+      category: se.event_type.includes('BREAK') ? 'break' : se.event_type.includes('PAUSE') ? 'pause' : 'session',
+      source_table: 'session_events',
+      source_id: se.id
+    });
+  }
+
+  for (const ev of behaviorEvents) {
+    timeline.push({
+      id: ev.id,
+      timeline_id: `BEH-${ev.id}`,
+      raw_id: ev.id,
+      raw_table: 'behavior_events',
+      ts: ev.observed_at || ev.ts,
+      behavior_event_id: ev.id,
+      session_id: s.id,
+      client_id: s.client_id,
+      event_type: ev.duration_sec > 0 ? 'DURATION_EPISODE' : 'BEHAVIOR_EVENT',
+      category: 'behavior',
+      label: `${ev.behavior_name || ev.behavior} (${ev.measurement_type})`,
+      behavior_name: ev.behavior_name || ev.behavior,
+      measurement_type: ev.measurement_type,
+      count: ev.count,
+      start_ts: ev.start_ts || ev.observed_at,
+      end_ts: ev.end_ts || ev.observed_at,
+      duration_sec: Number(ev.duration_sec) || 0,
+      latency_sec: Number(ev.latency_sec) || 0,
+      irt_sec: Number(ev.irt_sec) || 0,
+      observed_at: ev.observed_at,
+      recorded_at: ev.recorded_at,
+      is_backdated: ev.is_backdated,
+      is_edited: ev.is_edited,
+      original_value: ev.original_value,
+      edit_history: ev.edit_history,
+      notes: ev.notes || '',
+      source_table: 'behavior_events',
+      source_id: ev.id
+    });
+  }
+
+  for (const a of abcLogs) {
+    timeline.push({
+      id: `abc-${a.id}`,
+      timeline_id: `ABC-${a.id}`,
+      raw_id: a.id,
+      raw_table: 'abc_logs',
+      ts: a.observed_at || a.ts,
+      abc_id: a.id,
+      session_id: s.id,
+      client_id: s.client_id,
+      event_type: 'ABC_EVENT',
+      category: 'abc',
+      label: `ABC: ${a.antecedent} -> ${a.behavior} -> ${a.consequence} (${a.perceived_function})`,
+      start_ts: a.start_ts || a.observed_at || a.ts,
+      end_ts: a.end_ts || a.observed_at || a.ts,
+      duration_sec: Number(a.duration_sec) || 0,
+      observed_at: a.observed_at || a.ts,
+      recorded_at: a.recorded_at || a.ts,
+      is_backdated: (a.observed_at || a.ts) !== (a.recorded_at || a.ts),
+      is_edited: false,
+      notes: a.notes || '',
+      source_table: 'abc_logs',
+      source_id: a.id
+    });
+  }
+
+  const hasEndEvent = rawSessionEvents.some((e) => e.event_type === 'SESSION_END');
+  if (!hasEndEvent && s.end) {
+    const sessDurSec = Math.max(0, Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 1000));
+    timeline.push({
+      id: `synth-end-${s.id}`,
+      timeline_id: `SE-END-${s.id}`,
+      raw_id: s.id,
+      raw_table: 'sessions',
+      ts: s.end,
+      session_id: s.id,
+      client_id: s.client_id,
+      event_type: 'SESSION_END',
+      category: 'session',
+      label: `Session Ended (${s.units || 0} billable units)`,
+      start_ts: s.start,
+      end_ts: s.end,
+      duration_sec: sessDurSec,
+      observed_at: s.end,
+      recorded_at: s.end,
+      is_backdated: false,
+      is_edited: false,
+      source_table: 'sessions',
+      source_id: s.id
+    });
+  }
+
+  timeline.sort((a, b) => String(a.observed_at || a.start_ts || '').localeCompare(String(b.observed_at || b.start_ts || '')));
+
+  const breakEvents = rawSessionEvents.filter((e) => e.event_type === 'BREAK_START' || e.event_type === 'BREAK_END');
+  const pauseEvents = rawSessionEvents.filter((e) => e.event_type === 'PAUSE_START' || e.event_type === 'PAUSE_END');
+  const totalBreakSec = Number(s.total_break_sec) || breakEvents.filter((e) => e.event_type === 'BREAK_END').reduce((acc, e) => acc + (Number(e.duration_sec) || 0), 0);
+  const totalPauseSec = Number(s.total_pause_sec) || pauseEvents.filter((e) => e.event_type === 'PAUSE_END').reduce((acc, e) => acc + (Number(e.duration_sec) || 0), 0);
+  const totalElapsedSec = s.end
+    ? Math.max(1, Math.round((new Date(s.end).getTime() - new Date(s.start).getTime()) / 1000))
+    : Math.max(60, Math.round((Date.now() - new Date(s.start).getTime()) / 1000));
+  const netInstructionalSec = Math.max(0, totalElapsedSec - totalBreakSec - totalPauseSec);
+
+  const durationBehaviorEvents = behaviorEvents.filter((e) => (Number(e.duration_sec) || 0) > 0);
+  const totalBehaviorDurationSec = durationBehaviorEvents.reduce((acc, e) => acc + (Number(e.duration_sec) || 0), 0);
+  const totalOccurrences = behaviorEvents.reduce((acc, e) => acc + (Number(e.count) || 1), 0);
+  const ratePerHour = Number(((totalOccurrences / Math.max(0.25, totalElapsedSec / 3600))).toFixed(2));
+  const backdatedEventsCount = behaviorEvents.filter((e) => e.is_backdated).length;
+  const editedEventsCount = behaviorEvents.filter((e) => e.is_edited).length;
+
+  const durationSummaryObj = {
+    metric: 'Duration-Based Behavior Episodes',
+    episodeCount: durationBehaviorEvents.length,
+    totalDurationSec: totalBehaviorDurationSec,
+    avgDurationSec: durationBehaviorEvents.length ? Math.round(totalBehaviorDurationSec / durationBehaviorEvents.length) : 0,
+    sourceEventIds: [...durationBehaviorEvents.map((e) => `BEH-${e.id}`), ...durationBehaviorEvents.map((e) => e.id)],
+    sourceEvents: durationBehaviorEvents.map((e) => ({
+      id: e.id,
+      timeline_id: `BEH-${e.id}`,
+      behavior_name: e.behavior_name,
+      start_ts: e.start_ts,
+      end_ts: e.end_ts,
+      duration_sec: e.duration_sec,
+      observed_at: e.observed_at,
+      recorded_at: e.recorded_at,
+      is_edited: e.is_edited
+    }))
+  };
+
+  const rateSummaryObj = {
+    metric: 'Behavior Frequency & Rate per Hour',
+    totalOccurrences,
+    frequencyCount: totalOccurrences,
+    ratePerHour,
+    sourceEventIds: [...behaviorEvents.map((e) => `BEH-${e.id}`), ...behaviorEvents.map((e) => e.id)],
+    sourceEvents: behaviorEvents.map((e) => ({
+      id: e.id,
+      timeline_id: `BEH-${e.id}`,
+      behavior_name: e.behavior_name,
+      measurement_type: e.measurement_type,
+      count: e.count,
+      duration_sec: e.duration_sec,
+      observed_at: e.observed_at,
+      recorded_at: e.recorded_at,
+      is_edited: e.is_edited
+    }))
+  };
+
+  const integritySummaryObj = {
+    metric: 'Observed vs. Recorded Time Integrity',
+    totalBehaviorEvents: behaviorEvents.length,
+    backdatedCount: backdatedEventsCount,
+    backdatedEventsCount,
+    editedCount: editedEventsCount,
+    editedEventsCount,
+    sourceEventIds: [...behaviorEvents.filter((e) => e.is_backdated || e.is_edited).map((e) => `BEH-${e.id}`), ...behaviorEvents.filter((e) => e.is_backdated || e.is_edited).map((e) => e.id)]
+  };
+
+  const traceableSummary = {
+    sessionTiming: {
+      metric: 'Session Elapsed & Instructional Time',
+      sessionStartTs: s.start,
+      sessionEndTs: s.end || null,
+      totalSessionSec: totalElapsedSec,
+      totalElapsedSec,
+      totalElapsedMinutes: Math.round(totalElapsedSec / 60),
+      totalBreakSec,
+      totalPauseSec,
+      netInstructionalSec,
+      netInstructionalMinutes: Math.max(1, Math.round(netInstructionalSec / 60)),
+      sourceEventIds: [...rawSessionEvents.map((e) => `SE-${e.id}`), ...rawSessionEvents.map((e) => e.id)],
+      sourceEvents: rawSessionEvents.map((e) => ({
+        id: e.id,
+        timeline_id: `SE-${e.id}`,
+        event_type: e.event_type,
+        label: e.label,
+        start_ts: e.start_ts,
+        end_ts: e.end_ts,
+        duration_sec: e.duration_sec,
+        observed_at: e.observed_at,
+        recorded_at: e.recorded_at
+      }))
+    },
+    breaksAndPauses: {
+      metric: 'Breaks & Pauses',
+      breaksCount: Number(s.breaks_count) || breakEvents.filter((e) => e.event_type === 'BREAK_START').length,
+      pausesCount: Number(s.pauses_count) || pauseEvents.filter((e) => e.event_type === 'PAUSE_START').length,
+      totalBreakSec,
+      totalPauseSec,
+      sourceEventIds: [...breakEvents, ...pauseEvents].flatMap((e) => [`SE-${e.id}`, e.id]),
+      sourceEvents: [...breakEvents, ...pauseEvents].map((e) => ({
+        id: e.id,
+        timeline_id: `SE-${e.id}`,
+        event_type: e.event_type,
+        label: e.label,
+        start_ts: e.start_ts,
+        end_ts: e.end_ts,
+        duration_sec: e.duration_sec,
+        observed_at: e.observed_at,
+        recorded_at: e.recorded_at
+      }))
+    },
+    behaviorDuration: durationSummaryObj,
+    behaviorDurationSummary: durationSummaryObj,
+    behaviorFrequencyAndRate: rateSummaryObj,
+    behaviorRateSummary: rateSummaryObj,
+    observedVsRecorded: integritySummaryObj,
+    integritySummary: integritySummaryObj
+  };
+
+  return { rawSessionEvents, timeline, traceableSummary };
+}
+
 function sessionView(u, sid) {
   const s = get('SELECT * FROM sessions WHERE id=?', +sid); if (!s) bad(404, 'Not found'); clientOr403(u, s.client_id);
   const client = get('SELECT * FROM clients WHERE id=?', s.client_id);
   const allGoals = all('SELECT * FROM goals WHERE client_id=?', s.client_id).map((g) => ({
     ...goalProgress(g),
-    summary: G.summarize(all('SELECT level, trial_type, notes FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id), g.scoring_rule || 'independent_only')
+    summary: G.summarize(all('SELECT id, level, trial_type, notes, ts, observed_at, recorded_at FROM trials WHERE session_id=? AND goal_id=?', s.id, g.id), g.scoring_rule || 'independent_only')
   }));
   const goals = allGoals.filter((g) => g.status === 'active' || g.status === 'revised');
   const plans = all('SELECT * FROM plans WHERE client_id=? AND status=\'approved\'', s.client_id).map((x) => ({ ...x, data: parse(x.data) }));
   const stories = all('SELECT * FROM stories WHERE client_id=? AND status IN (\'approved\',\'shared\')', s.client_id).map((x) => ({ ...x, content: parse(x.content) }));
   const appt = get('SELECT * FROM appointments WHERE id=?', s.appointment_id);
   const abcLogs = all('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC', s.id);
-  const allClientBehEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', s.client_id);
+  const allClientBehEvents = all('SELECT * FROM behavior_events WHERE client_id=? ORDER BY id DESC', s.client_id).map(enrichBehaviorEvent);
   const behaviorPrograms = all('SELECT * FROM behavior_programs WHERE client_id=?', s.client_id).map((bp) =>
     enrichBehaviorProgram(bp, allClientBehEvents, abcLogs)
   );
-  const behaviorEvents = all('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC', s.id).map((ev) => ({
-    ...ev,
-    behavior: ev.behavior_name || ev.behavior || 'Target Behavior'
-  }));
+  const behaviorEvents = all('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC', s.id).map(enrichBehaviorEvent);
   const elapsedMinutes = s.end ? Math.max(1, Math.round((new Date(s.end) - new Date(s.start)) / 60000)) : Math.max(15, Math.round((Date.now() - new Date(s.start)) / 60000));
   const behaviorSummary = G.summarizeBehaviorEvents(behaviorEvents, elapsedMinutes);
+  const sessionTrials = all('SELECT * FROM trials WHERE session_id=? ORDER BY id DESC', s.id);
+  const { rawSessionEvents: sessionEvents, timeline: sessionTimeline, traceableSummary } = buildSessionTimelineAndTraceability(s, behaviorEvents, abcLogs, sessionTrials);
   const taskAnalyses = all('SELECT * FROM task_analyses WHERE client_id=?', s.client_id).map((ta) => {
     const steps = parse(ta.steps_json) || [];
     const rawLogs = parse(ta.logs_json) || [];
@@ -3928,6 +4902,8 @@ function sessionView(u, sid) {
   const totalBehaviorsToday = (behaviorSummary && behaviorSummary.totalEvents) || behaviorEvents.reduce((acc, ev) => acc + (Number(ev.count) || 1), 0);
   const breaksCount = Number(s.breaks_count) || 0;
   const breakActive = Boolean(s.break_started_at);
+  const pausesCount = Number(s.pauses_count) || 0;
+  const pauseActive = Boolean(s.pause_started_at);
 
   return {
     session: s,
@@ -3941,6 +4917,9 @@ function sessionView(u, sid) {
     behaviorPrograms,
     behaviorEvents,
     behaviorSummary,
+    sessionEvents,
+    sessionTimeline,
+    traceableSummary,
     taskAnalyses,
     auditLogs,
     dataCompleteness,
@@ -3948,31 +4927,103 @@ function sessionView(u, sid) {
     totalBehaviorsToday,
     breaksCount,
     breakActive,
-    breakStartedAt: s.break_started_at || ''
+    breakStartedAt: s.break_started_at || '',
+    pausesCount,
+    pauseActive,
+    pauseStartedAt: s.pause_started_at || '',
+    totalBreakSec: Number(s.total_break_sec) || 0,
+    totalPauseSec: Number(s.total_pause_sec) || 0
   };
 }
 route('GET', '/api/sessions/:id', (u, b, p) => { if (u.role === 'PARENT') bad(403, 'Not allowed'); return sessionView(u, p.id); });
+route('GET', '/api/sessions/:id/timeline', (u, b, p) => {
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const v = sessionView(u, p.id);
+  return {
+    session_id: v.session.id,
+    client_id: v.session.client_id,
+    timeline: v.sessionTimeline,
+    sessionTimeline: v.sessionTimeline,
+    sessionEvents: v.sessionEvents,
+    behaviorEvents: v.behaviorEvents,
+    traceableSummary: v.traceableSummary,
+    behaviorSummary: v.behaviorSummary
+  };
+});
 route('POST', '/api/sessions/:id/breaks', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
   clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   const action = String(b.action || 'start').toLowerCase();
-  const nowIso = new Date().toISOString();
+  const recordedAt = new Date().toISOString();
+  const observedAt = b.observed_at ? String(b.observed_at) : recordedAt;
   let nextCount = Number(s.breaks_count) || 0;
   let nextStartedAt = s.break_started_at || '';
+  let totalBreakSec = Number(s.total_break_sec) || 0;
+  let createdEvent = null;
+
   if (action === 'end' || action === 'stop') {
-    const durSec = nextStartedAt ? Math.max(1, Math.round((Date.now() - new Date(nextStartedAt).getTime()) / 1000)) : 0;
+    const startTs = b.start_ts || nextStartedAt || observedAt;
+    const endTs = b.end_ts || observedAt;
+    const durSec = b.duration_sec !== undefined ? +b.duration_sec : (startTs ? Math.max(1, Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000)) : 0);
     if (nextCount === 0) nextCount = 1;
     nextStartedAt = '';
-    run('UPDATE sessions SET breaks_count=?, break_started_at=? WHERE id=?', nextCount, nextStartedAt, s.id);
-    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'END_BREAK', details: `Ended session break${durSec ? ` (${durSec}s duration)` : ''} · Total breaks: ${nextCount}` });
+    totalBreakSec += durSec;
+    run('UPDATE sessions SET breaks_count=?, break_started_at=?, total_break_sec=? WHERE id=?', nextCount, nextStartedAt, totalBreakSec, s.id);
+    const orig = { event_type: 'BREAK_END', label: `Break #${nextCount} Ended (${durSec}s)`, start_ts: startTs, end_ts: endTs, duration_sec: durSec, observed_at: observedAt, recorded_at: recordedAt };
+    const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      s.id, s.client_id, u.id, 'BREAK_END', orig.label, startTs, endTs, durSec, observedAt, recordedAt, b.notes || '', JSON.stringify(orig), '[]', JSON.stringify({ break_number: nextCount }));
+    createdEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'END_BREAK', details: `Ended session break #${nextCount} (${durSec}s duration) · Total breaks: ${nextCount}` });
   } else {
     nextCount += 1;
-    nextStartedAt = nowIso;
+    nextStartedAt = b.start_ts || observedAt;
     run('UPDATE sessions SET breaks_count=?, break_started_at=? WHERE id=?', nextCount, nextStartedAt, s.id);
-    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'START_BREAK', details: `Started session break #${nextCount} at ${nowIso.slice(11, 19)}` });
+    const orig = { event_type: 'BREAK_START', label: `Break #${nextCount} Started`, start_ts: nextStartedAt, end_ts: '', duration_sec: 0, observed_at: observedAt, recorded_at: recordedAt };
+    const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      s.id, s.client_id, u.id, 'BREAK_START', orig.label, nextStartedAt, '', 0, observedAt, recordedAt, b.notes || '', JSON.stringify(orig), '[]', JSON.stringify({ break_number: nextCount }));
+    createdEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_break', entity_id: s.id, action: 'START_BREAK', details: `Started session break #${nextCount} at ${nextStartedAt.slice(11, 19)}` });
   }
-  return { ok: true, breaks_count: nextCount, break_active: Boolean(nextStartedAt), break_started_at: nextStartedAt };
+  return { ok: true, breaks_count: nextCount, break_active: Boolean(nextStartedAt), break_started_at: nextStartedAt, total_break_sec: totalBreakSec, event: createdEvent, session_event: createdEvent };
 });
+
+route('POST', '/api/sessions/:id/pause', (u, b, p) => {
+  const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const action = String(b.action || (s.pause_started_at ? 'end' : 'start')).toLowerCase();
+  const recordedAt = new Date().toISOString();
+  const observedAt = b.observed_at ? String(b.observed_at) : recordedAt;
+  let nextCount = Number(s.pauses_count) || 0;
+  let nextStartedAt = s.pause_started_at || '';
+  let totalPauseSec = Number(s.total_pause_sec) || 0;
+  let createdEvent = null;
+
+  if (action === 'end' || action === 'stop' || action === 'resume') {
+    const startTs = b.start_ts || nextStartedAt || observedAt;
+    const endTs = b.end_ts || observedAt;
+    const durSec = b.duration_sec !== undefined ? +b.duration_sec : (startTs ? Math.max(1, Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000)) : 0);
+    if (nextCount === 0) nextCount = 1;
+    nextStartedAt = '';
+    totalPauseSec += durSec;
+    run('UPDATE sessions SET pauses_count=?, pause_started_at=?, total_pause_sec=? WHERE id=?', nextCount, nextStartedAt, totalPauseSec, s.id);
+    const orig = { event_type: 'PAUSE_END', label: `Session Resumed from Pause #${nextCount} (${durSec}s)`, start_ts: startTs, end_ts: endTs, duration_sec: durSec, observed_at: observedAt, recorded_at: recordedAt };
+    const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      s.id, s.client_id, u.id, 'PAUSE_END', orig.label, startTs, endTs, durSec, observedAt, recordedAt, b.notes || '', JSON.stringify(orig), '[]', JSON.stringify({ pause_number: nextCount }));
+    createdEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_pause', entity_id: s.id, action: 'END_PAUSE', details: `Resumed session from pause #${nextCount} (${durSec}s duration)` });
+  } else {
+    nextCount += 1;
+    nextStartedAt = b.start_ts || observedAt;
+    run('UPDATE sessions SET pauses_count=?, pause_started_at=? WHERE id=?', nextCount, nextStartedAt, s.id);
+    const orig = { event_type: 'PAUSE_START', label: `Session Paused #${nextCount}`, start_ts: nextStartedAt, end_ts: '', duration_sec: 0, observed_at: observedAt, recorded_at: recordedAt };
+    const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      s.id, s.client_id, u.id, 'PAUSE_START', orig.label, nextStartedAt, '', 0, observedAt, recordedAt, b.notes || '', JSON.stringify(orig), '[]', JSON.stringify({ pause_number: nextCount }));
+    createdEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_pause', entity_id: s.id, action: 'START_PAUSE', details: `Paused session #${nextCount} at ${nextStartedAt.slice(11, 19)}` });
+  }
+  return { ok: true, pauses_count: nextCount, pause_active: Boolean(nextStartedAt), pause_started_at: nextStartedAt, total_pause_sec: totalPauseSec, event: createdEvent, session_event: createdEvent };
+});
+
 route('PUT', '/api/sessions/:id/meta', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
   clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
@@ -3983,9 +5034,12 @@ route('PUT', '/api/sessions/:id/meta', (u, b, p) => {
 route('POST', '/api/sessions/:id/trials', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (s.end) bad(400, 'Session ended'); if (!G.LEVELS[b.level]) bad(400, 'Bad level');
-  run('INSERT INTO trials(session_id,goal_id,level,ts,trial_type,notes,user_id) VALUES(?,?,?,?,?,?,?)',
-    s.id, +b.goal_id, b.level, new Date().toISOString(), b.trial_type || 'acquisition', b.notes || '', u.id);
-  return {};
+  const recordedAt = new Date().toISOString();
+  const observedAt = b.observed_at || b.ts || recordedAt;
+  const orig = { goal_id: +b.goal_id, level: b.level, trial_type: b.trial_type || 'acquisition', observed_at: observedAt, recorded_at: recordedAt, notes: b.notes || '' };
+  const r = run('INSERT INTO trials(session_id,goal_id,level,ts,trial_type,notes,user_id,observed_at,recorded_at,original_value_json,edit_history_json) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+    s.id, +b.goal_id, b.level, observedAt, b.trial_type || 'acquisition', b.notes || '', u.id, observedAt, recordedAt, JSON.stringify(orig), '[]');
+  return { id: Number(r.lastInsertRowid), observed_at: observedAt, recorded_at: recordedAt };
 });
 route('DELETE', '/api/sessions/:id/trials/last', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
@@ -4000,22 +5054,7 @@ route('DELETE', '/api/sessions/:id/trials/last', (u, b, p) => {
 route('POST', '/api/sessions/:id/behavior-events', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
   clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
-  const ts = b.ts || new Date().toISOString();
-  const bid = b.behavior_id || b.behavior_program_id;
-  const bp = bid ? get('SELECT * FROM behavior_programs WHERE id=?', +bid) : null;
-  const bName = b.behavior_name || b.behavior || (bp ? bp.name : 'Target Behavior');
-  const mType = b.measurement_type || (bp ? bp.measurement_type : 'frequency');
-  const countVal = b.count !== undefined ? +b.count : (b.value !== undefined && (mType === 'frequency' || mType === 'rate') ? +b.value : 1);
-  const durVal = +b.duration_sec || (b.value !== undefined && mType === 'duration' ? +b.value : 0);
-  const latVal = +b.latency_sec || (b.value !== undefined && mType === 'latency' ? +b.value : 0);
-  const irtVal = +b.irt_sec || (b.value !== undefined && mType === 'irt' ? +b.value : 0);
-  const defVer = bp ? (Number(bp.version) || 1) : (Number(b.definition_version) || 1);
-  const defSnap = bp ? (bp.definition || '') : (b.definition_snapshot || '');
-  const r = run('INSERT INTO behavior_events(client_id,session_id,behavior_id,behavior_name,user_id,ts,measurement_type,count,duration_sec,latency_sec,irt_sec,interval_total,interval_occurred,intensity,setting,activity,people_present,notes,definition_version,definition_snapshot) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    s.client_id, s.id, bid ? +bid : null, bName, u.id, ts, mType,
-    countVal, durVal, latVal, irtVal,
-    +b.interval_total || 0, +b.interval_occurred || 0, b.intensity || 'Moderate', b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.notes || '', defVer, defSnap);
-  return { id: Number(r.lastInsertRowid), definition_version: defVer };
+  return insertBehaviorEventWithTimeline(u, s.client_id, s.id, b);
 });
 route('DELETE', '/api/sessions/:id/behavior-events/last', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); if (!s) bad(404, 'Not found');
@@ -4030,20 +5069,57 @@ route('DELETE', '/api/sessions/:id/behavior-events/last', (u, b, p) => {
 route('POST', '/api/sessions/:id/abc', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (!b.behavior) bad(400, 'Behavior required');
-  const ts = b.ts || new Date().toISOString();
-  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    s.client_id, s.id, u.id, ts, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
-    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', +b.duration_sec || 0);
-  return { id: Number(r.lastInsertRowid) };
+  const recordedAt = new Date().toISOString();
+  const observedAt = b.observed_at || b.ts || recordedAt;
+  const startTs = b.start_ts || '';
+  const endTs = b.end_ts || '';
+  let durSec = +b.duration_sec || 0;
+  if (!durSec && startTs && endTs) {
+    const d = Math.round((new Date(endTs).getTime() - new Date(startTs).getTime()) / 1000);
+    if (d > 0) durSec = d;
+  }
+  const orig = {
+    antecedent: b.antecedent || 'Unspecified',
+    behavior: b.behavior,
+    consequence: b.consequence || 'Prompted replacement',
+    perceived_function: b.perceived_function || 'Escape',
+    duration_sec: durSec,
+    start_ts: startTs,
+    end_ts: endTs,
+    observed_at: observedAt,
+    recorded_at: recordedAt,
+    intensity: b.intensity || 'Moderate',
+    notes: b.notes || ''
+  };
+  const r = run('INSERT INTO abc_logs(client_id,session_id,user_id,ts,antecedent,behavior,consequence,perceived_function,notes,setting,activity,people_present,intensity,duration_sec,start_ts,end_ts,observed_at,recorded_at,original_value_json,edit_history_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    s.client_id, s.id, u.id, observedAt, b.antecedent || 'Unspecified', b.behavior, b.consequence || 'Prompted replacement', b.perceived_function || 'Escape', b.notes || '',
+    b.setting || 'School', b.activity || 'Structured Tabletop', b.people_present || 'RBT, Peer', b.intensity || 'Moderate', durSec,
+    startTs, endTs, observedAt, recordedAt, JSON.stringify(orig), '[]');
+  const abcId = Number(r.lastInsertRowid);
+  run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    s.id, s.client_id, u.id, 'ABC_EVENT', `ABC: ${b.antecedent || 'Unspecified'} -> ${b.behavior} -> ${b.consequence || 'Prompted replacement'}`,
+    startTs || observedAt, endTs || observedAt, durSec, observedAt, recordedAt, b.notes || '', JSON.stringify({ abc_id: abcId, ...orig }), '[]', JSON.stringify({ source_table: 'abc_logs', source_id: abcId }));
+  return { id: abcId, observed_at: observedAt, recorded_at: recordedAt, duration_sec: durSec };
 });
 route('POST', '/api/sessions/:id/end', (u, b, p) => {
   const s = get('SELECT * FROM sessions WHERE id=?', +p.id); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
-  if (s.end) return { units: s.units };
-  const end = new Date(); const minutes = Math.max(1, Math.round((end - new Date(s.start)) / 60000));
-  const units = G.calcUnits(+b.minutes_override || minutes);
-  run('UPDATE sessions SET end=?, units=? WHERE id=?', end.toISOString(), units, s.id);
-  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session', entity_id: s.id, action: 'END_SESSION', details: `Ended session #${s.id} (${units} billable units)` });
-  return { units };
+  if (s.end) {
+    const existingEndEvt = get('SELECT * FROM session_events WHERE session_id=? AND event_type=?', s.id, 'SESSION_END');
+    return { units: s.units, end: s.end, session_end_event: enrichSessionEvent(existingEndEvt) };
+  }
+  const recordedAt = new Date().toISOString();
+  const observedEnd = (b && b.observed_at) ? String(b.observed_at) : recordedAt;
+  const endDt = new Date(observedEnd);
+  const durationSec = Math.max(1, Math.round((endDt.getTime() - new Date(s.start).getTime()) / 1000));
+  const minutes = Math.max(1, Math.round(durationSec / 60));
+  const units = G.calcUnits((b && +b.minutes_override) || minutes);
+  run('UPDATE sessions SET end=?, units=?, break_started_at=?, pause_started_at=? WHERE id=?', observedEnd, units, '', '', s.id);
+  const origEnd = { event_type: 'SESSION_END', label: `Session Ended (${units} billable units)`, start_ts: s.start, end_ts: observedEnd, duration_sec: durationSec, observed_at: observedEnd, recorded_at: recordedAt, units };
+  const seRes = run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    s.id, s.client_id, u.id, 'SESSION_END', origEnd.label, s.start, observedEnd, durationSec, observedEnd, recordedAt, (b && b.notes) || '', JSON.stringify(origEnd), '[]', JSON.stringify({ units, minutes }));
+  logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session', entity_id: s.id, action: 'END_SESSION', details: `Ended session #${s.id} at ${observedEnd} (${durationSec}s / ${units} billable units)` });
+  const endEvent = enrichSessionEvent(get('SELECT * FROM session_events WHERE id=?', Number(seRes.lastInsertRowid)));
+  return { units, end: observedEnd, recorded_at: recordedAt, duration_sec: durationSec, session_end_event: endEvent };
 });
 route('POST', '/api/sessions/:id/note/generate', (u, b, p) => {
   const v = sessionView(u, p.id); const s = v.session;
@@ -4122,7 +5198,7 @@ async function handler(req, res) {
         if (user && user.role !== 'OWNER' && !r.public && isLicenseLockedOut(getPrimaryLicense())) {
           bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner access is locked until the Practice Owner renews the clinic license key.');
         }
-        const out = r.fn(user, b, m.groups || {}, ctx);
+        const out = await r.fn(user, b, m.groups || {}, ctx);
         const h = { 'Content-Type': 'application/json' }; if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
         res.writeHead(200, h); return res.end(JSON.stringify(out));
       }
