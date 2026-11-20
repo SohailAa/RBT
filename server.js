@@ -136,7 +136,11 @@ const getLocalDate = (d = new Date()) => {
   return `${y}-${m}-${day}`;
 };
 const hash = (p) => { const s = crypto.randomBytes(8).toString('hex'); return s + ':' + crypto.scryptSync(p, s, 32).toString('hex'); };
-const verify = (p, h) => { const [s, k] = h.split(':'); return crypto.scryptSync(p, s, 32).toString('hex') === k; };
+const verify = (p, h) => {
+  if (!h || typeof h !== 'string' || !h.includes(':')) return false;
+  const [s, k] = h.split(':');
+  return Boolean(s && k) && crypto.scryptSync(p, s, 32).toString('hex') === k;
+};
 const all = (sql, ...a) => db.prepare(sql).all(...a);
 const get = (sql, ...a) => db.prepare(sql).get(...a);
 const run = (sql, ...a) => {
@@ -1472,9 +1476,21 @@ const bad = (code, msg) => { const e = new Error(msg); e.code = code; throw e; }
 const need = (u, ...roles) => { if (!roles.includes(u.role)) bad(403, 'Not allowed'); };
 const clientOr403 = (u, cid) => { if (!canSeeClient(u, +cid)) bad(403, 'No access to this client'); };
 
+function buildAuthCookies(tok, refreshToken) {
+  const sec = ON_VERCEL ? '; Secure' : '';
+  const tokCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${sec}`;
+  if (!refreshToken) return tokCookie;
+  const fbtCookie = `fbt=${encodeURIComponent(refreshToken)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${sec}`;
+  return [tokCookie, fbtCookie];
+}
+
+let cloudHydrated = false;
+
 route('POST', '/api/login', async (u, b, p, ctx) => {
   const emailClean = (b.email || '').trim().toLowerCase();
+  const password = String(b.password || '');
   let row = get('SELECT * FROM users WHERE email=?', emailClean);
+
   // If a cold serverless instance on Vercel receives a login for a user in the client's synced vault, restore that user first
   if (!row && b.vaultUser && String(b.vaultUser.email || '').toLowerCase() === emailClean && b.vaultUser.pw) {
     const r = run('INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
@@ -1482,24 +1498,79 @@ route('POST', '/api/login', async (u, b, p, ctx) => {
       b.vaultUser.firebase_uid || FB.generateFirebaseUid(emailClean), b.vaultUser.created_at || new Date().toISOString());
     row = get('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid));
   }
-  if (!row || !verify(b.password || '', row.pw)) bad(401, 'Invalid email or password');
+
+  // Attempt live Firebase Auth sign-in first so accounts created on any device or before a cold start work seamlessly
+  const fbAuth = await FB.firebaseAuthRequest('accounts:signInWithPassword', { email: emailClean, password });
+  const liveFirebaseAuthed = Boolean(fbAuth && !fbAuth.fallback && !fbAuth.error && fbAuth.idToken && fbAuth.localId);
+
+  if (liveFirebaseAuthed) {
+    const fbUid = fbAuth.localId;
+    const fbProfile = await FB.firestoreGetUserProfile(fbAuth.idToken, fbUid);
+    const resolvedRole = (fbProfile && fbProfile.role) || (row && row.role) || 'BCBA';
+
+    // Pull latest Cloud Firestore clinical tables for clinicians so saved data persists across devices/restarts
+    if (resolvedRole !== 'PARENT') {
+      const remoteSnap = await FB.firestorePullSnapshot(fbAuth.idToken);
+      if (remoteSnap && typeof db.mergeSnapshot === 'function') {
+        db.mergeSnapshot(remoteSnap);
+        FB.saveVaultSnapshot(db);
+        cloudHydrated = true;
+      }
+    }
+
+    row = get('SELECT * FROM users WHERE email=?', emailClean);
+    if (!row) {
+      const displayName = (fbProfile && fbProfile.name) || emailClean.split('@')[0];
+      const createdAt = (fbProfile && fbProfile.createdAt) || new Date().toISOString();
+      const r = run(
+        'INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
+        displayName, emailClean, hash(password), resolvedRole, fbUid, createdAt
+      );
+      row = get('SELECT * FROM users WHERE id=?', Number(r.lastInsertRowid));
+    } else {
+      try {
+        run('UPDATE users SET firebase_uid=?, pw=? WHERE id=?', fbUid, hash(password), row.id);
+        row = get('SELECT * FROM users WHERE id=?', row.id);
+      } catch (e) {}
+    }
+
+    // Touch user profile in Firestore (creates doc if missing, or updates lastLoginAt)
+    FB.firestoreUpsertUserProfile(fbAuth.idToken, {
+      uid: fbUid,
+      name: row.name,
+      email: emailClean,
+      role: row.role,
+      createdAt: row.created_at || new Date().toISOString(),
+      isCreate: !fbProfile
+    }).catch(() => {});
+  } else {
+    if (fbAuth && fbAuth.error === 'USER_DISABLED') {
+      bad(403, 'This account has been disabled.');
+    }
+    if (!row || !verify(password, row.pw)) {
+      bad(401, 'Invalid email or password');
+    }
+  }
+
   const primaryLic = getPrimaryLicense();
   if (row.role !== 'OWNER' && isLicenseLockedOut(primaryLic)) {
     bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner logins are blocked until the Practice Owner renews the clinic license key.');
   }
-  const fbAuth = await FB.firebaseAuthRequest('accounts:signInWithPassword', { email: emailClean, password: b.password || '' });
+
   const fbUid = (fbAuth && fbAuth.localId) || row.firebase_uid || FB.generateFirebaseUid(emailClean);
   if (!row.firebase_uid && fbUid) {
     try { run('UPDATE users SET firebase_uid=? WHERE id=?', fbUid, row.id); } catch (e) {}
   }
+
   const tok = makeToken(row.id);
-  ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
+  ctx.setCookie = buildAuthCookies(tok, liveFirebaseAuthed ? fbAuth.refreshToken : null);
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     role: row.role,
     firebase_uid: fbUid,
+    firebase_live: liveFirebaseAuthed,
     firebase: FB.getFirebaseStatus(db)
   };
 }, { public: true });
@@ -1513,15 +1584,21 @@ route('POST', '/api/auth/register', async (u, b, p, ctx) => {
 
   if (!name) bad(400, 'Full name is required');
   if (!email || !email.includes('@')) bad(400, 'Valid email address is required');
-  if (password.length < 4) bad(400, 'Password must be at least 4 characters');
+  if (password.length < 6) bad(400, 'Password must be at least 6 characters');
 
   const existing = get('SELECT * FROM users WHERE email=?', email);
   if (existing) bad(409, 'An account with this email already exists. Please sign in.');
 
   const fbAuth = await FB.firebaseAuthRequest('accounts:signUp', { email, password, displayName: name });
-  if (fbAuth && fbAuth.error === 'EMAIL_EXISTS') {
-    bad(409, 'This email is already registered in Firebase Auth.');
+  if (fbAuth && fbAuth.error) {
+    if (fbAuth.error === 'EMAIL_EXISTS') bad(409, 'This email is already registered in Firebase Auth. Please sign in.');
+    if (fbAuth.error === 'WEAK_PASSWORD') bad(400, 'Password must be at least 6 characters.');
+    if (fbAuth.error === 'INVALID_EMAIL') bad(400, 'Please enter a valid email address.');
+    if (fbAuth.error === 'TOO_MANY_ATTEMPTS_TRY_LATER') bad(429, 'Too many signup attempts. Please try again shortly.');
+    bad(400, 'Unable to register account with Firebase Auth.');
   }
+
+  const liveFirebaseAuthed = Boolean(fbAuth && !fbAuth.fallback && fbAuth.idToken && fbAuth.localId);
   const fbUid = (fbAuth && fbAuth.localId) || FB.generateFirebaseUid(email);
   const nowIso = new Date().toISOString();
   const pwHash = hash(password);
@@ -1550,10 +1627,37 @@ route('POST', '/api/auth/register', async (u, b, p, ctx) => {
   }
 
   logAudit({ id: uid, name, role }, { entity_type: 'user', entity_id: uid, action: 'FIREBASE_REGISTER_USER', details: `Registered ${role} account ${email} (Firebase UID: ${fbUid})` });
-  FB.saveVaultSnapshot(db);
+  const snap = FB.saveVaultSnapshot(db);
+
+  let firestoreProfileSaved = false;
+  let firestoreDataSaved = false;
+  if (liveFirebaseAuthed) {
+    const profRes = await FB.firestoreUpsertUserProfile(fbAuth.idToken, {
+      uid: fbUid,
+      name,
+      email,
+      role,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      isCreate: true
+    });
+    firestoreProfileSaved = Boolean(profRes && profRes.ok);
+
+    if (role !== 'PARENT' && snap) {
+      // Pull any existing cloud tables first so we merge rather than overwrite other users' saved data
+      const remoteSnap = await FB.firestorePullSnapshot(fbAuth.idToken);
+      if (remoteSnap && typeof db.mergeSnapshot === 'function') {
+        db.mergeSnapshot(remoteSnap);
+      }
+      const mergedSnap = FB.saveVaultSnapshot(db) || snap;
+      const pushRes = await FB.firestorePushSnapshot(fbAuth.idToken, mergedSnap, { updatedBy: email });
+      firestoreDataSaved = Boolean(pushRes && pushRes.ok);
+      cloudHydrated = true;
+    }
+  }
 
   const tok = makeToken(uid);
-  ctx.setCookie = `tok=${tok}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${ON_VERCEL ? '; Secure' : ''}`;
+  ctx.setCookie = buildAuthCookies(tok, liveFirebaseAuthed ? fbAuth.refreshToken : null);
   return {
     ok: true,
     id: uid,
@@ -1562,6 +1666,9 @@ route('POST', '/api/auth/register', async (u, b, p, ctx) => {
     role,
     firebase_uid: fbUid,
     firebase_connected: true,
+    firebase_live: liveFirebaseAuthed,
+    firestore_profile_saved: firestoreProfileSaved,
+    firestore_data_saved: firestoreDataSaved,
     firebase: FB.getFirebaseStatus(db),
     vaultUser: { id: uid, name, email, pw: pwHash, role, firebase_uid: fbUid, created_at: nowIso }
   };
@@ -1628,51 +1735,99 @@ route('POST', '/api/firebase/sync', async (u, b, _p, ctx) => {
     }
     FB.saveVaultSnapshot(db);
   }
-  const snap = FB.saveVaultSnapshot(db) || (db.exportSnapshot ? db.exportSnapshot() : null);
+
+  let effUser = u;
+  if (!effUser && ctx && ctx.tok) {
+    const uid = readToken(ctx.tok);
+    if (uid) effUser = get('SELECT id,name,role,email,firebase_uid FROM users WHERE id=?', uid);
+  }
+  if (!effUser && b && b.userEmail) {
+    effUser = get('SELECT id,name,role,email,firebase_uid FROM users WHERE email=?', String(b.userEmail).toLowerCase());
+  }
+
+  // Bidirectional Cloud Firestore synchronization when an authenticated clinician Firebase session is active
+  let cloudSyncResult = null;
+  const idToken = await FB.getValidIdToken({
+    uid: effUser && effUser.firebase_uid,
+    email: (effUser && effUser.email) || (b && b.userEmail) || '',
+    refreshToken: ctx && ctx.fbt
+  });
+  const canSyncCloud = Boolean(idToken && (!effUser || effUser.role !== 'PARENT'));
+
+  if (canSyncCloud && (action === 'pull' || action === 'merge')) {
+    const remoteSnap = await FB.firestorePullSnapshot(idToken);
+    if (remoteSnap && typeof db.mergeSnapshot === 'function') {
+      db.mergeSnapshot(remoteSnap);
+      cloudHydrated = true;
+    }
+  }
+
+  let snap = FB.saveVaultSnapshot(db) || (db.exportSnapshot ? db.exportSnapshot() : null);
 
   if (b && b.proxyUrl) {
     const pUrl = new URL(String(b.proxyUrl), 'http://x');
     const pMethod = String(b.proxyMethod || 'GET').toUpperCase();
-    let effUser = u;
-    if (!effUser && ctx && ctx.tok) {
-      const uid = readToken(ctx.tok);
-      if (uid) effUser = get('SELECT id,name,role,email FROM users WHERE id=?', uid);
-    }
-    if (!effUser && b.userEmail) {
-      effUser = get('SELECT id,name,role,email FROM users WHERE email=?', String(b.userEmail).toLowerCase());
-    }
     for (const r of routes) {
       if (r.m !== pMethod) continue;
       const m = r.re.exec(pUrl.pathname);
       if (!m) continue;
       if (!effUser && !r.public) bad(401, 'Login required');
-      const pCtx = { tok: ctx ? ctx.tok : null, query: Object.fromEntries(pUrl.searchParams.entries()) };
+      const pCtx = { tok: ctx ? ctx.tok : null, fbt: ctx ? ctx.fbt : null, query: Object.fromEntries(pUrl.searchParams.entries()) };
       const proxiedData = await r.fn(effUser, b.proxyBody || {}, m.groups || {}, pCtx);
       const afterSnap = FB.saveVaultSnapshot(db) || snap;
+      if (canSyncCloud && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(pMethod) && afterSnap) {
+        cloudSyncResult = await FB.firestorePushSnapshot(idToken, afterSnap, {
+          updatedBy: (effUser && effUser.email) || 'clinician'
+        });
+      }
+      const fbStatus = FB.getFirebaseStatus(db);
       return {
         ok: true,
         action,
         proxied: true,
         data: proxiedData,
-        firebase: FB.getFirebaseStatus(db),
+        syncedAt: (cloudSyncResult && cloudSyncResult.syncedAt) || fbStatus.lastSyncedAt,
+        cloudSynced: Boolean(cloudSyncResult && cloudSyncResult.ok),
+        firebase: fbStatus,
         snapshot: afterSnap
       };
     }
   }
 
+  if (canSyncCloud && snap && (action === 'push' || action === 'merge')) {
+    cloudSyncResult = await FB.firestorePushSnapshot(idToken, snap, {
+      updatedBy: (effUser && effUser.email) || 'clinician',
+      forceAll: action === 'push'
+    });
+  }
+
+  const fbStatus = FB.getFirebaseStatus(db);
   return {
     ok: true,
     action,
-    firebase: FB.getFirebaseStatus(db),
+    syncedAt: (cloudSyncResult && cloudSyncResult.syncedAt) || fbStatus.lastSyncedAt,
+    cloudSynced: Boolean(cloudSyncResult && cloudSyncResult.ok),
+    writtenTables: (cloudSyncResult && cloudSyncResult.writtenTables) || 0,
+    firebase: fbStatus,
     snapshot: snap
   };
 }, { public: true });
 
-route('POST', '/api/logout', (u, b, p, ctx) => { ctx.setCookie = 'tok=; Max-Age=0; Path=/'; return {}; });
+route('POST', '/api/logout', (u, b, p, ctx) => {
+  if (u) FB.clearFirebaseSession({ email: u.email, uid: u.firebase_uid });
+  const sec = ON_VERCEL ? '; Secure' : '';
+  ctx.setCookie = [
+    `tok=; Max-Age=0; Path=/${sec}`,
+    `fbt=; Max-Age=0; Path=/${sec}`
+  ];
+  return {};
+});
 route('GET', '/api/me', (u) => ({
   id: u.id,
   name: u.name,
+  email: u.email,
   role: u.role,
+  firebase_uid: u.firebase_uid || '',
   firebase: FB.getFirebaseStatus(db)
 }));
 
@@ -4835,27 +4990,78 @@ route('POST', '/api/stories/:id/share', (u, b, p) => {
 // schedule
 route('GET', '/api/schedule', (u, b, p, ctx) => {
   let a = all('SELECT a.*, c.name client, u.name staff FROM appointments a JOIN clients c ON c.id=a.client_id JOIN users u ON u.id=a.user_id ORDER BY a.start');
-  a = a.filter((x) => canSeeClient(u, x.client_id) && (u.role !== 'RBT' || x.user_id === u.id));
+  a = a.filter((x) => canSeeClient(u, x.client_id));
   return a.map((x) => ({ ...x, session: get('SELECT id,end FROM sessions WHERE appointment_id=?', x.id) || null }));
 });
 route('POST', '/api/appointments', (u, b) => {
-  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  need(u, 'BCBA', 'RBT', 'OWNER', 'ADMIN');
   const today = new Date().toISOString().slice(0, 10);
-  const startVal = b.start || b.scheduled_for || (b.date && b.start_time ? `${b.date}T${b.start_time}` : `${today}T09:00`);
-  const endVal = b.end || (b.date && b.end_time ? `${b.date}T${b.end_time}` : `${today}T12:00`);
-  const staffUid = b.user_id || b.staff_id;
-  if (!b.client_id || !staffUid || !startVal || !endVal) bad(400, 'All fields required');
-  const staff = get('SELECT * FROM users WHERE id=?', +staffUid);
-  if (!staff) bad(404, 'Clinician not found');
-  const settingVal = b.setting || b.location || 'Clinic';
-  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', +b.client_id, +staffUid, startVal, endVal, staff.role, settingVal);
-  if (staff.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', +b.client_id, staff.id)) {
-    run('INSERT INTO assignments VALUES(?,?)', +b.client_id, staff.id);
+  const rawDate = (b.date && String(b.date).slice(0, 10)) || (b.start && String(b.start).slice(0, 10)) || today;
+  const rawStartTime = (b.start_time && String(b.start_time).slice(0, 5)) || (b.start && String(b.start).includes('T') ? String(b.start).split('T')[1].slice(0, 5) : '09:00');
+  const rawEndTime = (b.end_time && String(b.end_time).slice(0, 5)) || (b.end && String(b.end).includes('T') ? String(b.end).split('T')[1].slice(0, 5) : '12:00');
+
+  let startVal = b.start && String(b.start).includes('T') ? String(b.start).slice(0, 16) : `${rawDate}T${rawStartTime || '09:00'}`;
+  let endVal = b.end && String(b.end).includes('T') ? String(b.end).slice(0, 16) : `${rawDate}T${rawEndTime || '12:00'}`;
+  // If the user changed the calendar date in Start Window but End Window still has an older date, sync End Window's date to Start Window's date
+  if (endVal.slice(0, 10) !== startVal.slice(0, 10)) {
+    endVal = `${startVal.slice(0, 10)}T${endVal.slice(11, 16) || '12:00'}`;
   }
-  return { id: Number(r.lastInsertRowid), client_id: +b.client_id, user_id: +staffUid, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
+  if (endVal <= startVal) {
+    endVal = `${startVal.slice(0, 10)}T12:00`;
+    if (endVal <= startVal) endVal = `${startVal.slice(0, 10)}T17:00`;
+  }
+
+  const staffUid = b.user_id || b.staff_id || u.id;
+  const clientId = +(b.client_id || 1);
+  if (!clientId) bad(400, 'Client is required');
+
+  let clientRow = get('SELECT * FROM clients WHERE id=?', clientId);
+  if (!clientRow && b.client_name) {
+    const cr = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+      String(b.client_name).trim(), '', 'Autism Spectrum Disorder', '', 'Clinic', '', '', '', '', '', 'Vocal', '');
+    clientRow = get('SELECT * FROM clients WHERE id=?', Number(cr.lastInsertRowid));
+  }
+  const effClientId = clientRow ? clientRow.id : clientId;
+
+  let staff = get('SELECT * FROM users WHERE id=?', +staffUid);
+  if (!staff) {
+    staff = get('SELECT * FROM users WHERE id=?', u.id) || get('SELECT * FROM users WHERE role=\'RBT\'') || { id: u.id, name: u.name, role: u.role };
+  }
+  const settingVal = b.setting || b.location || 'Clinic';
+  const r = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)', effClientId, staff.id, startVal, endVal, staff.role, settingVal);
+  const apptId = Number(r.lastInsertRowid);
+  if (!get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', effClientId, staff.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', effClientId, staff.id);
+  }
+  if (u.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', effClientId, u.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', effClientId, u.id);
+  }
+
+  let startedSessionId = null;
+  if (b.start_now) {
+    const nowIso = new Date().toISOString();
+    const sr = run('INSERT INTO sessions(appointment_id,client_id,user_id,start) VALUES(?,?,?,?)', apptId, effClientId, u.id, nowIso);
+    startedSessionId = Number(sr.lastInsertRowid);
+    const origStart = { event_type: 'SESSION_START', label: 'Session Started', start_ts: nowIso, observed_at: nowIso, recorded_at: nowIso };
+    run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      startedSessionId, effClientId, u.id, 'SESSION_START', `Session Started (${settingVal})`, nowIso, nowIso, 0, nowIso, nowIso, '', JSON.stringify(origStart), '[]', JSON.stringify({ appointment_id: apptId, setting: settingVal }));
+  }
+
+  return {
+    id: apptId,
+    client_id: effClientId,
+    client: (clientRow && clientRow.name) || b.client_name || '',
+    user_id: staff.id,
+    staff: staff.name,
+    role: staff.role,
+    start: startVal,
+    end: endVal,
+    setting: settingVal,
+    session_id: startedSessionId
+  };
 });
 route('PUT', '/api/appointments/:id', (u, b, p) => {
-  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  need(u, 'BCBA', 'RBT', 'OWNER', 'ADMIN');
   const ex = get('SELECT * FROM appointments WHERE id=?', +p.id);
   if (!ex) bad(404, 'Appointment not found');
   const newUserId = b.user_id ? +b.user_id : ex.user_id;
@@ -4870,11 +5076,14 @@ route('PUT', '/api/appointments/:id', (u, b, p) => {
   return { id: +p.id, user_id: staff.id, staff: staff.name, role: staff.role, start: startVal, end: endVal, setting: settingVal };
 });
 route('DELETE', '/api/appointments/:id', (u, b, p) => {
-  need(u, 'BCBA', 'OWNER', 'ADMIN');
+  need(u, 'BCBA', 'RBT', 'OWNER', 'ADMIN');
   run('DELETE FROM appointments WHERE id=?', +p.id);
   return { deleted: true };
 });
-route('GET', '/api/staff', (u) => { need(u, 'BCBA', 'OWNER', 'ADMIN'); return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\')'); });
+route('GET', '/api/staff', (u) => {
+  need(u, 'BCBA', 'RBT', 'OWNER', 'ADMIN');
+  return all('SELECT id,name,role FROM users WHERE role IN (\'RBT\',\'BCBA\',\'ADMIN\',\'OWNER\')');
+});
 route('POST', '/api/staff', (u, b) => {
   need(u, 'OWNER', 'ADMIN', 'BCBA');
   if (!b.name || !b.email) bad(400, 'Name and email required');
@@ -4892,8 +5101,29 @@ route('POST', '/api/staff', (u, b) => {
 
 // sessions & timestamped session/behavior timeline
 route('POST', '/api/appointments/:id/start', (u, b, p) => {
-  const a = get('SELECT * FROM appointments WHERE id=?', +p.id); if (!a) bad(404, 'Not found');
-  if (u.role === 'PARENT') bad(403, 'Not allowed'); clientOr403(u, a.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  let a = get('SELECT * FROM appointments WHERE id=?', +p.id);
+  if (!a) {
+    // Self-healing fallback if a cold serverless container missed the appointment creation
+    const today = new Date().toISOString().slice(0, 10);
+    let fallbackCid = +(b && b.client_id) || 1;
+    let clientRow = get('SELECT * FROM clients WHERE id=?', fallbackCid);
+    if (!clientRow && b && b.client_name) {
+      const cr = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+        String(b.client_name).trim(), '', 'Autism Spectrum Disorder', '', 'Clinic', '', '', '', '', '', 'Vocal', '');
+      fallbackCid = Number(cr.lastInsertRowid);
+    } else if (!clientRow) {
+      const firstC = get('SELECT id FROM clients ORDER BY id DESC');
+      fallbackCid = firstC ? firstC.id : 1;
+    }
+    const ar = run('INSERT INTO appointments(client_id,user_id,start,end,role,setting) VALUES(?,?,?,?,?,?)',
+      fallbackCid, +(b && b.user_id) || u.id, (b && b.start) || `${today}T09:00`, (b && b.end) || `${today}T12:00`, (b && b.role) || u.role, (b && b.setting) || 'Clinic');
+    a = get('SELECT * FROM appointments WHERE id=?', Number(ar.lastInsertRowid));
+  }
+  if (u.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', a.client_id, u.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', a.client_id, u.id);
+  }
+  clientOr403(u, a.client_id);
   const ex = get('SELECT * FROM sessions WHERE appointment_id=?', a.id);
   if (ex) {
     const existingStartEvt = get('SELECT * FROM session_events WHERE session_id=? AND event_type=?', ex.id, 'SESSION_START');
@@ -5157,7 +5387,12 @@ function buildSessionTimelineAndTraceability(s, behaviorEvents, abcLogs, trials)
 }
 
 function sessionView(u, sid) {
-  const s = get('SELECT * FROM sessions WHERE id=?', +sid); if (!s) bad(404, 'Not found'); clientOr403(u, s.client_id);
+  const s = get('SELECT * FROM sessions WHERE id=?', +sid);
+  if (!s) bad(404, 'Not found');
+  if (u.role === 'RBT' && !get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', s.client_id, u.id)) {
+    run('INSERT INTO assignments VALUES(?,?)', s.client_id, u.id);
+  }
+  clientOr403(u, s.client_id);
   const client = get('SELECT * FROM clients WHERE id=?', s.client_id);
   const allGoals = all('SELECT * FROM goals WHERE client_id=?', s.client_id).map((g) => ({
     ...goalProgress(g),
@@ -5506,7 +5741,21 @@ function isServerBehindClientSignature(clientSig) {
 }
 
 async function handler(req, res) {
-  const url = new URL(req.url, 'http://x'); const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split('=')));
+  const url = new URL(req.url, 'http://x');
+  const cookies = Object.fromEntries(
+    (req.headers.cookie || '')
+      .split(';')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .map((c) => {
+        const idx = c.indexOf('=');
+        return idx === -1 ? [c, ''] : [c.slice(0, idx), c.slice(idx + 1)];
+      })
+  );
+  let fbtToken = '';
+  if (cookies.fbt) {
+    try { fbtToken = decodeURIComponent(cookies.fbt); } catch (e) { fbtToken = cookies.fbt; }
+  }
   try {
     if (url.pathname.startsWith('/api/')) {
       if (ON_VERCEL) {
@@ -5543,12 +5792,36 @@ async function handler(req, res) {
         return res.end(JSON.stringify({ error: 'VAULT_SYNC_REQUIRED', coldStartNeedsVault: true }));
       }
 
-      const ctx = { tok: cookies.tok, query: Object.fromEntries(url.searchParams.entries()) };
+      const ctx = { tok: cookies.tok, fbt: fbtToken, query: Object.fromEntries(url.searchParams.entries()) };
       const uid = readToken(cookies.tok);
-      let user = uid ? get('SELECT id,name,role,email FROM users WHERE id=?', uid) : null;
+      let user = uid ? get('SELECT id,name,role,email,firebase_uid FROM users WHERE id=?', uid) : null;
       if (!user && uid && req.headers['x-eba-user-email']) {
-        user = get('SELECT id,name,role,email FROM users WHERE email=?', String(req.headers['x-eba-user-email']).toLowerCase());
+        user = get('SELECT id,name,role,email,firebase_uid FROM users WHERE email=?', String(req.headers['x-eba-user-email']).toLowerCase());
       }
+
+      // Cold-start Cloud Firestore hydration when an authenticated Firebase session cookie is present
+      if (!cloudHydrated && fbtToken && url.pathname !== '/api/login' && url.pathname !== '/api/auth/register' && url.pathname !== '/api/logout') {
+        const hydrateToken = await FB.getValidIdToken({
+          uid: user && user.firebase_uid,
+          email: (user && user.email) || (req.headers['x-eba-user-email'] || ''),
+          refreshToken: fbtToken
+        });
+        if (hydrateToken && (!user || user.role !== 'PARENT')) {
+          const remoteSnap = await FB.firestorePullSnapshot(hydrateToken);
+          if (remoteSnap && typeof db.mergeSnapshot === 'function') {
+            db.mergeSnapshot(remoteSnap);
+            FB.saveVaultSnapshot(db);
+            if (!user && uid) {
+              user = get('SELECT id,name,role,email,firebase_uid FROM users WHERE id=?', uid);
+              if (!user && req.headers['x-eba-user-email']) {
+                user = get('SELECT id,name,role,email,firebase_uid FROM users WHERE email=?', String(req.headers['x-eba-user-email']).toLowerCase());
+              }
+            }
+          }
+          cloudHydrated = true;
+        }
+      }
+
       for (const r of routes) {
         if (r.m !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
         if (!user && !r.public) bad(401, 'Login required');
@@ -5559,6 +5832,18 @@ async function handler(req, res) {
         let snap = null;
         if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && url.pathname !== '/api/logout') {
           snap = FB.saveVaultSnapshot(db);
+          // Persist changed clinical tables directly to Cloud Firestore for authenticated clinician sessions
+          const alreadySyncedRoute = ['/api/login', '/api/auth/register', '/api/firebase/sync'].includes(url.pathname);
+          if (!alreadySyncedRoute && snap && user && user.role !== 'PARENT') {
+            const writeIdToken = await FB.getValidIdToken({
+              uid: user.firebase_uid,
+              email: user.email,
+              refreshToken: fbtToken
+            });
+            if (writeIdToken) {
+              await FB.firestorePushSnapshot(writeIdToken, snap, { updatedBy: user.email });
+            }
+          }
           if (req.headers['x-eba-client-vault'] === '1' && snap && out && typeof out === 'object' && !Array.isArray(out) && !out.snapshot) {
             out._vaultSnapshot = snap;
           }

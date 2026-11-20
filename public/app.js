@@ -2045,8 +2045,8 @@ function loginView(err) {
                 </select>
               </div>
             </div>
-            <label>Password (min 4 characters)</label>
-            <input id="reg_pw" type="password" placeholder="Create password" autocomplete="new-password">
+            <label>Password (min 6 characters)</label>
+            <input id="reg_pw" type="password" placeholder="Create password (6+ chars)" autocomplete="new-password">
             <button style="width:100%;padding:10px;margin-top:8px" class="ok" onclick="act.registerAccount()">🔥 Create Account & Sign In</button>
           </div>
         ` : `
@@ -4655,52 +4655,68 @@ function storyCard(s, B) {
 }
 
 let scheduleStaffFilter = 'ALL';
+let scheduleSelectedDate = '';
+let scheduleSelectedStartTime = '09:00';
+let scheduleSelectedEndTime = '12:00';
 
 async function scheduleView() {
   const a = await api('GET', '/api/schedule');
-  const canSchedule = ['BCBA', 'OWNER', 'ADMIN'].includes(me.role);
+  const canSchedule = ['BCBA', 'RBT', 'OWNER', 'ADMIN'].includes(me.role);
   const todayIso = new Date().toISOString().slice(0, 10);
+  const tmrwDt = new Date();
+  tmrwDt.setDate(tmrwDt.getDate() + 1);
+  const tomorrowIso = tmrwDt.toISOString().slice(0, 10);
+  if (!scheduleSelectedDate) scheduleSelectedDate = todayIso;
   let form = '';
   let st = [];
   if (canSchedule) {
     const [cs, staffList] = await Promise.all([api('GET', '/api/clients'), api('GET', '/api/staff')]);
     st = staffList || [];
     const rbts = st.filter((s) => s.role === 'RBT');
-    const bcbas = st.filter((s) => s.role === 'BCBA');
-    const defaultRbtId = rbts.length ? rbts[0].id : (st[0] ? st[0].id : '');
+    const bcbas = st.filter((s) => s.role !== 'RBT');
+    const defaultStaffId = me.role === 'RBT'
+      ? me.id
+      : (rbts.length ? rbts[0].id : (st[0] ? st[0].id : me.id));
     form = `
     <div class="card" style="background:var(--slate-50);border:1.5px solid var(--slate-300);border-top:4px solid var(--primary)">
       <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
         <div>
-          <h3 style="margin:0 0 2px">📅 Schedule RBT or Clinical Session</h3>
-          <p style="margin:0;font-size:0.83rem;color:var(--slate-600)">Assign an RBT (CPT 97153 Direct Therapy) or BCBA Supervision (CPT 97155) to a client. Assigned RBTs automatically gain access to the client's profile & session data sheet.</p>
+          <h3 style="margin:0 0 2px">📅 Schedule RBT or Clinical Session on Calendar</h3>
+          <p style="margin:0;font-size:0.83rem;color:var(--slate-600)">Pick a calendar date & shift window below to schedule a session or immediately launch the live Session Cockpit.</p>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <span style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Quick Shift:</span>
-          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T09:00','${todayIso}T12:00')">☀️ Morning (9:00–12:00)</button>
-          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T12:30','${todayIso}T15:30')">🌤️ Midday (12:30–3:30)</button>
-          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('${todayIso}T15:30','${todayIso}T17:30')">🌇 Afternoon (3:30–5:30)</button>
+          <span style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">Date:</span>
+          <button type="button" class="sec" style="padding:5px 9px;font-size:0.75rem" onclick="act.setScheduleDate('${todayIso}')">📅 Today</button>
+          <button type="button" class="sec" style="padding:5px 9px;font-size:0.75rem" onclick="act.setScheduleDate('${tomorrowIso}')">🗓️ Tomorrow</button>
+          <span style="font-size:0.75rem;font-weight:700;color:var(--slate-500);text-transform:uppercase;margin-left:4px">Shift:</span>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('09:00','12:00')">☀️ Morning (9:00–12:00)</button>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('12:30','15:30')">🌤️ Midday (12:30–3:30)</button>
+          <button type="button" class="sec" style="padding:5px 10px;font-size:0.76rem" onclick="act.setApptWindow('15:30','17:30')">🌇 Afternoon (3:30–5:30)</button>
         </div>
       </div>
       <div class="row">
         <div>
           <label>Client</label>
-          <select id="ac">${cs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+          <select id="ac">${cs.map((c) => `<option value="${c.id}" data-client-name="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select>
         </div>
         <div>
           <label>Assign RBT / Clinician</label>
           <select id="as">
-            ${rbts.length ? `<optgroup label="RBTs — Direct Therapy (CPT 97153)">${rbts.map((s) => `<option value="${s.id}" ${s.id === defaultRbtId ? 'selected' : ''}>👨‍⚕️ ${esc(s.name)} (RBT)</option>`).join('')}</optgroup>` : ''}
-            ${bcbas.length ? `<optgroup label="BCBAs — Supervision & Direction (CPT 97155)">${bcbas.map((s) => `<option value="${s.id}">👩‍⚕️ ${esc(s.name)} (BCBA)</option>`).join('')}</optgroup>` : ''}
+            ${rbts.length ? `<optgroup label="RBTs — Direct Therapy (CPT 97153)">${rbts.map((s) => `<option value="${s.id}" ${Number(s.id) === Number(defaultStaffId) ? 'selected' : ''}>👨‍⚕️ ${esc(s.name)} (RBT)</option>`).join('')}</optgroup>` : ''}
+            ${bcbas.length ? `<optgroup label="BCBAs & Supervisors (CPT 97155)">${bcbas.map((s) => `<option value="${s.id}" ${Number(s.id) === Number(defaultStaffId) ? 'selected' : ''}>👩‍⚕️ ${esc(s.name)} (${esc(s.role)})</option>`).join('')}</optgroup>` : ''}
           </select>
         </div>
         <div>
-          <label>Start Window</label>
-          <input id="astart" type="datetime-local" value="${todayIso}T09:00">
+          <label>Calendar Date</label>
+          <input id="adate" type="date" value="${esc(scheduleSelectedDate)}" onchange="act.syncScheduleDateInputs()">
         </div>
         <div>
-          <label>End Window</label>
-          <input id="aend" type="datetime-local" value="${todayIso}T12:00">
+          <label>Start Time</label>
+          <input id="astart_time" type="time" value="${esc(scheduleSelectedStartTime)}" onchange="act.syncScheduleDateInputs()">
+        </div>
+        <div>
+          <label>End Time</label>
+          <input id="aend_time" type="time" value="${esc(scheduleSelectedEndTime)}" onchange="act.syncScheduleDateInputs()">
         </div>
         <div>
           <label>Treatment Setting</label>
@@ -4711,9 +4727,14 @@ async function scheduleView() {
           </select>
         </div>
       </div>
+      <input type="hidden" id="astart" value="${esc(scheduleSelectedDate)}T${esc(scheduleSelectedStartTime)}">
+      <input type="hidden" id="aend" value="${esc(scheduleSelectedDate)}T${esc(scheduleSelectedEndTime)}">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:8px">
-        <span style="font-size:0.8rem;color:var(--slate-500)">✓ Pre-filled with today's date & shift window — click <b>"+ Schedule RBT Session"</b> to assign immediately.</span>
-        <button class="ok" onclick="act.addAppt()">+ Schedule RBT Session</button>
+        <span style="font-size:0.8rem;color:var(--slate-500)">✓ Select any calendar date above — click <b>"+ Schedule RBT Session"</b> to add to calendar, or <b>"⚡ Schedule & Start Now"</b> to begin data collection immediately.</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="sec" style="border-color:var(--primary);color:var(--primary);font-weight:700" onclick="act.addAppt(false)">+ Schedule RBT Session</button>
+          <button type="button" class="ok" onclick="act.addAppt(true)">⚡ Schedule & Start Live Session Now</button>
+        </div>
       </div>
     </div>`;
   }
@@ -4726,7 +4747,11 @@ async function scheduleView() {
   });
 
   const days = {};
-  filteredAppts.forEach((x) => { (days[x.start.slice(0, 10)] ||= []).push(x); });
+  filteredAppts.forEach((x) => {
+    const dayKey = String(x.start || todayIso).slice(0, 10);
+    (days[dayKey] ||= []).push(x);
+  });
+  const sortedDayEntries = Object.entries(days).sort(([d1], [d2]) => d1.localeCompare(d2));
   
   return `
   <div class="page-header">
@@ -4746,7 +4771,7 @@ async function scheduleView() {
     ` : ''}
   </div>
   ${form}
-  ${Object.entries(days).map(([d, xs]) => `
+  ${sortedDayEntries.map(([d, xs]) => `
     <div class="card">
       <h3>📅 ${new Date(d + 'T00:00').toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}</h3>
       <table>
@@ -4762,7 +4787,7 @@ async function scheduleView() {
         <tbody>
           ${xs.map((x) => `
             <tr>
-              <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${x.start.slice(11)} – ${x.end.slice(11)}</span></td>
+              <td><span style="font-family:'JetBrains Mono',monospace;font-weight:600">${String(x.start || '').slice(11, 16) || '09:00'} – ${String(x.end || '').slice(11, 16) || '12:00'}</span></td>
               <td>
                 <a href="javascript:void(0)" onclick="act.openClientSnapshotModal(${x.client_id}, ${x.id})" style="font-weight:700;color:var(--slate-900);text-decoration:underline;text-decoration-color:var(--primary-border)">
                   ${esc(x.client)}
@@ -4785,7 +4810,7 @@ async function scheduleView() {
                 <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${x.client_id})">
                   Open Profile →
                 </button>
-                <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.start(${x.id})">
+                <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.start(${x.id}, ${x.client_id}, '${esc(x.client)}', '${esc(x.setting)}', '${esc(x.start)}', '${esc(x.end)}', ${x.user_id})">
                   ${x.session ? (x.session.end ? 'Session Note' : 'Resume Session ⚡') : '▶ Start Session'}
                 </button>
               </td>
@@ -4799,7 +4824,14 @@ async function scheduleView() {
 
 let timer = null;
 async function sessionView(id) {
-  const v = await api('GET', '/api/sessions/' + id);
+  let v;
+  try {
+    v = await api('GET', '/api/sessions/' + id);
+  } catch (err) {
+    // Self-healing fallback if a user opens #/session/:id directly on a cold device/private tab where session :id doesn't exist yet
+    const started = await api('POST', `/api/appointments/${id || 1}/start`, { client_id: 1, setting: 'Clinic' });
+    v = await api('GET', '/api/sessions/' + started.id);
+  }
   const {
     session: s, client, goals, allGoals = goals, plans, stories,
     abcLogs = [], behaviorPrograms = [], behaviorEvents = [], behaviorSummary: rawBehaviorSummary = {}, taskAnalyses = []
@@ -9991,11 +10023,37 @@ const act = {
     activeModal = { type: 'schedule_rbt', clientId, clientName: clientName || '', staffList, clientList };
     render();
   }),
-  setApptWindow: (startVal, endVal) => {
+  syncScheduleDateInputs: () => {
+    const dEl = document.getElementById('adate');
+    const stEl = document.getElementById('astart_time');
+    const etEl = document.getElementById('aend_time');
     const sEl = document.getElementById('astart');
     const eEl = document.getElementById('aend');
-    if (sEl) sEl.value = startVal;
-    if (eEl) eEl.value = endVal;
+    const dateVal = (dEl && dEl.value) || scheduleSelectedDate || new Date().toISOString().slice(0, 10);
+    const startTimeVal = (stEl && stEl.value) || scheduleSelectedStartTime || '09:00';
+    const endTimeVal = (etEl && etEl.value) || scheduleSelectedEndTime || '12:00';
+    scheduleSelectedDate = dateVal;
+    scheduleSelectedStartTime = startTimeVal;
+    scheduleSelectedEndTime = endTimeVal;
+    if (sEl) sEl.value = `${dateVal}T${startTimeVal}`;
+    if (eEl) eEl.value = `${dateVal}T${endTimeVal}`;
+  },
+  setScheduleDate: (dateStr) => {
+    scheduleSelectedDate = dateStr;
+    const dEl = document.getElementById('adate');
+    if (dEl) dEl.value = dateStr;
+    act.syncScheduleDateInputs();
+  },
+  setApptWindow: (startVal, endVal) => {
+    const stTime = String(startVal || '09:00').includes('T') ? String(startVal).split('T')[1].slice(0, 5) : String(startVal || '09:00').slice(0, 5);
+    const etTime = String(endVal || '12:00').includes('T') ? String(endVal).split('T')[1].slice(0, 5) : String(endVal || '12:00').slice(0, 5);
+    scheduleSelectedStartTime = stTime;
+    scheduleSelectedEndTime = etTime;
+    const stEl = document.getElementById('astart_time');
+    const etEl = document.getElementById('aend_time');
+    if (stEl) stEl.value = stTime;
+    if (etEl) etEl.value = etTime;
+    act.syncScheduleDateInputs();
   },
   setModalApptWindow: (startVal, endVal) => {
     const sEl = document.getElementById('m_sched_start');
@@ -11187,12 +11245,46 @@ const act = {
   }),
   approveStory: safe(async (id) => { await api('POST', `/api/stories/${id}/approve`); render(); }),
   shareStory: safe(async (id) => { const r = await api('POST', `/api/stories/${id}/share`); prompt('Parent Story Link (Share with family):', location.origin + r.url); render(); }),
-  addAppt: safe(async () => {
-    const res = await api('POST', '/api/appointments', { client_id: val('ac'), user_id: val('as'), start: val('astart'), end: val('aend'), setting: val('aset') });
-    alert(`✓ Scheduled ${res.staff || 'RBT'} (${res.role || 'RBT'}) for ${res.start.replace('T', ' ')} – ${res.end.slice(11)} (${res.setting})!`);
+  addAppt: safe(async (startNow = false) => {
+    act.syncScheduleDateInputs();
+    const acEl = document.getElementById('ac');
+    const selOpt = acEl && acEl.options ? acEl.options[acEl.selectedIndex] : null;
+    const clientName = (selOpt && (selOpt.getAttribute('data-client-name') || selOpt.textContent)) || '';
+    const dateVal = val('adate') || scheduleSelectedDate || new Date().toISOString().slice(0, 10);
+    const startTimeVal = val('astart_time') || scheduleSelectedStartTime || '09:00';
+    const endTimeVal = val('aend_time') || scheduleSelectedEndTime || '12:00';
+    const start = `${dateVal}T${startTimeVal}`;
+    const end = `${dateVal}T${endTimeVal}`;
+    const res = await api('POST', '/api/appointments', {
+      client_id: val('ac'),
+      client_name: clientName,
+      user_id: val('as') || (me && me.id),
+      date: dateVal,
+      start_time: startTimeVal,
+      end_time: endTimeVal,
+      start,
+      end,
+      setting: val('aset') || 'Clinic',
+      start_now: Boolean(startNow)
+    });
+    if (startNow && res && res.session_id) {
+      go('session', res.session_id);
+      return;
+    }
+    alert(`✓ Scheduled ${res.staff || 'RBT'} (${res.role || 'RBT'}) for ${res.client || clientName || 'Client'} on ${res.start.replace('T', ' ')} – ${res.end.slice(11)} (${res.setting})!`);
     render();
   }),
-  start: safe(async (id) => { const r = await api('POST', `/api/appointments/${id}/start`); go('session', r.id); }),
+  start: safe(async (id, clientId = null, clientName = '', setting = 'Clinic', start = '', end = '', userId = null) => {
+    const r = await api('POST', `/api/appointments/${id}/start`, {
+      client_id: clientId,
+      client_name: clientName,
+      setting,
+      start,
+      end,
+      user_id: userId
+    });
+    go('session', r.id);
+  }),
   trial: safe(async (sid, gid, level) => {
     await api('POST', `/api/sessions/${sid}/trials`, { goal_id: gid, level, trial_type: activeTrialType });
     if (showKidMode && kidAutoToken && !['N', 'INC', 'NA'].includes(level) && tokenCount < targetTokens) {

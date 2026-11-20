@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+process.env.EBA_DISABLE_NETWORK_FIREBASE = '1';
 const { TMP_VAULT_PATH } = require('./lib/firebase');
 ['eba.db', 'eba.db-shm', 'eba.db-wal', 'eba.test.db', 'eba.test.db-shm', 'eba.test.db-wal'].forEach((f) => { try { fs.unlinkSync(path.join(__dirname, f)); } catch {} });
 try { fs.unlinkSync(TMP_VAULT_PATH); } catch {}
@@ -1343,6 +1344,32 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      atomicProxyGetSession.j.data.client.name === 'Leon Shinavier' &&
      atomicProxyGetSession.j.data.behaviorPrograms.some((bp) => bp.name === 'Elopement from Tabletop'),
      'Cold-Start Persistence: Atomic merge + proxyUrl GET restores session, client (Leon Shinavier), and target behaviors on a cold instance in a single request');
+
+  // Verify RBT can schedule a calendar session with date/start_time/end_time and start_now: true
+  const rbtCalSched = await r('POST', '/api/appointments', {
+    client_id: shinavierCid,
+    client_name: 'Leon Shinavier',
+    date: '2026-11-25',
+    start_time: '09:00',
+    end_time: '12:00',
+    setting: 'Clinic',
+    start_now: true
+  });
+  ok(rbtCalSched.s === 200 &&
+     rbtCalSched.j.start === '2026-11-25T09:00' &&
+     rbtCalSched.j.end === '2026-11-25T12:00' &&
+     rbtCalSched.j.session_id > 0,
+     'Calendar Session Creation: RBT/BCBA can schedule a client session for a calendar date and optionally start the live session immediately');
+
+  // Verify self-healing fallback when POST /api/appointments/:id/start is called on a cold instance without vault
+  const selfHealStart = await r('POST', '/api/appointments/999/start', {
+    client_id: shinavierCid,
+    client_name: 'Leon Shinavier',
+    setting: 'Clinic'
+  });
+  const selfHealGetSession = await r('GET', `/api/sessions/${selfHealStart.j.id}`);
+  ok(selfHealStart.s === 200 && selfHealStart.j.id > 0 && selfHealGetSession.s === 200 && selfHealGetSession.j.session,
+     'Self-Healing Session Creation: Starting a session on a cold instance reconstructs the appointment and opens the session without 404 Not found');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
