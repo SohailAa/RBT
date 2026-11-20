@@ -1,7 +1,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { TMP_VAULT_PATH } = require('./lib/firebase');
 ['eba.db', 'eba.db-shm', 'eba.db-wal', 'eba.test.db', 'eba.test.db-shm', 'eba.test.db-wal'].forEach((f) => { try { fs.unlinkSync(path.join(__dirname, f)); } catch {} });
+try { fs.unlinkSync(TMP_VAULT_PATH); } catch {}
 if (fs.existsSync(path.join(__dirname, 'eba.db'))) {
   process.env.EBA_DB_PATH = path.join(__dirname, 'eba.test.db');
 }
@@ -1271,6 +1273,76 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      ds.duration && ds.duration.event_count === 1 && Number(ds.duration.current_value) === 6 &&
      ds.intensity && ds.intensity.event_count === 1 && ds.intensity.current_value === 'Moderate' && /Bar Chart/i.test(ds.intensity.graph_type),
      'Multi-Method Spec: Separate data streams store, summarize, and graph Frequency (count/rate), Duration (6 min), and Intensity (Moderate) independently without mixing dimensions');
+
+  // --- 42. Vercel Multi-Instance & Cold-Start Persistence (Clients, Behaviors, Appointments & Sessions Never Lost or "Not found") ---
+  const newClientRes = await b('POST', '/api/clients', {
+    name: 'Leon Shinavier',
+    dob: '2019-06-15',
+    diagnosis: 'Autism Spectrum Disorder',
+    guardian: 'Parent Shinavier',
+    communication: 'Vocal + AAC'
+  });
+  const shinavierCid = newClientRes.j.id;
+  const rbtClientsAfterCreate = await r('GET', '/api/clients');
+  ok(newClientRes.s === 200 && shinavierCid >= 3 && rbtClientsAfterCreate.j.some((cl) => Number(cl.id) === Number(shinavierCid)),
+     'Cold-Start Persistence: Newly added client (Leon Shinavier) is automatically assigned to clinic RBTs with default CPT authorizations');
+
+  // Add a target behavior and schedule an appointment for Leon Shinavier
+  const shinavierBehRes = await b('POST', `/api/clients/${shinavierCid}/behaviors`, {
+    name: 'Elopement from Tabletop',
+    operational_definition: 'Leaving designated work area > 3 feet without permission.',
+    measurement_type: 'frequency',
+    baseline_rate: 3.5,
+    target_rate: 0.5
+  });
+  const shinavierApptRes = await b('POST', '/api/appointments', {
+    client_id: shinavierCid,
+    user_id: 3, // Sam Lee, RBT
+    start: '2026-11-20T09:00',
+    end: '2026-11-20T12:00',
+    setting: 'Clinic'
+  });
+  const shinavierApptId = shinavierApptRes.j.id;
+
+  // Export the rich vault snapshot (containing Leon Shinavier, his target behavior, and his appointment)
+  const fullVaultPull = await b('POST', '/api/firebase/sync', { action: 'pull' });
+  const richSnapshot = fullVaultPull.j.snapshot;
+  ok(richSnapshot && richSnapshot.signature && richSnapshot.tables.clients.some((c) => c.name === 'Leon Shinavier') &&
+     richSnapshot.tables.behavior_programs.some((bp) => bp.name === 'Elopement from Tabletop'),
+     'Cold-Start Persistence: Vault snapshot captures newly created clients, target behaviors, and appointments with signature');
+
+  // Simulate a fresh cold-started serverless instance by pushing a stripped seed-only snapshot (without Leon Shinavier, his behavior, or his appointment)
+  const coldSeedSnapshot = JSON.parse(JSON.stringify(richSnapshot));
+  coldSeedSnapshot.tables.clients = coldSeedSnapshot.tables.clients.filter((c) => Number(c.id) <= 2);
+  coldSeedSnapshot.tables.behavior_programs = coldSeedSnapshot.tables.behavior_programs.filter((bp) => Number(bp.id) !== Number(shinavierBehRes.j.id));
+  coldSeedSnapshot.tables.appointments = coldSeedSnapshot.tables.appointments.filter((a) => Number(a.id) !== Number(shinavierApptId));
+  await b('POST', '/api/firebase/sync', { action: 'push', snapshot: coldSeedSnapshot });
+
+  // Now simulate clicking "Start Session" on the cold instance with _clientVault attached (as public/app.js api() does on every write)
+  const startOnColdInstance = await r('POST', `/api/appointments/${shinavierApptId}/start`, {
+    _clientVault: richSnapshot
+  });
+  const startedSessionId = startOnColdInstance.j.id;
+  ok(startOnColdInstance.s === 200 && startedSessionId > 0,
+     'Cold-Start Persistence: POST /api/appointments/:id/start with _clientVault hydrates cold serverless instance and starts session without "Not found"');
+
+  // Also test atomic GET proxy via POST /api/firebase/sync when a GET hits another cold instance
+  const updatedVaultAfterStart = (await r('POST', '/api/firebase/sync', { action: 'pull' })).j.snapshot;
+  await b('POST', '/api/firebase/sync', { action: 'push', snapshot: coldSeedSnapshot });
+  const atomicProxyGetSession = await r('POST', '/api/firebase/sync', {
+    action: 'merge',
+    snapshot: updatedVaultAfterStart,
+    proxyMethod: 'GET',
+    proxyUrl: `/api/sessions/${startedSessionId}`
+  });
+  ok(atomicProxyGetSession.s === 200 &&
+     atomicProxyGetSession.j.proxied === true &&
+     atomicProxyGetSession.j.data &&
+     atomicProxyGetSession.j.data.session &&
+     Number(atomicProxyGetSession.j.data.session.id) === Number(startedSessionId) &&
+     atomicProxyGetSession.j.data.client.name === 'Leon Shinavier' &&
+     atomicProxyGetSession.j.data.behaviorPrograms.some((bp) => bp.name === 'Elopement from Tabletop'),
+     'Cold-Start Persistence: Atomic merge + proxyUrl GET restores session, client (Leon Shinavier), and target behaviors on a cold instance in a single request');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');

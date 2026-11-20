@@ -1616,37 +1616,50 @@ route('POST', '/api/firebase/config', (u, b) => {
   };
 });
 
-route('POST', '/api/firebase/sync', (u, b) => {
+route('POST', '/api/firebase/sync', async (u, b, _p, ctx) => {
   const action = String((b && b.action) || 'pull').toLowerCase();
   if ((action === 'push' || action === 'merge') && b && b.snapshot && typeof b.snapshot === 'object') {
     if (action === 'push') {
       db.importSnapshot(b.snapshot);
+    } else if (typeof db.mergeSnapshot === 'function') {
+      db.mergeSnapshot(b.snapshot);
     } else {
-      // Merge custom users and records from client vault if missing on a fresh serverless cold-start
-      const incomingTables = b.snapshot.tables || {};
-      if (Array.isArray(incomingTables.users)) {
-        incomingTables.users.forEach((usr) => {
-          if (usr.email && !get('SELECT id FROM users WHERE email=?', String(usr.email).toLowerCase())) {
-            run('INSERT INTO users(name,email,pw,role,firebase_uid,created_at) VALUES(?,?,?,?,?,?)',
-              usr.name || 'Clinician', String(usr.email).toLowerCase(), usr.pw || hash('password'), usr.role || 'BCBA',
-              usr.firebase_uid || FB.generateFirebaseUid(usr.email), usr.created_at || new Date().toISOString());
-          }
-        });
-      }
-      // If the incoming snapshot has more recent sessions, trials, behavior_events, or session_events than a freshly seeded cold start, import the full snapshot
-      const curEvents = (get('SELECT COUNT(*) c FROM behavior_events') || {}).c || 0;
-      const incEvents = Array.isArray(incomingTables.behavior_events) ? incomingTables.behavior_events.length : 0;
-      const curTrials = (get('SELECT COUNT(*) c FROM trials') || {}).c || 0;
-      const incTrials = Array.isArray(incomingTables.trials) ? incomingTables.trials.length : 0;
-      const curSessions = (get('SELECT COUNT(*) c FROM sessions') || {}).c || 0;
-      const incSessions = Array.isArray(incomingTables.sessions) ? incomingTables.sessions.length : 0;
-      if (incEvents > curEvents || incTrials > curTrials || incSessions > curSessions || b.forceImport) {
-        db.importSnapshot(b.snapshot);
-      }
+      db.importSnapshot(b.snapshot);
     }
     FB.saveVaultSnapshot(db);
   }
   const snap = FB.saveVaultSnapshot(db) || (db.exportSnapshot ? db.exportSnapshot() : null);
+
+  if (b && b.proxyUrl) {
+    const pUrl = new URL(String(b.proxyUrl), 'http://x');
+    const pMethod = String(b.proxyMethod || 'GET').toUpperCase();
+    let effUser = u;
+    if (!effUser && ctx && ctx.tok) {
+      const uid = readToken(ctx.tok);
+      if (uid) effUser = get('SELECT id,name,role,email FROM users WHERE id=?', uid);
+    }
+    if (!effUser && b.userEmail) {
+      effUser = get('SELECT id,name,role,email FROM users WHERE email=?', String(b.userEmail).toLowerCase());
+    }
+    for (const r of routes) {
+      if (r.m !== pMethod) continue;
+      const m = r.re.exec(pUrl.pathname);
+      if (!m) continue;
+      if (!effUser && !r.public) bad(401, 'Login required');
+      const pCtx = { tok: ctx ? ctx.tok : null, query: Object.fromEntries(pUrl.searchParams.entries()) };
+      const proxiedData = await r.fn(effUser, b.proxyBody || {}, m.groups || {}, pCtx);
+      const afterSnap = FB.saveVaultSnapshot(db) || snap;
+      return {
+        ok: true,
+        action,
+        proxied: true,
+        data: proxiedData,
+        firebase: FB.getFirebaseStatus(db),
+        snapshot: afterSnap
+      };
+    }
+  }
+
   return {
     ok: true,
     action,
@@ -3039,7 +3052,17 @@ route('POST', '/api/clients', (u, b) => {
   }
   const r = run('INSERT INTO clients(name,dob,diagnosis,guardian,school,emergency,insurance,reinforcers,sensory,triggers,communication,crisis_plan) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
     b.name, b.dob || '', b.diagnosis || '', b.guardian || '', b.school || '', b.emergency || '', b.insurance || '', b.reinforcers || '', b.sensory || '', b.triggers || '', b.communication || '', b.crisis_plan || '');
-  return { id: Number(r.lastInsertRowid) };
+  const newCid = Number(r.lastInsertRowid);
+  // Assign clinic RBTs and default CPT authorizations so the newly created client is immediately accessible across Schedule, RBT Dashboard, and Client 360
+  const rbts = all('SELECT id FROM users WHERE role=\'RBT\'');
+  rbts.forEach((rbt) => {
+    if (!get('SELECT 1 x FROM assignments WHERE client_id=? AND user_id=?', newCid, rbt.id)) {
+      run('INSERT INTO assignments VALUES(?,?)', newCid, rbt.id);
+    }
+  });
+  run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', newCid, '97153', 480);
+  run('INSERT INTO authorizations(client_id,code,authorized,used) VALUES(?,?,?,0)', newCid, '97155', 80);
+  return { id: newCid };
 });
 route('GET', '/api/clients/:id', (u, b, p) => {
   clientOr403(u, p.id);
@@ -5456,25 +5479,76 @@ function storyPage(token) {
 
 // ---------- server ----------
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
+
+function isServerBehindClientSignature(clientSig) {
+  if (!clientSig || typeof clientSig !== 'string') return false;
+  const curSnap = db.exportSnapshot ? db.exportSnapshot() : null;
+  if (!curSnap || !curSnap.signature) return false;
+  if (curSnap.signature === clientSig) return false;
+  const parseSig = (sigStr) => {
+    const map = {};
+    String(sigStr).split('|').forEach((part) => {
+      const [t, len, maxId, verSum] = part.split(':');
+      if (t) map[t] = { len: Number(len) || 0, maxId: Number(maxId) || 0, verSum: Number(verSum) || 0 };
+    });
+    return map;
+  };
+  const clientMap = parseSig(clientSig);
+  const serverMap = parseSig(curSnap.signature);
+  for (const t of Object.keys(clientMap)) {
+    const cInfo = clientMap[t];
+    const sInfo = serverMap[t] || { len: 0, maxId: 0, verSum: 0 };
+    if (cInfo.len > sInfo.len || cInfo.maxId > sInfo.maxId || cInfo.verSum > sInfo.verSum) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function handler(req, res) {
   const url = new URL(req.url, 'http://x'); const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((c) => c.trim().split('=')));
   try {
     if (url.pathname.startsWith('/api/')) {
+      if (ON_VERCEL) {
+        const diskSnap = FB.loadVaultSnapshot();
+        if (diskSnap && typeof db.mergeSnapshot === 'function') {
+          db.mergeSnapshot(diskSnap);
+        }
+      }
       let b = {};
       if (req.body !== undefined && req.body !== null && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-        b = req.body; // pre-parsed by Vercel
+        b = { ...req.body }; // pre-parsed by Vercel
       } else if (req.method !== 'GET' && req.method !== 'HEAD') {
         let body = typeof req.body === 'string' ? req.body : '';
         if (!body && req.body === undefined) {
           for await (const ch of req) {
             body += ch;
-            if (body.length > 1e6) bad(413, 'Too large');
+            if (body.length > 5e6) bad(413, 'Too large');
           }
         }
         b = body ? JSON.parse(body) : {};
       }
+      if (b && b._clientVault && typeof b._clientVault === 'object') {
+        if (typeof db.mergeSnapshot === 'function') {
+          db.mergeSnapshot(b._clientVault);
+        } else if (typeof db.importSnapshot === 'function') {
+          db.importSnapshot(b._clientVault);
+        }
+        delete b._clientVault;
+      }
+
+      const clientSigHeader = req.headers['x-eba-vault-sig'];
+      if (req.method === 'GET' && clientSigHeader && url.pathname !== '/api/firebase/status' && isServerBehindClientSignature(clientSigHeader)) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'VAULT_SYNC_REQUIRED', coldStartNeedsVault: true }));
+      }
+
       const ctx = { tok: cookies.tok, query: Object.fromEntries(url.searchParams.entries()) };
-      const uid = readToken(cookies.tok); const user = uid ? get('SELECT id,name,role FROM users WHERE id=?', uid) : null;
+      const uid = readToken(cookies.tok);
+      let user = uid ? get('SELECT id,name,role,email FROM users WHERE id=?', uid) : null;
+      if (!user && uid && req.headers['x-eba-user-email']) {
+        user = get('SELECT id,name,role,email FROM users WHERE email=?', String(req.headers['x-eba-user-email']).toLowerCase());
+      }
       for (const r of routes) {
         if (r.m !== req.method) continue; const m = r.re.exec(url.pathname); if (!m) continue;
         if (!user && !r.public) bad(401, 'Login required');
@@ -5482,7 +5556,16 @@ async function handler(req, res) {
           bad(403, 'Software License Expired or Suspended (Hard Lockout). Non-Owner access is locked until the Practice Owner renews the clinic license key.');
         }
         const out = await r.fn(user, b, m.groups || {}, ctx);
-        const h = { 'Content-Type': 'application/json' }; if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
+        let snap = null;
+        if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && url.pathname !== '/api/logout') {
+          snap = FB.saveVaultSnapshot(db);
+          if (req.headers['x-eba-client-vault'] === '1' && snap && out && typeof out === 'object' && !Array.isArray(out) && !out.snapshot) {
+            out._vaultSnapshot = snap;
+          }
+        }
+        const h = { 'Content-Type': 'application/json' };
+        if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
+        if (snap && snap.signature) h['X-EBA-Vault-Sig'] = snap.signature;
         res.writeHead(200, h); return res.end(JSON.stringify(out));
       }
       bad(404, 'Unknown endpoint');

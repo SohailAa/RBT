@@ -1631,21 +1631,72 @@ const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { m
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
 const FIREBASE_VAULT_STORAGE_KEY = 'eba_firebase_cloud_vault_v1';
+let knownSidebarClients = [
+  { id: 1, name: 'Eleanor Carter' },
+  { id: 2, name: 'Leon Patel' }
+];
 
-async function syncFirebaseVault(action = 'pull', snapshot = null) {
+function updateSidebarClientsFromList(clientsList) {
+  if (!Array.isArray(clientsList) || !clientsList.length) return;
+  const map = new Map();
+  clientsList.forEach((c) => {
+    if (c && c.id && c.name) map.set(Number(c.id), { id: Number(c.id), name: String(c.name) });
+  });
+  if (map.size > 0) {
+    knownSidebarClients = Array.from(map.values()).sort((a, b) => a.id - b.id);
+  }
+}
+
+function getLocalVaultSnapshot() {
+  if (typeof localStorage === 'undefined') return null;
   try {
+    const raw = localStorage.getItem(FIREBASE_VAULT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.tables) {
+      if (Array.isArray(parsed.tables.clients)) {
+        updateSidebarClientsFromList(parsed.tables.clients);
+      }
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function saveLocalVaultSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object' || !snapshot.tables || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(FIREBASE_VAULT_STORAGE_KEY, JSON.stringify(snapshot));
+    if (Array.isArray(snapshot.tables.clients)) {
+      updateSidebarClientsFromList(snapshot.tables.clients);
+    }
+    firebaseCloudStatus.connected = true;
+    firebaseCloudStatus.lastSyncAt = snapshot.exportedAt || new Date().toISOString();
+  } catch {}
+}
+
+async function syncFirebaseVault(action = 'merge', snapshot = null, extra = {}) {
+  try {
+    const effSnap = snapshot || getLocalVaultSnapshot();
+    const effAction = effSnap ? (action === 'pull' ? 'merge' : action) : 'pull';
     const r = await fetch('/api/firebase/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, snapshot })
+      headers: {
+        'Content-Type': 'application/json',
+        'X-EBA-Client-Vault': '1'
+      },
+      body: JSON.stringify({
+        action: effAction,
+        snapshot: effSnap,
+        userEmail: (me && me.email) || '',
+        ...extra
+      })
     });
     const j = await r.json().catch(() => ({}));
     if (r.ok && j) {
-      if (j.snapshot && typeof localStorage !== 'undefined') {
-        try { localStorage.setItem(FIREBASE_VAULT_STORAGE_KEY, JSON.stringify(j.snapshot)); } catch {}
+      if (j.snapshot) {
+        saveLocalVaultSnapshot(j.snapshot);
       }
-      firebaseCloudStatus.connected = true;
-      firebaseCloudStatus.lastSyncAt = j.syncedAt || new Date().toISOString();
     }
     return j;
   } catch {
@@ -1654,11 +1705,70 @@ async function syncFirebaseVault(action = 'pull', snapshot = null) {
 }
 
 async function api(method, url, body) {
-  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) { if (r.status === 401 && me) { me = null; render(); } throw new Error(j.error || 'Error'); }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method).toUpperCase()) && !String(url).includes('/api/firebase/sync')) {
-    syncFirebaseVault('pull').catch(() => {});
+  const upperMethod = String(method || 'GET').toUpperCase();
+  const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(upperMethod);
+  const localVault = getLocalVaultSnapshot();
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-EBA-Client-Vault': '1'
+  };
+  if (localVault && localVault.signature) {
+    headers['X-EBA-Vault-Sig'] = localVault.signature;
+  }
+  if (me && me.email) {
+    headers['X-EBA-User-Email'] = me.email;
+  }
+
+  let payloadObj = body;
+  if (isWrite && !String(url).includes('/api/firebase/sync') && !String(url).includes('/api/logout')) {
+    payloadObj = (body && typeof body === 'object' && !Array.isArray(body)) ? { ...body } : {};
+    if (localVault) {
+      payloadObj._clientVault = localVault;
+    }
+    if (url === '/api/login' && payloadObj.email && localVault && localVault.tables && Array.isArray(localVault.tables.users)) {
+      const em = String(payloadObj.email).trim().toLowerCase();
+      const matchedUser = localVault.tables.users.find((u) => u && String(u.email || '').toLowerCase() === em);
+      if (matchedUser) payloadObj.vaultUser = matchedUser;
+    }
+  }
+
+  const r = await fetch(url, {
+    method: upperMethod,
+    headers,
+    body: payloadObj !== undefined ? JSON.stringify(payloadObj) : undefined
+  });
+  let j = await r.json().catch(() => ({}));
+
+  // If a serverless cold-start or different instance needs the client's vault on a GET/read (409, 404, or 401 when localVault exists),
+  // atomically merge the vault AND execute the route in a single /api/firebase/sync call!
+  if (!r.ok && localVault && (r.status === 409 || (upperMethod === 'GET' && (r.status === 404 || r.status === 401 || r.status === 403)))) {
+    const proxyRes = await syncFirebaseVault('merge', localVault, {
+      proxyMethod: upperMethod,
+      proxyUrl: url,
+      proxyBody: body || {}
+    });
+    if (proxyRes && proxyRes.ok && proxyRes.proxied) {
+      const data = proxyRes.data;
+      if (url === '/api/clients' && Array.isArray(data)) updateSidebarClientsFromList(data);
+      if (data && data.client && data.client.id && data.client.name) updateSidebarClientsFromList([...knownSidebarClients, data.client]);
+      return data;
+    }
+  }
+
+  if (!r.ok) {
+    if (r.status === 401 && me) { me = null; render(); }
+    throw new Error(j.error || 'Error');
+  }
+
+  if (j && typeof j === 'object' && !Array.isArray(j) && j._vaultSnapshot) {
+    saveLocalVaultSnapshot(j._vaultSnapshot);
+    delete j._vaultSnapshot;
+  }
+  if (url === '/api/clients' && Array.isArray(j)) {
+    updateSidebarClientsFromList(j);
+  } else if (j && j.client && j.client.id && j.client.name) {
+    updateSidebarClientsFromList([...knownSidebarClients, j.client]);
   }
   return j;
 }
@@ -1742,22 +1852,16 @@ function shell(content, route) {
       </div>
       <div class="sidebar-widget">
         <div class="sidebar-client-list" style="margin-top:0">
-          <div class="sidebar-client-row" onclick="go('client', 1)">
-            <div class="sidebar-client-avatar">EC</div>
-            <div class="sidebar-client-info">
-              <div class="sidebar-client-name">Eleanor Carter</div>
-              <div class="sidebar-client-meta">Open Client Profile</div>
+          ${knownSidebarClients.map((cl, idx) => `
+            <div class="sidebar-client-row" onclick="go('client', ${cl.id})">
+              <div class="sidebar-client-avatar" ${idx % 2 === 1 ? 'style="background:linear-gradient(135deg,#0284c7,#0f766e)"' : ''}>${esc(getInitials(cl.name))}</div>
+              <div class="sidebar-client-info">
+                <div class="sidebar-client-name">${esc(cl.name)}</div>
+                <div class="sidebar-client-meta">Open Client Profile</div>
+              </div>
+              <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', ${cl.id})">Open →</button>
             </div>
-            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 1)">Open →</button>
-          </div>
-          <div class="sidebar-client-row" onclick="go('client', 2)">
-            <div class="sidebar-client-avatar" style="background:linear-gradient(135deg,#0284c7,#0f766e)">LP</div>
-            <div class="sidebar-client-info">
-              <div class="sidebar-client-name">Leon Patel</div>
-              <div class="sidebar-client-meta">Open Client Profile</div>
-            </div>
-            <button class="sidebar-mini-btn" onclick="event.stopPropagation();go('client', 2)">Open →</button>
-          </div>
+          `).join('')}
         </div>
       </div>
     </div>
@@ -9954,7 +10058,6 @@ const act = {
       const password = val('reg_pw');
       const role = val('reg_role') || 'BCBA';
       me = await api('POST', '/api/auth/register', { name, email, password, role });
-      await syncFirebaseVault('pull');
       location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
       render();
     } catch (e) {
@@ -9962,14 +10065,13 @@ const act = {
     }
   }),
   manualFirebaseSync: safe(async () => {
-    const res = await syncFirebaseVault('pull');
+    const res = await syncFirebaseVault('merge', getLocalVaultSnapshot());
     alert(`🔥 Firebase Cloud Vault Synced (rbt-sepia-aba)\nSynced At: ${res && res.syncedAt ? res.syncedAt : new Date().toISOString()}`);
     render();
   }),
   login: safe(async () => {
     try {
       me = await api('POST', '/api/login', { email: val('em'), password: val('pw') });
-      await syncFirebaseVault('pull');
       location.hash = me.role === 'PARENT' ? 'clients' : 'dashboard';
       render();
     } catch (e) { $app.innerHTML = loginView(e.message); }
@@ -12068,12 +12170,11 @@ async function render() {
   if (!firebaseBootRestored) {
     firebaseBootRestored = true;
     try {
-      const savedVault = typeof localStorage !== 'undefined' ? localStorage.getItem(FIREBASE_VAULT_STORAGE_KEY) : null;
-      if (savedVault) {
-        const parsed = JSON.parse(savedVault);
-        if (parsed && typeof parsed === 'object') {
-          await syncFirebaseVault('push', parsed);
-        }
+      const parsed = getLocalVaultSnapshot();
+      if (parsed && typeof parsed === 'object') {
+        await syncFirebaseVault('merge', parsed);
+      } else {
+        await syncFirebaseVault('pull');
       }
     } catch {}
   }
