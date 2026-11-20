@@ -1633,6 +1633,7 @@ const GOAL_STATUS_META = {
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
+const EBA_CLIENT_BUILD = '20261120_7';
 const FIREBASE_VAULT_STORAGE_KEY = 'eba_firebase_cloud_vault_v1';
 let knownSidebarClients = [
   { id: 1, name: 'Eleanor Carter' },
@@ -1714,7 +1715,8 @@ async function api(method, url, body) {
 
   const headers = {
     'Content-Type': 'application/json',
-    'X-EBA-Client-Vault': '1'
+    'X-EBA-Client-Vault': '1',
+    'X-EBA-Build': EBA_CLIENT_BUILD
   };
   if (localVault && localVault.signature) {
     headers['X-EBA-Vault-Sig'] = localVault.signature;
@@ -1741,6 +1743,11 @@ async function api(method, url, body) {
     headers,
     body: payloadObj !== undefined ? JSON.stringify(payloadObj) : undefined
   });
+  const srvBuild = r.headers.get('x-eba-build');
+  if (srvBuild && srvBuild !== EBA_CLIENT_BUILD && typeof sessionStorage !== 'undefined' && sessionStorage.getItem('eba_reloaded_build') !== srvBuild) {
+    sessionStorage.setItem('eba_reloaded_build', srvBuild);
+    window.location.reload();
+  }
   let j = await r.json().catch(() => ({}));
 
   // If a serverless cold-start or different instance needs the client's vault on a GET/read (409, 404, or 401 when localVault exists),
@@ -8615,8 +8622,8 @@ function renderModal() {
     const primaryM = methods[0] || normalizeModalBehaviorMethods(null)[0];
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:860px;width:96%;max-height:92vh;overflow-y:auto">
-        <div class="flex-between" style="flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid var(--slate-200)">
+      <div class="modal-card modal-flex" style="max-width:860px;width:96%">
+        <div class="modal-fixed-head">
           <div>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span class="badge p">${isEdit ? `Edit Target Behavior · Version v${ver} → v${ver + 1}` : 'New Target Behavior Definition'}</span>
@@ -8626,12 +8633,13 @@ function renderModal() {
             <h3 style="margin:4px 0 0">${isEdit ? `Update Target Behavior: ${esc(bp.name)}` : 'Define Client Target Behavior'}</h3>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button type="button" class="ok" style="padding:7px 14px;font-size:0.82rem;font-weight:800" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
+            <button type="button" class="ok" style="padding:8px 14px;font-size:0.82rem;font-weight:800" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
               ✓ ${isEdit ? 'Save Changes' : 'Save Behavior'}
             </button>
             <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
           </div>
         </div>
+        <div class="modal-scroll-body">
 
         ${isEdit ? `
           <div style="background:#f0fdf4;border:1px solid #86efac;border-left:4px solid var(--ok);border-radius:8px;padding:8px 12px;margin-top:10px;font-size:0.78rem;color:#14532d">
@@ -8862,7 +8870,8 @@ function renderModal() {
           </div>
         ` : ''}
 
-        <div style="position:sticky;bottom:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding:12px 0 6px;border-top:2px solid #7fb7be;z-index:10">
+        </div>
+        <div class="modal-fixed-foot">
           <div>
             ${isEdit ? `
               <button type="button" class="sec" style="font-size:0.78rem" onclick="act.openBehaviorHistoryModal(${bp.id})">🕓 View Version History (v${ver})</button>
@@ -9593,28 +9602,26 @@ function renderModal() {
     ];
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:740px;width:96%;max-height:92vh;overflow-y:auto">
-        <div class="flex-between" style="position:sticky;top:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);padding:6px 0 10px;border-bottom:2px solid #7fb7be;z-index:10;flex-wrap:wrap;gap:10px">
+      <div class="modal-card modal-flex" style="max-width:740px;width:96%">
+        <div class="modal-fixed-head">
           <div>
             <span class="badge p">Skill Acquisition & DTT / NET Program</span>
-            <h3 style="margin:4px 0 0">Create & Set New Skill Acquisition Goal</h3>
+            <h3 style="margin:3px 0 0;font-size:1.05rem">Create & Set New Skill Acquisition Goal</h3>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button type="button" class="ok" style="padding:8px 16px;font-size:0.84rem;font-weight:800;box-shadow:0 2px 6px rgba(13,122,104,0.25)" onclick="act.submitCreateGoalModal(${cid})">
               ✓ Create & Activate Skill Target
             </button>
-            <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+            <button type="button" class="sec" style="padding:5px 10px" onclick="act.closeModal()">✕</button>
           </div>
         </div>
-        <p style="font-size:0.83rem;color:var(--slate-500);margin:8px 0 10px">
-          Define a custom operational target below, or tap a clinical ABA template to auto-fill:
-        </p>
 
-        <div style="margin-bottom:12px">
-          <div style="font-size:0.74rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">1-Tap Clinical ABA Goal Templates:</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div class="modal-scroll-body">
+        <div style="margin-bottom:10px">
+          <div style="font-size:0.72rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:5px;font-family:var(--font-mono)">1-Tap Clinical ABA Goal Templates:</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
             ${templates.map((t) => `
-              <button type="button" class="sec" style="font-size:0.75rem;padding:5px 10px;border-radius:6px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target}, ${cid})">
+              <button type="button" class="sec" style="font-size:0.73rem;padding:4px 9px;border-radius:6px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target}, ${cid})">
                 + ${esc(t.title)}
               </button>
             `).join('')}
@@ -9623,12 +9630,12 @@ function renderModal() {
 
         <div class="flex-between" style="align-items:flex-end;gap:8px;margin-bottom:4px;flex-wrap:wrap">
           <label style="margin:0">Target Operational Title / Goal Statement</label>
-          <button type="button" class="ok" style="padding:5px 10px;font-size:0.75rem;background:#0f766e" onclick="act.aiRecommendInGoalModal(${cid})">
+          <button type="button" class="ok" style="padding:5px 10px;font-size:0.74rem;background:#0f766e" onclick="act.aiRecommendInGoalModal(${cid})">
             ✨ AI Recommend Operational Definition & Measurement
           </button>
         </div>
         <input id="new_g_title" placeholder="e.g. Leon will initiate movement toward the next activity within 5 seconds of a transition cue" value="${esc(prefill)}" onchange="if(this.value.trim() && !document.getElementById('new_g_def').value.trim()) act.aiRecommendInGoalModal(${cid})">
-        <div id="new_g_ai_banner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;color:#065f46"></div>
+        <div id="new_g_ai_banner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:0.76rem;color:#065f46"></div>
 
         <label>Operational Definition (What exactly should be observed & recorded)</label>
         <textarea id="new_g_def" rows="2" placeholder="Click '✨ AI Recommend' above or enter an observable, measurable definition..."></textarea>
@@ -9712,8 +9719,10 @@ function renderModal() {
           </div>
         </div>
 
-        <div style="position:sticky;bottom:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding:12px 0 6px;border-top:2px solid #7fb7be;z-index:10">
-          <span style="font-size:0.78rem;color:#0f4c5c;font-weight:700">Ready to activate on Client 360 & Session Data Collection</span>
+        </div>
+
+        <div class="modal-fixed-foot">
+          <span style="font-size:0.78rem;color:#0f4c5c;font-weight:700">Scroll form above or click button to activate goal immediately</span>
           <div style="display:flex;gap:10px">
             <button type="button" class="sec" onclick="act.closeModal()">Cancel</button>
             <button type="button" class="ok" style="padding:10px 20px;font-size:0.9rem;font-weight:800;box-shadow:0 2px 6px rgba(13,122,104,0.25)" onclick="act.submitCreateGoalModal(${cid})">✓ Create & Activate Skill Target</button>

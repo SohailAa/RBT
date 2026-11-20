@@ -1484,6 +1484,7 @@ function buildAuthCookies(tok, refreshToken) {
   return [tokCookie, fbtCookie];
 }
 
+const EBA_SERVER_BUILD = '20261120_7';
 let cloudHydrated = false;
 let lastCloudPullAtMs = 0;
 
@@ -6093,7 +6094,14 @@ async function handler(req, res) {
             out._vaultSnapshot = snap;
           }
         }
-        const h = { 'Content-Type': 'application/json' };
+        const h = {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-EBA-Build': EBA_SERVER_BUILD
+        };
+        if (req.headers['x-eba-build'] !== EBA_SERVER_BUILD && process.env.NODE_ENV !== 'test') {
+          h['Clear-Site-Data'] = '"cache"';
+        }
         if (ctx.setCookie) h['Set-Cookie'] = ctx.setCookie;
         if (snap && snap.signature) h['X-EBA-Vault-Sig'] = snap.signature;
         res.writeHead(200, h); return res.end(JSON.stringify(out));
