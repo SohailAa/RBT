@@ -3709,8 +3709,9 @@ route('POST', '/api/smart-goal-builder/analyze', (u, b) => {
   if (!rawGoalText) bad(400, 'Goal or target behavior statement is required for analysis');
   let clientName = b.clientName || 'Learner';
   let commModality = b.communicationModality || 'Vocal / AAC / PECS';
-  if (b.clientId) {
-    const c = get('SELECT * FROM clients WHERE id=?', +b.clientId);
+  const reqCid = b.clientId || b.client_id;
+  if (reqCid) {
+    const c = get('SELECT * FROM clients WHERE id=?', +reqCid);
     if (c) {
       clientName = c.name;
       commModality = c.communication || commModality;

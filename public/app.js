@@ -8625,7 +8625,12 @@ function renderModal() {
             </div>
             <h3 style="margin:4px 0 0">${isEdit ? `Update Target Behavior: ${esc(bp.name)}` : 'Define Client Target Behavior'}</h3>
           </div>
-          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="ok" style="padding:7px 14px;font-size:0.82rem;font-weight:800" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
+              ✓ ${isEdit ? 'Save Changes' : 'Save Behavior'}
+            </button>
+            <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          </div>
         </div>
 
         ${isEdit ? `
@@ -8857,7 +8862,7 @@ function renderModal() {
           </div>
         ` : ''}
 
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding-top:12px;border-top:1px solid var(--slate-200)">
+        <div style="position:sticky;bottom:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px;padding:12px 0 6px;border-top:2px solid #7fb7be;z-index:10">
           <div>
             ${isEdit ? `
               <button type="button" class="sec" style="font-size:0.78rem" onclick="act.openBehaviorHistoryModal(${bp.id})">🕓 View Version History (v${ver})</button>
@@ -8865,7 +8870,7 @@ function renderModal() {
           </div>
           <div style="display:flex;gap:10px">
             <button class="sec" onclick="act.closeModal()">Cancel</button>
-            <button class="ok" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
+            <button class="ok" style="padding:10px 18px;font-weight:800" onclick="act.submitBehaviorProgramModal(${cid}, ${bp ? bp.id : 'null'})">
               ✓ ${isEdit ? `Save Changes (Record Version v${ver + 1})` : 'Save Target Behavior Definition'}
             </button>
           </div>
@@ -9588,36 +9593,41 @@ function renderModal() {
     ];
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:680px;width:95%">
-        <div class="flex-between">
+      <div class="modal-card" style="max-width:740px;width:96%;max-height:92vh;overflow-y:auto">
+        <div class="flex-between" style="position:sticky;top:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);padding:6px 0 10px;border-bottom:2px solid #7fb7be;z-index:10;flex-wrap:wrap;gap:10px">
           <div>
             <span class="badge p">Skill Acquisition & DTT / NET Program</span>
             <h3 style="margin:4px 0 0">Create & Set New Skill Acquisition Goal</h3>
           </div>
-          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="ok" style="padding:8px 16px;font-size:0.84rem;font-weight:800;box-shadow:0 2px 6px rgba(13,122,104,0.25)" onclick="act.submitCreateGoalModal(${cid})">
+              ✓ Create & Activate Skill Target
+            </button>
+            <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
+          </div>
         </div>
-        <p style="font-size:0.85rem;color:var(--slate-500);margin:6px 0 14px">
+        <p style="font-size:0.83rem;color:var(--slate-500);margin:8px 0 10px">
           Define a custom operational target below, or tap a clinical ABA template to auto-fill:
         </p>
 
-        <div style="margin-bottom:14px">
-          <div style="font-size:0.75rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">1-Tap Clinical ABA Goal Templates:</div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:0.74rem;font-weight:800;color:var(--slate-500);text-transform:uppercase;margin-bottom:6px;font-family:var(--font-mono)">1-Tap Clinical ABA Goal Templates:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${templates.map((t) => `
-              <button class="sec" style="font-size:0.76rem;padding:5px 10px;border-radius:6px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target})">
+              <button type="button" class="sec" style="font-size:0.75rem;padding:5px 10px;border-radius:6px" onclick="act.fillGoalTemplate(${JSON.stringify(t.title).replace(/"/g, '&quot;')}, ${t.base}, ${t.target}, ${cid})">
                 + ${esc(t.title)}
               </button>
             `).join('')}
           </div>
         </div>
 
-        <div class="flex-between" style="align-items:flex-end;gap:8px;margin-bottom:4px">
+        <div class="flex-between" style="align-items:flex-end;gap:8px;margin-bottom:4px;flex-wrap:wrap">
           <label style="margin:0">Target Operational Title / Goal Statement</label>
           <button type="button" class="ok" style="padding:5px 10px;font-size:0.75rem;background:#0f766e" onclick="act.aiRecommendInGoalModal(${cid})">
             ✨ AI Recommend Operational Definition & Measurement
           </button>
         </div>
-        <input id="new_g_title" placeholder="e.g. Leon will initiate movement toward the next activity within 5 seconds of a transition cue" value="${esc(prefill)}">
+        <input id="new_g_title" placeholder="e.g. Leon will initiate movement toward the next activity within 5 seconds of a transition cue" value="${esc(prefill)}" onchange="if(this.value.trim() && !document.getElementById('new_g_def').value.trim()) act.aiRecommendInGoalModal(${cid})">
         <div id="new_g_ai_banner" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:0.78rem;color:#065f46"></div>
 
         <label>Operational Definition (What exactly should be observed & recorded)</label>
@@ -9702,9 +9712,12 @@ function renderModal() {
           </div>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-          <button class="sec" onclick="act.closeModal()">Cancel</button>
-          <button class="ok" onclick="act.submitCreateGoalModal(${cid})">✓ Create & Activate Goal</button>
+        <div style="position:sticky;bottom:-20px;background:linear-gradient(155deg,#e0f5f3 0%,#d8eef7 100%);display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding:12px 0 6px;border-top:2px solid #7fb7be;z-index:10">
+          <span style="font-size:0.78rem;color:#0f4c5c;font-weight:700">Ready to activate on Client 360 & Session Data Collection</span>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="sec" onclick="act.closeModal()">Cancel</button>
+            <button type="button" class="ok" style="padding:10px 20px;font-size:0.9rem;font-weight:800;box-shadow:0 2px 6px rgba(13,122,104,0.25)" onclick="act.submitCreateGoalModal(${cid})">✓ Create & Activate Skill Target</button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -11151,13 +11164,17 @@ const act = {
     activeModal = { type: 'create_goal', clientId: cid, prefillTitle };
     render();
   },
-  fillGoalTemplate: (title, base, target) => {
+  fillGoalTemplate: (title, base, target, cid = null) => {
     const tEl = document.getElementById('new_g_title');
     const bEl = document.getElementById('new_g_base');
     const gEl = document.getElementById('new_g_target');
     if (tEl) tEl.value = title;
     if (bEl) bEl.value = base;
     if (gEl) gEl.value = target;
+    const effCid = cid || (activeModal && activeModal.clientId);
+    if (effCid) {
+      act.aiRecommendInGoalModal(effCid);
+    }
   },
   submitCreateGoalModal: safe(async (cid) => {
     const title = val('new_g_title').trim();
@@ -11168,11 +11185,11 @@ const act = {
     const prompt_strategy = val('new_g_strategy') || 'Least-to-Most (LTM)';
     const scoring_rule = val('new_g_scoring') || 'independent_only';
     const mastery_sessions = +val('new_g_sess') || 3;
-    const operational_definition = val('new_g_def') || '';
-    const onset_criteria = val('new_g_onset') || '';
-    const offset_criteria = val('new_g_offset') || '';
-    const examples = val('new_g_examples') || '';
-    const non_examples = val('new_g_non') || '';
+    const operational_definition = val('new_g_def').trim() || `Observable, measurable execution of "${title}" within 5 seconds of the clinician's cue/SD without prompting.`;
+    const onset_criteria = val('new_g_onset').trim() || 'Opportunity window starts immediately upon completion of the clinician instruction/SD.';
+    const offset_criteria = val('new_g_offset').trim() || 'Trial ends when the learner completes the target response or after 5 seconds of no response.';
+    const examples = val('new_g_examples').trim() || 'Learner emits the target response independently within 5 seconds of the SD.';
+    const non_examples = val('new_g_non').trim() || 'Responding only after an adult prompt or emitting an incorrect response.';
     const measurement_type = val('new_g_mtype') || 'percentage_of_opportunities';
     const secondary_measurement = val('new_g_sec_mtype') || '';
     const configured_prompts = val('new_g_prompts') || 'I,V,G';
