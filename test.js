@@ -1389,6 +1389,25 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      directMissingSessionGet.j.behaviorPrograms.some((bp) => bp.name === 'Elopement from Tabletop'),
      'Multi-Instance Session Recovery: GET /api/sessions/:id self-heals and opens Leon Shinavier session with all behavioral goals without 404 Not found');
 
+  // Verify Universal & Per-Card Session Data Collection Undo (POST /api/sessions/:id/undo & targeted DELETE)
+  await b('POST', '/api/sessions/777/behavior-events', {
+    behavior_id: shinavierBehRes.j.id,
+    behavior_name: 'Elopement from Tabletop',
+    measurement_type: 'frequency',
+    count: 1
+  });
+  const targetedBehUndo = await b('DELETE', `/api/sessions/777/behavior-events/last?behavior_id=${shinavierBehRes.j.id}`);
+  ok(targetedBehUndo.s === 200 && targetedBehUndo.j.ok && targetedBehUndo.j.undone && targetedBehUndo.j.undone.behavior_name === 'Elopement from Tabletop',
+     'Data Collection Undo: Per-card targeted behavior undo removes the last entry for that specific behavior and its linked timeline record');
+
+  await b('POST', '/api/sessions/777/breaks', { action: 'start' });
+  const universalBreakUndo = await b('POST', '/api/sessions/777/undo', {});
+  const afterBreakUndoView = await b('GET', `/api/sessions/777?client_id=${shinavierCid}`);
+  ok(universalBreakUndo.s === 200 && universalBreakUndo.j.ok &&
+     universalBreakUndo.j.undone_type === 'session_event' &&
+     afterBreakUndoView.j.breaksCount === 0 && !afterBreakUndoView.j.breakActive,
+     'Data Collection Undo: Universal POST /api/sessions/:id/undo reverses the most recent session action (including accidental Break/Pause/Behavior/Trial clicks)');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

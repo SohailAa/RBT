@@ -64,6 +64,7 @@ let traceFilterMetric = null;
 let traceFilterEventIds = null;
 let lastStartedSessionCache = null;
 let lastStartedSessionClientId = null;
+let lastUndoFeedbackMsg = '';
 
 const PROMPT_SHORT_LABELS = {
   I: 'IND',
@@ -4978,13 +4979,14 @@ async function sessionView(id) {
   };
 
   // Counters for Simplified RBT Session Dashboard (Page 2 of PDF Spec)
-  const totalBehaviorsCount = (behaviorSummary.frequencyCount || 0) + abcLogs.length;
+  const totalBehaviorsCount = Math.max(behaviorSummary.frequencyCount || 0, behaviorEvents.length) + abcLogs.length;
   const totalSkillTrialsCount = goals.reduce((acc, g) => acc + ((g.summary && (g.summary.rawTotal ?? g.summary.total)) || 0), 0);
   const breaksCount = v.breaksCount || (s && s.breaks_count) || 0;
   const breakActive = Boolean(v.breakActive || (s && s.break_started_at));
   const pausesCount = v.pausesCount || (s && s.pauses_count) || 0;
   const pauseActive = Boolean(v.pauseActive || (s && s.pause_started_at));
   const activeBehPrograms = behaviorPrograms.filter((bp) => bp.status !== 'archived');
+  const hasAnySessionDataToUndo = totalBehaviorsCount > 0 || totalSkillTrialsCount > 0 || breaksCount > 0 || pausesCount > 0 || breakActive || pauseActive || Object.keys(behTimers || {}).length > 0;
 
   const renderSessionTimelineAndTraceabilityCard = () => {
     const timeline = Array.isArray(v.sessionTimeline) ? v.sessionTimeline : [];
@@ -5170,6 +5172,11 @@ async function sessionView(id) {
                       ✏️ Edit / Audit
                     </button>
                   ` : ''}
+                  ${!ended && ev.raw_table && ev.raw_id && !['SESSION_START', 'SESSION_END'].includes(ev.event_type) ? `
+                    <button type="button" class="sec" style="font-size:0.7rem;padding:4px 8px;border-color:#fca5a5;color:#b91c47;background:#fff1f2;font-weight:700" onclick="act.undoSpecificTimelineEvent(${s.id}, '${esc(ev.raw_table)}', ${ev.raw_id})">
+                      ↩ Undo
+                    </button>
+                  ` : ''}
                 </div>
               </div>
             `;
@@ -5204,13 +5211,26 @@ async function sessionView(id) {
             </button>
           </div>
         </div>
-        <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${!ended ? `
+            <button type="button" style="background:#ffffff;color:#0f4c5c;border:2px solid #0f4c5c;border-radius:12px;padding:11px 18px;font-size:0.9rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 5px rgba(15,76,92,0.12)"
+              onclick="act.undoLastSessionAction(${s.id})" title="Undo the most recent button press or data entry in this session">
+              ↩ UNDO LAST ENTRY
+            </button>
+          ` : ''}
           ${ended
             ? `<div style="background:#0d7a68;color:#ffffff;font-weight:800;font-size:0.9rem;padding:12px 20px;border-radius:12px">✓ SESSION ENDED (${s.units} UNITS)</div>`
             : `<button type="button" style="background:#b91c47;color:#ffffff;border:none;border-radius:12px;padding:13px 26px;font-size:0.98rem;font-weight:800;letter-spacing:0.02em;cursor:pointer;box-shadow:0 2px 6px rgba(185,28,71,0.25)" onclick="act.endSession(${s.id})">END SESSION</button>`
           }
         </div>
       </div>
+
+      ${lastUndoFeedbackMsg ? `
+        <div style="background:#ecfdf5;border:2px solid #10b981;color:#065f46;border-radius:12px;padding:10px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:0.88rem">
+          <span>${esc(lastUndoFeedbackMsg)}</span>
+          <button type="button" class="sec" style="padding:2px 8px;font-size:0.75rem;background:#ffffff;border-color:#10b981;color:#065f46" onclick="lastUndoFeedbackMsg='';render()">✕ Dismiss</button>
+        </div>
+      ` : ''}
 
       <!-- 3 KPI Counter Cards Row (Behaviors | Skill trials | Breaks & Pauses) -->
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
@@ -5264,11 +5284,11 @@ async function sessionView(id) {
       ` : ''}
 
       <!-- Section 1: 1. BEHAVIOR TRACKING | BCBA-assigned measures -->
-      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">1. BEHAVIOR TRACKING</span>
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:0.88rem;color:#334155;font-weight:600">BCBA-assigned measures</span>
-          ${!ended && (behaviorSummary.frequencyCount || 0) > 0 ? `<button type="button" class="sec" style="padding:3px 9px;font-size:0.73rem;background:#fff;border-color:#8abec4;color:#0f4c5c" onclick="act.undoBehaviorEvent(${s.id})">↩ Undo</button>` : ''}
+          ${!ended ? `<button type="button" class="sec" style="padding:5px 12px;font-size:0.78rem;background:#fff;border:1.5px solid #0f4c5c;color:#0f4c5c;font-weight:800" onclick="act.undoBehaviorEvent(${s.id})">↩ Undo Last Behavior</button>` : ''}
         </div>
       </div>
 
@@ -5403,6 +5423,23 @@ async function sessionView(id) {
           }
 
           const byInt = bpStats.byIntensity || { Mild: 0, Moderate: 0, Severe: 0 };
+          const bpHasSessionEvents = (bpStats.frequency || 0) > 0 || (bpStats.durationEpisodes || 0) > 0 || (bpStats.latencyEpisodes || 0) > 0 || (bpStats.intervalTotal || 0) > 0 || behaviorEvents.some((ev) => Number(ev.behavior_id) === Number(bp.id) || ev.behavior_name === bp.name);
+          const cardUndoRowHtml = !ended ? `
+            <div style="display:flex;gap:8px;margin-top:8px">
+              ${runningTimer ? `
+                <button type="button" class="sec" style="flex:1;padding:7px 10px;font-size:0.76rem;background:#fff1f2;border:1.5px solid #f43f5e;color:#be123c;font-weight:800;border-radius:10px;cursor:pointer"
+                  onclick="act.cancelBehaviorTimer(${bp.id}, '${esc(bp.name)}')">
+                  ✕ Cancel Running Timer
+                </button>
+              ` : ''}
+              ${bpHasSessionEvents ? `
+                <button type="button" class="sec" style="flex:1;padding:7px 10px;font-size:0.76rem;background:#f8fafc;border:1.5px solid #64748b;color:#1e293b;font-weight:800;border-radius:10px;cursor:pointer"
+                  onclick="act.undoBehaviorEvent(${s.id}, ${bp.id}, '${esc(bp.name)}')">
+                  ↩ Undo Last for This Behavior
+                </button>
+              ` : ''}
+            </div>
+          ` : '';
           return `
             <div style="background:#ffffff;border:2px solid #8abec4;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between">
               <div>
@@ -5443,6 +5480,7 @@ async function sessionView(id) {
               </div>
               <div>
                 ${primaryControlHtml}
+                ${cardUndoRowHtml}
               </div>
             </div>
           `;
@@ -5450,11 +5488,11 @@ async function sessionView(id) {
       </div>
 
       <!-- Section 2: 2. SKILL ACQUISITION | NET / DTT -->
-      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">2. SKILL ACQUISITION</span>
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-size:0.88rem;color:#334155;font-weight:600">NET / DTT</span>
-          ${!ended && totalSkillTrialsCount > 0 ? `<button type="button" class="sec" style="padding:3px 9px;font-size:0.73rem;background:#fff;border-color:#8abec4;color:#0f4c5c" onclick="act.undo(${s.id})">↩ Undo Trial</button>` : ''}
+          ${!ended ? `<button type="button" class="sec" style="padding:5px 12px;font-size:0.78rem;background:#fff;border:1.5px solid #0f4c5c;color:#0f4c5c;font-weight:800" onclick="act.undo(${s.id})">↩ Undo Last Trial</button>` : ''}
         </div>
       </div>
 
@@ -5506,6 +5544,14 @@ async function sessionView(id) {
                     `;
                   }).join('')}
                 </div>
+                ${!ended && rawTotal > 0 ? `
+                  <div style="margin-top:8px">
+                    <button type="button" class="sec" style="width:100%;padding:7px 10px;font-size:0.76rem;background:#f8fafc;border:1.5px solid #64748b;color:#1e293b;font-weight:800;border-radius:10px;cursor:pointer"
+                      onclick="act.undo(${s.id}, ${g.id}, '${esc(g.title)}')">
+                      ↩ Undo Last Trial for This Goal
+                    </button>
+                  </div>
+                ` : ''}
                 ${!ended ? `
                   <details style="margin-top:8px">
                     <summary style="font-size:0.74rem;color:#64748b;cursor:pointer;user-select:none">
@@ -5545,9 +5591,12 @@ async function sessionView(id) {
       </div>
 
       <!-- Section 3: 3. SESSION TOOLS -->
-      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <span style="font-size:1rem;font-weight:900;color:#0f4c5c;letter-spacing:0.02em">3. SESSION TOOLS</span>
-        <span style="font-size:0.88rem;color:#334155;font-weight:600">${pauseActive ? '⏸ Session Currently Paused' : (breakActive ? '⏸ Break Currently Active' : 'Breaks • Pauses • ABC • Session notes')}</span>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:0.88rem;color:#334155;font-weight:600">${pauseActive ? '⏸ Session Currently Paused' : (breakActive ? '⏸ Break Currently Active' : 'Breaks • Pauses • ABC • Session notes')}</span>
+          ${!ended ? `<button type="button" class="sec" style="padding:5px 12px;font-size:0.78rem;background:#fff;border:1.5px solid #0f4c5c;color:#0f4c5c;font-weight:800" onclick="act.undoLastSessionAction(${s.id})">↩ Undo Last Action</button>` : ''}
+        </div>
       </div>
 
       <!-- Action Buttons Grid (START BREAK, END BREAK, PAUSE SESSION, RESUME SESSION, ADD ABC, SESSION NOTES) -->
@@ -10872,17 +10921,73 @@ const act = {
     else await api('POST', `/api/clients/${cid}/behavior-events`, payload);
     render();
   }),
-  undoBehaviorEvent: safe(async (sid) => {
+  cancelBehaviorTimer: (bpId, behLabel = '') => {
+    if (behTimers[bpId]) {
+      delete behTimers[bpId];
+      lastUndoFeedbackMsg = `✓ Cancelled running timer for ${behLabel || bpNameMap[bpId] || 'Target Behavior'} (no episode recorded)`;
+      render();
+    }
+  },
+  undoBehaviorEvent: safe(async (sid, bpId = null, behLabel = '') => {
+    if (bpId && behTimers[bpId]) {
+      delete behTimers[bpId];
+      lastUndoFeedbackMsg = `✓ Cancelled running timer for ${behLabel || bpNameMap[bpId] || 'Target Behavior'}`;
+      render();
+      return;
+    }
     for (let i = localBehEvents.length - 1; i >= 0; i--) {
-      if (Number(localBehEvents[i].session_id) === Number(sid)) {
+      const matchSession = Number(localBehEvents[i].session_id) === Number(sid);
+      const matchBp = !bpId || Number(localBehEvents[i].behavior_id || localBehEvents[i].behavior_program_id) === Number(bpId);
+      if (matchSession && matchBp) {
         if (localBehEvents[i].ts) localUndoneIds.add(localBehEvents[i].ts);
         localBehEvents.splice(i, 1);
         break;
       }
     }
-    const res = await api('DELETE', `/api/sessions/${sid}/behavior-events/last`);
+    const qs = bpId ? `?behavior_id=${encodeURIComponent(bpId)}` : '';
+    const res = await api('DELETE', `/api/sessions/${sid}/behavior-events/last${qs}`);
     if (res && res.undone && res.undone.ts) {
       localUndoneIds.add(res.undone.ts);
+    }
+    if (res && res.undone) {
+      lastUndoFeedbackMsg = `✓ Undid behavior entry: ${res.undone_label || behLabel || res.undone.behavior_name || 'Target Behavior'}`;
+    } else {
+      lastUndoFeedbackMsg = 'No recorded behavior entry to undo.';
+    }
+    render();
+  }),
+  undoLastSessionAction: safe(async (sid) => {
+    const runningBpIds = Object.keys(behTimers || {});
+    if (runningBpIds.length > 0) {
+      const lastBpId = runningBpIds[runningBpIds.length - 1];
+      delete behTimers[lastBpId];
+      lastUndoFeedbackMsg = `✓ Cancelled running timer for ${bpNameMap[lastBpId] || 'Target Behavior'}`;
+      render();
+      return;
+    }
+    const res = await api('POST', `/api/sessions/${sid}/undo`, {});
+    if (res && res.undone) {
+      if (res.undone.ts) localUndoneIds.add(res.undone.ts);
+      for (let i = localBehEvents.length - 1; i >= 0; i--) {
+        if (Number(localBehEvents[i].session_id) === Number(sid)) {
+          localBehEvents.splice(i, 1);
+          break;
+        }
+      }
+      lastUndoFeedbackMsg = `✓ Undid last entry: ${res.undone_label || res.undone_type || 'Session Entry'}`;
+    } else {
+      lastUndoFeedbackMsg = 'Nothing to undo yet in this session.';
+    }
+    render();
+  }),
+  undoSpecificTimelineEvent: safe(async (sid, targetTable, targetId) => {
+    const res = await api('POST', `/api/sessions/${sid}/undo`, {
+      target_table: targetTable,
+      target_id: targetId
+    });
+    if (res && res.undone) {
+      if (res.undone.ts) localUndoneIds.add(res.undone.ts);
+      lastUndoFeedbackMsg = `✓ Undid timeline record: ${res.undone_label || targetTable}`;
     }
     render();
   }),
@@ -11395,7 +11500,16 @@ const act = {
     }
     render();
   }),
-  undo: safe(async (sid) => { await api('DELETE', `/api/sessions/${sid}/trials/last`); render(); }),
+  undo: safe(async (sid, gid = null, goalTitle = '') => {
+    const qs = gid ? `?goal_id=${encodeURIComponent(gid)}` : '';
+    const res = await api('DELETE', `/api/sessions/${sid}/trials/last${qs}`);
+    if (res && res.undone) {
+      lastUndoFeedbackMsg = `✓ Undid skill trial: ${res.undone_label || goalTitle || 'Skill Trial'}`;
+    } else {
+      lastUndoFeedbackMsg = 'No recorded skill trial to undo.';
+    }
+    render();
+  }),
   endSession: safe(async (sid) => { if (confirm('End clinical session?')) { await api('POST', `/api/sessions/${sid}/end`, {}); render(); } }),
   genNote: safe(async (sid) => { const r = await api('POST', `/api/sessions/${sid}/note/generate`, {}); document.getElementById('note').value = r.note; }),
   saveNote: safe(async (sid) => { await api('PUT', `/api/sessions/${sid}/note`, { note: val('note') }); alert('Draft note saved'); render(); }),

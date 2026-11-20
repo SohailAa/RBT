@@ -5692,15 +5692,37 @@ route('POST', '/api/sessions/:id/trials', (u, b, p, ctx) => {
     s.id, +b.goal_id, b.level, observedAt, b.trial_type || 'acquisition', b.notes || '', u.id, observedAt, recordedAt, JSON.stringify(orig), '[]');
   return { id: Number(r.lastInsertRowid), observed_at: observedAt, recorded_at: recordedAt };
 });
+function removeLinkedSessionTimelineEvents(sessionId, sourceTable, sourceId) {
+  const rows = all('SELECT id, meta_json FROM session_events WHERE session_id=?', +sessionId);
+  rows.forEach((se) => {
+    const meta = parse(se.meta_json) || {};
+    if (meta.source_table === sourceTable && Number(meta.source_id) === Number(sourceId)) {
+      run('DELETE FROM session_events WHERE id=?', se.id);
+    }
+  });
+}
+
 route('DELETE', '/api/sessions/:id/trials/last', (u, b, p, ctx) => {
   const s = ensureSessionRecord(u, p.id, b, ctx); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
   if (s.end) bad(400, 'Session ended');
-  const t = get('SELECT * FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  const targetTrialId = +(ctx && ctx.query && ctx.query.trial_id) || +(b && b.trial_id) || 0;
+  const targetGoalId = +(ctx && ctx.query && ctx.query.goal_id) || +(b && b.goal_id) || 0;
+  let t = null;
+  if (targetTrialId) {
+    t = get('SELECT * FROM trials WHERE session_id=? AND id=?', s.id, targetTrialId);
+  } else if (targetGoalId) {
+    t = get('SELECT * FROM trials WHERE session_id=? AND goal_id=? ORDER BY id DESC LIMIT 1', s.id, targetGoalId);
+  } else {
+    t = get('SELECT * FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  }
   if (t) {
     run('DELETE FROM trials WHERE id=?', t.id);
-    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'trial', entity_id: t.id, action: 'UNDO_TRIAL', details: `Undid trial #${t.id} (Goal #${t.goal_id}, Response: ${t.level})` });
+    const g = get('SELECT title FROM goals WHERE id=?', t.goal_id);
+    const gTitle = (g && g.title) || `Goal #${t.goal_id}`;
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'trial', entity_id: t.id, action: 'UNDO_TRIAL', details: `Undid trial #${t.id} (${gTitle}, Response: ${t.level})` });
+    return { ok: true, undone: t, undone_type: 'trial', undone_label: `${gTitle} (${t.level})` };
   }
-  return {};
+  return { ok: true, undone: null };
 });
 route('POST', '/api/sessions/:id/behavior-events', (u, b, p, ctx) => {
   const s = ensureSessionRecord(u, p.id, b, ctx);
@@ -5710,12 +5732,116 @@ route('POST', '/api/sessions/:id/behavior-events', (u, b, p, ctx) => {
 route('DELETE', '/api/sessions/:id/behavior-events/last', (u, b, p, ctx) => {
   const s = ensureSessionRecord(u, p.id, b, ctx);
   clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
-  const ev = get('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  const targetEventId = +(ctx && ctx.query && ctx.query.event_id) || +(b && b.event_id) || 0;
+  const targetBehId = +(ctx && ctx.query && ctx.query.behavior_id) || +(b && b.behavior_id) || 0;
+  let ev = null;
+  if (targetEventId) {
+    ev = get('SELECT * FROM behavior_events WHERE session_id=? AND id=?', s.id, targetEventId);
+  } else if (targetBehId) {
+    const bp = get('SELECT name FROM behavior_programs WHERE id=?', targetBehId);
+    const sessEvents = all('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC', s.id);
+    ev = sessEvents.find((e) => Number(e.behavior_id) === targetBehId || (bp && e.behavior_name === bp.name)) || null;
+  } else {
+    ev = get('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  }
   if (ev) {
     run('DELETE FROM behavior_events WHERE id=?', ev.id);
+    removeLinkedSessionTimelineEvents(s.id, 'behavior_events', ev.id);
     logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'behavior_event', entity_id: ev.id, action: 'UNDO_BEHAVIOR_EVENT', details: `Undid behavior observation #${ev.id} (${ev.behavior_name}, ${ev.measurement_type})` });
+    return { ok: true, undone: ev, undone_type: 'behavior_event', undone_label: `${ev.behavior_name} (${ev.measurement_type})` };
   }
-  return { ok: true, undone: ev || null };
+  return { ok: true, undone: null };
+});
+
+route('POST', '/api/sessions/:id/undo', (u, b, p, ctx) => {
+  const s = ensureSessionRecord(u, p.id, b, ctx);
+  clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
+  if (s.end) bad(400, 'Session ended');
+
+  const targetTable = String((b && b.target_table) || '').toLowerCase();
+  const targetId = +((b && b.target_id) || 0);
+
+  const undoBehaviorRow = (ev) => {
+    run('DELETE FROM behavior_events WHERE id=?', ev.id);
+    removeLinkedSessionTimelineEvents(s.id, 'behavior_events', ev.id);
+    const lbl = `${ev.behavior_name || 'Behavior'} (${ev.measurement_type || 'frequency'})`;
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'behavior_event', entity_id: ev.id, action: 'UNDO_BEHAVIOR_EVENT', details: `Undid behavior observation #${ev.id} (${lbl})` });
+    return { ok: true, undone_type: 'behavior_event', undone_label: lbl, undone: ev };
+  };
+
+  const undoTrialRow = (t) => {
+    run('DELETE FROM trials WHERE id=?', t.id);
+    const g = get('SELECT title FROM goals WHERE id=?', t.goal_id);
+    const gTitle = (g && g.title) || `Goal #${t.goal_id}`;
+    const lbl = `${gTitle} (Trial: ${t.level})`;
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'trial', entity_id: t.id, action: 'UNDO_TRIAL', details: `Undid trial #${t.id} (${lbl})` });
+    return { ok: true, undone_type: 'trial', undone_label: lbl, undone: t };
+  };
+
+  const undoAbcRow = (abc) => {
+    run('DELETE FROM abc_logs WHERE id=?', abc.id);
+    removeLinkedSessionTimelineEvents(s.id, 'abc_logs', abc.id);
+    const lbl = `ABC Record: ${abc.behavior || 'Behavior'}`;
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'abc_log', entity_id: abc.id, action: 'UNDO_ABC_LOG', details: `Undid ABC record #${abc.id} (${lbl})` });
+    return { ok: true, undone_type: 'abc_log', undone_label: lbl, undone: abc };
+  };
+
+  const undoSessionEventRow = (se) => {
+    run('DELETE FROM session_events WHERE id=?', se.id);
+    if (se.event_type === 'BREAK_START') {
+      const nextBreaks = Math.max(0, (Number(s.breaks_count) || 1) - 1);
+      run('UPDATE sessions SET breaks_count=?, break_started_at=? WHERE id=?', nextBreaks, '', s.id);
+    } else if (se.event_type === 'BREAK_END') {
+      const nextTotalBreak = Math.max(0, (Number(s.total_break_sec) || 0) - (Number(se.duration_sec) || 0));
+      run('UPDATE sessions SET break_started_at=?, total_break_sec=? WHERE id=?', se.start_ts || '', nextTotalBreak, s.id);
+    } else if (se.event_type === 'PAUSE_START') {
+      const nextPauses = Math.max(0, (Number(s.pauses_count) || 1) - 1);
+      run('UPDATE sessions SET pauses_count=?, pause_started_at=? WHERE id=?', nextPauses, '', s.id);
+    } else if (se.event_type === 'PAUSE_END') {
+      const nextTotalPause = Math.max(0, (Number(s.total_pause_sec) || 0) - (Number(se.duration_sec) || 0));
+      run('UPDATE sessions SET pause_started_at=?, total_pause_sec=? WHERE id=?', se.start_ts || '', nextTotalPause, s.id);
+    }
+    const lbl = se.label || se.event_type;
+    logAudit(u, { client_id: s.client_id, session_id: s.id, entity_type: 'session_event', entity_id: se.id, action: 'UNDO_SESSION_EVENT', details: `Undid session event #${se.id} (${lbl})` });
+    return { ok: true, undone_type: 'session_event', undone_label: lbl, undone: se };
+  };
+
+  if (targetTable && targetId) {
+    if (targetTable === 'behavior_events') {
+      const ev = get('SELECT * FROM behavior_events WHERE session_id=? AND id=?', s.id, targetId);
+      if (ev) return undoBehaviorRow(ev);
+    } else if (targetTable === 'trials') {
+      const t = get('SELECT * FROM trials WHERE session_id=? AND id=?', s.id, targetId);
+      if (t) return undoTrialRow(t);
+    } else if (targetTable === 'abc_logs') {
+      const abc = get('SELECT * FROM abc_logs WHERE session_id=? AND id=?', s.id, targetId);
+      if (abc) return undoAbcRow(abc);
+    } else if (targetTable === 'session_events') {
+      const se = get('SELECT * FROM session_events WHERE session_id=? AND id=?', s.id, targetId);
+      if (se && !['SESSION_START', 'SESSION_END'].includes(se.event_type)) return undoSessionEventRow(se);
+    }
+  }
+
+  // Otherwise pick the most recently recorded data collection action in this session
+  const candidates = [];
+  const lastBeh = get('SELECT * FROM behavior_events WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  if (lastBeh) candidates.push({ ts: lastBeh.recorded_at || lastBeh.observed_at || lastBeh.ts || '', fn: () => undoBehaviorRow(lastBeh) });
+  const lastTrial = get('SELECT * FROM trials WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  if (lastTrial) candidates.push({ ts: lastTrial.recorded_at || lastTrial.observed_at || lastTrial.ts || '', fn: () => undoTrialRow(lastTrial) });
+  const lastAbc = get('SELECT * FROM abc_logs WHERE session_id=? ORDER BY id DESC LIMIT 1', s.id);
+  if (lastAbc) candidates.push({ ts: lastAbc.recorded_at || lastAbc.observed_at || lastAbc.ts || '', fn: () => undoAbcRow(lastAbc) });
+  const breakPauseEvents = all('SELECT * FROM session_events WHERE session_id=? ORDER BY id DESC', s.id)
+    .filter((se) => ['BREAK_START', 'BREAK_END', 'PAUSE_START', 'PAUSE_END'].includes(se.event_type));
+  if (breakPauseEvents.length) {
+    const lastBp = breakPauseEvents[0];
+    candidates.push({ ts: lastBp.recorded_at || lastBp.observed_at || lastBp.start_ts || '', fn: () => undoSessionEventRow(lastBp) });
+  }
+
+  if (!candidates.length) {
+    return { ok: true, undone: null, undone_type: 'none', undone_label: 'Nothing to undo yet in this session' };
+  }
+  candidates.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  return candidates[0].fn();
 });
 route('POST', '/api/sessions/:id/abc', (u, b, p, ctx) => {
   const s = ensureSessionRecord(u, p.id, b, ctx); clientOr403(u, s.client_id); if (u.role === 'PARENT') bad(403, 'Not allowed');
