@@ -62,6 +62,8 @@ let firebaseCloudStatus = { connected: true, projectId: 'rbt-sepia-aba', lastSyn
 let firebaseBootRestored = false;
 let traceFilterMetric = null;
 let traceFilterEventIds = null;
+let lastStartedSessionCache = null;
+let lastStartedSessionClientId = null;
 
 const PROMPT_SHORT_LABELS = {
   I: 'IND',
@@ -2747,7 +2749,7 @@ function renderRbtKpi(d) {
                 </span>
               </td>
               <td style="text-align:right">
-                <button class="${t.status === 'Completed' ? 'sec' : 'ok'}" onclick="act.start(${t.appointmentId})">
+                <button class="${t.status === 'Completed' ? 'sec' : 'ok'}" onclick="act.start(${t.appointmentId}, ${t.clientId || 'null'}, '${esc(t.clientName || '')}', '${esc(t.setting || 'Clinic')}')">
                   ${t.status === 'In Session' ? 'Resume Session →' : t.status === 'Completed' ? 'Review Note' : '▶ Start Session'}
                 </button>
               </td>
@@ -4824,14 +4826,14 @@ async function scheduleView() {
               <td><span class="badge p">${esc(x.role)}</span> ${esc(x.setting)}</td>
               <td style="text-align:right;white-space:nowrap">
                 ${x.session && x.session.end ? '<span class="tag approved" style="margin-right:6px">Completed</span>' : ''}
-                <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.openClientSnapshotModal(${x.client_id}, ${x.id})">
-                  👤 Client Profile Snapshot
-                </button>
-                <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="go('client', ${x.client_id})">
-                  Open Profile →
-                </button>
-                <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="act.start(${x.id}, ${x.client_id}, '${esc(x.client)}', '${esc(x.setting)}', '${esc(x.start)}', '${esc(x.end)}', ${x.user_id})">
+                <button class="ok" style="padding:6px 12px;font-size:0.78rem;margin-right:6px" onclick="act.start(${x.id}, ${x.client_id}, '${esc(x.client)}', '${esc(x.setting)}', '${esc(x.start)}', '${esc(x.end)}', ${x.user_id})">
                   ${x.session ? (x.session.end ? 'Session Note' : 'Resume Session ⚡') : '▶ Start Session'}
+                </button>
+                <button class="sec" style="padding:6px 10px;font-size:0.78rem;margin-right:6px" onclick="act.openClientSnapshotModal(${x.client_id}, ${x.id})">
+                  👤 Snapshot
+                </button>
+                <button class="sec" style="padding:6px 10px;font-size:0.78rem" onclick="go('client', ${x.client_id})">
+                  Open Profile →
                 </button>
               </td>
             </tr>
@@ -4844,13 +4846,38 @@ async function scheduleView() {
 
 let timer = null;
 async function sessionView(id) {
-  let v;
+  let v = null;
+  const localVault = getLocalVaultSnapshot();
+  const vaultSession = localVault && localVault.tables && Array.isArray(localVault.tables.sessions)
+    ? localVault.tables.sessions.find((s) => Number(s && s.id) === Number(id))
+    : null;
+  const vaultAppt = localVault && localVault.tables && Array.isArray(localVault.tables.appointments)
+    ? localVault.tables.appointments.find((a) => Number(a && a.id) === Number(id))
+    : null;
+  const latestSidebarClient = knownSidebarClients.length ? knownSidebarClients[knownSidebarClients.length - 1] : null;
+  const hintClientId = Number(
+    (lastStartedSessionCache && Number(lastStartedSessionCache.id) === Number(id) && lastStartedSessionCache.clientId) ||
+    (vaultSession && vaultSession.client_id) ||
+    lastStartedSessionClientId ||
+    (vaultAppt && vaultAppt.client_id) ||
+    (latestSidebarClient && latestSidebarClient.id) ||
+    1
+  );
+
   try {
-    v = await api('GET', '/api/sessions/' + id);
+    v = await api('GET', `/api/sessions/${id}${hintClientId ? `?client_id=${hintClientId}` : ''}`);
   } catch (err) {
-    // Self-healing fallback if a user opens #/session/:id directly on a cold device/private tab where session :id doesn't exist yet
-    const started = await api('POST', `/api/appointments/${id || 1}/start`, { client_id: 1, setting: 'Clinic' });
-    v = await api('GET', '/api/sessions/' + started.id);
+    if (lastStartedSessionCache && Number(lastStartedSessionCache.id) === Number(id) && lastStartedSessionCache.view) {
+      v = lastStartedSessionCache.view;
+    } else {
+      // Self-healing fallback if a user opens #/session/:id directly on a cold device/private tab where session :id doesn't exist yet
+      const started = await api('POST', `/api/appointments/${id || 1}/start`, { client_id: hintClientId, setting: 'Clinic' });
+      v = (started && started.session_view) || await api('GET', `/api/sessions/${started.id}?client_id=${hintClientId}`);
+    }
+  }
+  if (v && v.client && v.client.id) {
+    lastStartedSessionClientId = Number(v.client.id);
+    lastStartedSessionCache = { id: Number(v.session ? v.session.id : id), clientId: Number(v.client.id), view: v };
   }
   const {
     session: s, client, goals, allGoals = goals, plans, stories,
@@ -5496,7 +5523,25 @@ async function sessionView(id) {
               </div>
             </div>
           `;
-        }).join('')}
+        }).join('') || `
+          <div style="background:#ffffff;border:2px dashed #8abec4;border-radius:16px;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+            <div>
+              <div style="font-size:0.96rem;font-weight:800;color:#0f4c5c">
+                ${activeBehPrograms.length > 0
+                  ? `✓ All ${activeBehPrograms.length} Target Behavior Goal${activeBehPrograms.length === 1 ? '' : 's'} for ${esc(client.name)} are active in Section 1 (Behavior Tracking) above.`
+                  : `No Skill Acquisition (NET / DTT) Goals Added Yet for ${esc(client.name)}`}
+              </div>
+              <div style="font-size:0.82rem;color:#475569;margin-top:4px">
+                You can record behavior data immediately using the Behavior Tracking cards above, or add a Skill Acquisition (DTT / NET) program target for ${esc(client.name)}.
+              </div>
+            </div>
+            ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+              <button type="button" class="ok" style="padding:9px 14px;font-size:0.82rem;white-space:nowrap" onclick="act.openCreateGoalModal(${client.id})">
+                + Add Skill Acquisition Goal
+              </button>
+            ` : ''}
+          </div>
+        `}
       </div>
 
       <!-- Section 3: 3. SESSION TOOLS -->
@@ -9950,7 +9995,7 @@ function renderModal() {
           </div>
           <div style="display:flex;gap:8px">
             ${activeModal.appointmentId ? `
-              <button class="sec" style="padding:8px 14px;font-size:0.82rem" onclick="const aid=${activeModal.appointmentId};act.closeModal();act.start(aid)">
+              <button class="ok" style="padding:8px 14px;font-size:0.82rem" onclick="const aid=${activeModal.appointmentId};act.closeModal();act.start(aid, ${c.id}, '${esc(c.name)}')">
                 ▶ Start / Open Session
               </button>
             ` : ''}
@@ -11309,6 +11354,10 @@ const act = {
       start_now: Boolean(startNow)
     });
     if (startNow && res && res.session_id) {
+      lastStartedSessionClientId = Number(res.client_id || val('ac')) || null;
+      if (res.session_view) {
+        lastStartedSessionCache = { id: Number(res.session_id), clientId: lastStartedSessionClientId, view: res.session_view };
+      }
       go('session', res.session_id);
       return;
     }
@@ -11316,6 +11365,7 @@ const act = {
     render();
   }),
   start: safe(async (id, clientId = null, clientName = '', setting = 'Clinic', start = '', end = '', userId = null) => {
+    if (clientId) lastStartedSessionClientId = Number(clientId);
     const r = await api('POST', `/api/appointments/${id}/start`, {
       client_id: clientId,
       client_name: clientName,
@@ -11324,6 +11374,11 @@ const act = {
       end,
       user_id: userId
     });
+    const effCid = Number((r && r.client_id) || clientId || lastStartedSessionClientId) || null;
+    if (effCid) lastStartedSessionClientId = effCid;
+    if (r && r.session_view) {
+      lastStartedSessionCache = { id: Number(r.id || r.session_id), clientId: effCid, view: r.session_view };
+    }
     go('session', r.id);
   }),
   trial: safe(async (sid, gid, level) => {

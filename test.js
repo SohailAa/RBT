@@ -1376,8 +1376,18 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     setting: 'Clinic'
   });
   const selfHealGetSession = await r('GET', `/api/sessions/${selfHealStart.j.id}`);
-  ok(selfHealStart.s === 200 && selfHealStart.j.id > 0 && selfHealGetSession.s === 200 && selfHealGetSession.j.session,
+  ok(selfHealStart.s === 200 && selfHealStart.j.id > 0 && selfHealStart.j.session_view &&
+     selfHealGetSession.s === 200 && selfHealGetSession.j.session,
      'Self-Healing Session Creation: Starting a session on a cold instance reconstructs the appointment and opens the session without 404 Not found');
+
+  // Verify direct GET /api/sessions/:id?client_id=... on a secondary instance where session :id is missing self-heals for Leon Shinavier
+  const directMissingSessionGet = await b('GET', `/api/sessions/777?client_id=${shinavierCid}`);
+  ok(directMissingSessionGet.s === 200 &&
+     directMissingSessionGet.j.session &&
+     Number(directMissingSessionGet.j.session.id) === 777 &&
+     Number(directMissingSessionGet.j.client.id) === Number(shinavierCid) &&
+     directMissingSessionGet.j.behaviorPrograms.some((bp) => bp.name === 'Elopement from Tabletop'),
+     'Multi-Instance Session Recovery: GET /api/sessions/:id self-heals and opens Leon Shinavier session with all behavioral goals without 404 Not found');
 
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');

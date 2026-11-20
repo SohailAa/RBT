@@ -5,9 +5,9 @@
     { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/[...slug].js" },
+    { "src": "/api/(.*)", "dest": "/api/[...slug].js", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" } },
     { "src": "/s/(.*)", "dest": "/api/s/[...token].js" },
-    { "src": "^/website/?$", "dest": "/public/website.html" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+    { "src": "^/website/?$", "dest": "/public/website.html", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" } },
+    { "src": "/(.*)", "dest": "/public/$1", "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" } }
   ]
 }
