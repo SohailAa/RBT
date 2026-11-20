@@ -1547,6 +1547,10 @@ route('POST', '/api/login', async (u, b, p, ctx) => {
     if (fbAuth && fbAuth.error === 'USER_DISABLED') {
       bad(403, 'This account has been disabled.');
     }
+    const isLiveFirebaseUser = Boolean(row && row.firebase_uid && !String(row.firebase_uid).startsWith('fb_'));
+    if (isLiveFirebaseUser && fbAuth && (fbAuth.error === 'INVALID_PASSWORD' || fbAuth.error === 'INVALID_LOGIN_CREDENTIALS')) {
+      bad(401, 'Invalid email or password');
+    }
     if (!row || !verify(password, row.pw)) {
       bad(401, 'Invalid email or password');
     }
@@ -1671,6 +1675,34 @@ route('POST', '/api/auth/register', async (u, b, p, ctx) => {
     firestore_data_saved: firestoreDataSaved,
     firebase: FB.getFirebaseStatus(db),
     vaultUser: { id: uid, name, email, pw: pwHash, role, firebase_uid: fbUid, created_at: nowIso }
+  };
+}, { public: true });
+
+route('POST', '/api/auth/password-reset', async (u, b) => {
+  const email = String((b && b.email) || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    bad(400, 'Please enter a valid email address.');
+  }
+  const res = await FB.firebaseSendPasswordResetEmail(email);
+  if (res && !res.ok) {
+    if (res.error === 'INVALID_EMAIL') bad(400, 'Please enter a valid email address.');
+    if (res.error === 'TOO_MANY_ATTEMPTS_TRY_LATER' || res.error === 'RESET_PASSWORD_EXCEED_LIMIT') {
+      bad(429, 'Too many password reset requests. Please wait a few minutes and try again.');
+    }
+    bad(503, 'Unable to send password reset email right now. Please try again shortly.');
+  }
+  const existing = get('SELECT id,name,role FROM users WHERE email=?', email);
+  if (existing) {
+    logAudit(existing, {
+      entity_type: 'user',
+      entity_id: existing.id,
+      action: 'FIREBASE_PASSWORD_RESET_REQUEST',
+      details: `Password reset email requested for ${email}`
+    });
+  }
+  return {
+    ok: true,
+    message: 'If an account exists for that email, a password reset link has been sent. Please check your inbox and spam folder.'
   };
 }, { public: true });
 

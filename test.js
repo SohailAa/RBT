@@ -979,6 +979,14 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(loginNewUserRes.s === 200 && loginNewUserRes.j.email === regEmail,
      'Newly registered user can log in and authenticate via POST /api/login');
 
+  const pwResetInvalidRes = await r('POST', '/api/auth/password-reset', { email: 'not-an-email' });
+  ok(pwResetInvalidRes.s === 400,
+     'Password reset endpoint rejects malformed email addresses with HTTP 400');
+
+  const pwResetRes = await r('POST', '/api/auth/password-reset', { email: regEmail });
+  ok(pwResetRes.s === 200 && pwResetRes.j.ok === true && Boolean(pwResetRes.j.message),
+     'Password reset endpoint accepts valid email and returns generic confirmation via POST /api/auth/password-reset');
+
   const syncPullRes = await r('POST', '/api/firebase/sync', { action: 'pull' });
   ok(syncPullRes.s === 200 &&
      syncPullRes.j.ok === true &&

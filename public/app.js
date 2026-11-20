@@ -1942,7 +1942,7 @@ window.go = (r, id) => {
 
 // ---------- Views ----------
 
-function loginView(err) {
+function loginView(err, notice = '') {
   return `
   <div class="login-container">
     <div class="login-box">
@@ -2049,6 +2049,18 @@ function loginView(err) {
             <input id="reg_pw" type="password" placeholder="Create password (6+ chars)" autocomplete="new-password">
             <button style="width:100%;padding:10px;margin-top:8px" class="ok" onclick="act.registerAccount()">🔥 Create Account & Sign In</button>
           </div>
+        ` : loginAuthTab === 'reset' ? `
+          <div>
+            <div style="font-size:0.78rem;color:var(--slate-600);margin-bottom:8px">
+              Enter your account email and we'll send a secure <b>Firebase password reset link</b> to your inbox:
+            </div>
+            <label>Account Email</label>
+            <input id="reset_em" type="email" placeholder="name@practice.com" autocomplete="email">
+            <button style="width:100%;padding:10px;margin-top:8px" class="ok" onclick="act.sendPasswordReset()">📧 Send Password Reset Email</button>
+            <div style="text-align:center;margin-top:8px">
+              <button type="button" class="sec" style="background:transparent;border:none;color:var(--slate-600);font-size:0.78rem;cursor:pointer;text-decoration:underline;padding:4px" onclick="act.setLoginAuthTab('signin')">← Back to Sign In</button>
+            </div>
+          </div>
         ` : `
           <div>
             <label>Email</label>
@@ -2056,10 +2068,14 @@ function loginView(err) {
             <label>Password</label>
             <input id="pw" type="password" value="password" autocomplete="current-password">
             <button style="width:100%;padding:10px;margin-top:8px" onclick="act.login()">Sign In</button>
+            <div style="text-align:center;margin-top:8px">
+              <button type="button" class="sec" style="background:transparent;border:none;color:var(--slate-600);font-size:0.78rem;cursor:pointer;text-decoration:underline;padding:4px" onclick="act.openPasswordReset()">Forgot password? Reset via email</button>
+            </div>
           </div>
         `}
       </div>
 
+      ${notice ? `<div style="text-align:center;margin-top:12px;padding:10px 12px;border-radius:10px;background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:0.82rem;font-weight:600">✅ ${esc(notice)}</div>` : ''}
       ${err ? `<div class="err" style="text-align:center;margin-top:12px">⚠️ ${esc(err)}</div>` : ''}
     </div>
   </div>`;
@@ -10109,6 +10125,27 @@ const act = {
     loginAuthTab = t;
     $app.innerHTML = loginView();
   },
+  openPasswordReset: () => {
+    const typed = (val('em') || '').trim();
+    loginAuthTab = 'reset';
+    $app.innerHTML = loginView();
+    const inp = document.getElementById('reset_em');
+    if (inp && typed && typed !== 'bcba@eba.test') inp.value = typed;
+  },
+  sendPasswordReset: safe(async () => {
+    try {
+      const email = val('reset_em').trim();
+      if (!email) {
+        $app.innerHTML = loginView('Please enter your account email address.');
+        return;
+      }
+      const res = await api('POST', '/api/auth/password-reset', { email });
+      loginAuthTab = 'signin';
+      $app.innerHTML = loginView(null, (res && res.message) || 'Password reset email sent. Please check your inbox.');
+    } catch (e) {
+      $app.innerHTML = loginView(e.message);
+    }
+  }),
   registerAccount: safe(async () => {
     try {
       const name = val('reg_name').trim();
