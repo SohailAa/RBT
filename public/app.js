@@ -2580,44 +2580,48 @@ window.renderBcbaClientCardsHtml = function(profiles) {
   }
 
   return filtered.map(c => `
-    <div style="background:#fff;border:1.5px solid var(--slate-200);border-top:4px solid var(--primary);border-radius:var(--radius-md);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;box-shadow:var(--shadow-xs)">
-      <!-- Clean Client Header -->
-      <div class="flex-between" style="align-items:flex-start;gap:12px">
-        <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="go('client', ${c.id})">
-          <div class="user-avatar" style="width:46px;height:46px;font-size:1rem;flex-shrink:0">${getInitials(c.name)}</div>
-          <div>
+    <div style="background:#fff;border:1.5px solid var(--slate-200);border-top:4px solid var(--primary);border-radius:var(--radius-md);padding:18px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;box-shadow:var(--shadow-xs);min-width:0;overflow:hidden">
+      <!-- Clean Client Header (Full Card Width so Name, Badge & Metadata Never Squish) -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;min-width:0" onclick="go('client', ${c.id})">
+          <div class="user-avatar" style="width:46px;height:46px;font-size:1rem;flex-shrink:0;margin-top:2px">${getInitials(c.name)}</div>
+          <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-size:1.12rem;font-weight:700;color:var(--slate-900)">${esc(c.name)}</span>
-              <span class="badge p">${esc(c.diagnosis)}</span>
+              <span style="font-size:1.14rem;font-weight:700;color:var(--slate-900);line-height:1.25">${esc(c.name)}</span>
+              <span class="badge p" style="white-space:normal;text-align:left">${esc(c.diagnosis || 'Autism Spectrum Disorder')}</span>
             </div>
-            <div style="font-size:0.8rem;color:var(--slate-500);margin-top:3px">
-              DOB: <b>${esc(c.dob)}</b> &nbsp;·&nbsp; Setting: <b>${esc(c.school)}</b> &nbsp;·&nbsp; RBT: <b>${esc((c.assignedRbts || []).join(', '))}</b>
+            <div style="font-size:0.81rem;color:var(--slate-600);margin-top:6px;line-height:1.55;display:flex;flex-wrap:wrap;gap:4px 12px">
+              <span>DOB: <b style="color:var(--slate-800)">${esc(c.dob || 'On file')}</b></span>
+              <span>· Setting: <b style="color:var(--slate-800)">${esc(c.school || 'Clinic')}</b></span>
+              <span>· RBT: <b style="color:var(--slate-800)">${esc((c.assignedRbts || []).join(', ') || 'Assigned')}</b></span>
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0">
-          <button class="sec" style="padding:8px 12px;font-size:0.8rem;white-space:nowrap" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">
+
+        <!-- Dedicated Action Button Row Inside Card Bounds -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;width:100%">
+          <button class="sec" style="flex:1;min-width:130px;padding:8px 12px;font-size:0.8rem;text-align:center;justify-content:center" onclick="act.openScheduleRbtModal(${c.id}, '${esc(c.name)}')">
             📅 Schedule RBT
           </button>
-          <button class="ok" style="padding:8px 14px;font-size:0.82rem;white-space:nowrap" onclick="go('client', ${c.id})">
+          <button class="ok" style="flex:1.2;min-width:155px;padding:8px 14px;font-size:0.82rem;text-align:center;justify-content:center" onclick="go('client', ${c.id})">
             Open Client Profile →
           </button>
         </div>
       </div>
 
       <!-- Clean, Uncluttered 3-Line Client Profile Snapshot -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;background:var(--slate-50);padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.82rem">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;background:var(--slate-50);padding:12px 14px;border-radius:var(--radius-sm);border:1px solid var(--slate-200);font-size:0.82rem">
         <div>
           <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">💬 Communication</div>
-          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.communication)}</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.communication || 'Vocal / AAC')}</div>
         </div>
         <div>
           <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⭐ Reinforcers & Sensory</div>
-          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.reinforcers)} · ${esc(c.sensory)}</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc([c.reinforcers, c.sensory].filter(Boolean).join(' · ') || 'Preferred items')}</div>
         </div>
         <div>
           <div style="font-size:0.7rem;font-weight:700;color:var(--slate-500);text-transform:uppercase">⚡ Known Triggers</div>
-          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.triggers)}</div>
+          <div style="font-weight:600;color:var(--slate-800);margin-top:3px">${esc(c.triggers || 'Transitions / demands')}</div>
         </div>
       </div>
     </div>
