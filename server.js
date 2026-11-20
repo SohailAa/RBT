@@ -1519,7 +1519,14 @@ route('POST', '/api/login', async (u, b, p, ctx) => {
   }
 
   // Attempt live Firebase Auth sign-in first so accounts created on any device or before a cold start work seamlessly
-  const fbAuth = await FB.firebaseAuthRequest('accounts:signInWithPassword', { email: emailClean, password });
+  let fbAuth = await FB.firebaseAuthRequest('accounts:signInWithPassword', { email: emailClean, password });
+  if ((!fbAuth || fbAuth.error || !fbAuth.idToken) && row && verify(password, row.pw) && password.length >= 6) {
+    // Auto-provision seeded/local account in Firebase Auth so demo and clinic accounts always sync with Cloud Firestore
+    const signUpAuth = await FB.firebaseAuthRequest('accounts:signUp', { email: emailClean, password, displayName: row.name || 'Clinician' });
+    if (signUpAuth && !signUpAuth.error && signUpAuth.idToken) {
+      fbAuth = signUpAuth;
+    }
+  }
   const liveFirebaseAuthed = Boolean(fbAuth && !fbAuth.fallback && !fbAuth.error && fbAuth.idToken && fbAuth.localId);
 
   if (liveFirebaseAuthed) {
