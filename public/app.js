@@ -1633,7 +1633,7 @@ const GOAL_STATUS_META = {
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
-const EBA_CLIENT_BUILD = '20261120_8';
+const EBA_CLIENT_BUILD = '20261120_9';
 const FIREBASE_VAULT_STORAGE_KEY = 'eba_firebase_cloud_vault_v1';
 let knownSidebarClients = [
   { id: 1, name: 'Eleanor Carter' },
@@ -3803,17 +3803,17 @@ async function clientView(id) {
           <button class="ok" onclick="act.openCreateTaModal(${c.id})">+ Create Task Analysis Routine</button>
         </div>
 
-        <div style="margin-top:16px;display:grid;gap:16px">
+        <div style="margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px">
           ${taskAnalyses.map((ta) => {
             const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
             const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
             const alreadyLinkedToGoal = goals.some((g) => String(g.title || '').trim().toLowerCase() === String(ta.title || '').trim().toLowerCase());
             return `
-              <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:var(--radius-lg);padding:18px">
+              <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:var(--radius-lg);padding:18px;min-width:0;overflow-wrap:anywhere">
                 <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
-                  <div>
+                  <div style="min-width:0;flex:1 1 260px">
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                      <h4 style="margin:0;font-size:1.08rem;color:var(--slate-900)">${esc(ta.title)}</h4>
+                      <h4 style="margin:0;font-size:1.08rem;color:var(--slate-900);overflow-wrap:anywhere">${esc(ta.title)}</h4>
                       <span class="badge p">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
                       <span class="tag approved">${ta.steps.length} Steps · Target ${ta.target_pct || 80}%</span>
                       <span class="badge tan" title="Automatically displayed in Section 2 of every live session for this client">✓ Active in Live Sessions</span>
@@ -3836,16 +3836,16 @@ async function clientView(id) {
                   </div>
                 </div>
 
-                <div style="display:grid;gap:8px;margin-top:10px">
+                <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:10px">
                   ${ta.steps.map((stepName, sIdx) => {
                     const curCode = draftArr[sIdx] || 'I';
                     return `
-                      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--slate-200)">
-                        <div style="font-size:0.86rem;font-weight:600;color:var(--slate-800)">
+                      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;padding:8px 12px;border-radius:8px;border:1px solid var(--slate-200);min-width:0">
+                        <div style="font-size:0.86rem;font-weight:600;color:var(--slate-800);flex:1 1 220px;min-width:0;overflow-wrap:anywhere">
                           <span style="font-family:var(--font-mono);color:var(--primary);margin-right:6px">Step ${sIdx + 1}:</span>
                           ${esc(stepName)}
                         </div>
-                        <div style="display:flex;gap:4px;flex-wrap:wrap">
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;max-width:100%">
                           ${['I', 'V', 'G', 'Vi', 'M', 'PP', 'P', 'INC', 'N', 'NA'].map((code) => `
                             <button class="${curCode === code ? (code === 'I' ? 'ok' : code === 'INC' || code === 'N' ? 'bad' : 'btn-v') : 'sec'}"
                               style="padding:4px 8px;font-size:0.73rem;min-height:28px"
@@ -5205,6 +5205,80 @@ async function sessionView(id) {
     `;
   };
 
+  const renderInSessionTaskAnalysesBlock = () => {
+    if (!taskAnalyses.length) return '';
+    return `
+      <!-- Active Session Task Analysis & Chaining Step-by-Step Scorer -->
+      <div style="background:#f0fdfa;border:2px solid #5eead4;border-radius:16px;padding:16px 18px;margin-bottom:18px">
+        <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+          <div>
+            <span style="font-size:0.98rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">📋 TASK ANALYSIS & CHAINING PROGRAMS (${taskAnalyses.length} Active in This Session)</span>
+            <div style="font-size:0.78rem;color:#475569;margin-top:2px">Tap prompt level per step (IND, VERB, GEST, MOD, PHYS, ERR, N/A), then click <b>✓ Log Step-by-Step Run</b>.</div>
+          </div>
+          ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+            <button type="button" class="sec" style="padding:6px 12px;font-size:0.76rem;background:#fff;border-color:#0d7a68;color:#0d7a68;font-weight:700" onclick="act.openCreateTaModal(${client.id})">
+              + Add Task Analysis
+            </button>
+          ` : ''}
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:14px">
+          ${taskAnalyses.map((ta) => {
+            const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
+            const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
+            return `
+              <div style="background:#ffffff;border:1.5px solid #8abec4;border-radius:14px;padding:14px 16px;min-width:0;overflow-wrap:anywhere">
+                <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+                  <div style="min-width:0;flex:1 1 240px">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <span style="font-size:1.02rem;font-weight:800;color:#0f172a;overflow-wrap:anywhere">${esc(ta.title)}</span>
+                      <span class="badge p" style="font-size:0.7rem">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
+                      <span class="tag approved" style="font-size:0.7rem">${ta.steps.length} Steps</span>
+                    </div>
+                    <div style="font-family:var(--font-mono);font-size:0.76rem;color:#475569;margin-top:3px">
+                      Latest Run: <b>${latestRun ? `${latestRun.indepPct}% (${esc(latestRun.numDenom || `${latestRun.indepCount}/${ta.steps.length}`)})` : 'No runs logged yet'}</b> · Total Runs: <b>${(ta.history || []).length}</b>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    ${!ended && (ta.history || []).length > 0 ? `
+                      <button type="button" class="sec" style="padding:7px 12px;font-size:0.78rem;border-color:#64748b;color:#1e293b;font-weight:700" onclick="act.undoLastTaRun(${ta.id}, ${JSON.stringify(ta.title).replace(/"/g, '&quot;')})">
+                        ↩ Undo Last Run
+                      </button>
+                    ` : ''}
+                    <button type="button" class="ok" style="padding:8px 16px;font-size:0.84rem;font-weight:800" onclick="act.submitTaRun(${ta.id}, ${ta.steps.length}, ${s.id})" ${ended ? 'disabled' : ''}>
+                      ✓ Log Step-by-Step Run
+                    </button>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:6px">
+                  ${ta.steps.map((stepName, sIdx) => {
+                    const curCode = draftArr[sIdx] || 'I';
+                    return `
+                      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:#f8fafc;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;min-width:0">
+                        <div style="font-size:0.84rem;font-weight:600;color:#0f172a;flex:1 1 200px;min-width:0;overflow-wrap:anywhere">
+                          <span style="font-family:var(--font-mono);color:#0f4c5c;font-weight:800;margin-right:6px">Step ${sIdx + 1}:</span>
+                          ${esc(stepName)}
+                        </div>
+                        <div style="display:flex;gap:4px;flex-wrap:wrap;max-width:100%">
+                          ${['I', 'V', 'G', 'M', 'P', 'INC', 'NA'].map((code) => `
+                            <button type="button" class="${curCode === code ? (code === 'I' ? 'ok' : code === 'INC' ? 'bad' : 'btn-v') : 'sec'}"
+                              style="padding:4px 9px;font-size:0.74rem;min-height:28px;font-weight:800"
+                              onclick="act.setTaDraftStep(${ta.id}, ${sIdx}, '${code}', ${ta.steps.length})" ${ended ? 'disabled' : ''}>
+                              ${PROMPT_SHORT_LABELS[code] || code}
+                            </button>
+                          `).join('')}
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  };
+
   if (!rbtFullClinicalView) {
     return `
     <div class="rbt-simplified-session" style="max-width:1080px;margin:0 auto">
@@ -5609,76 +5683,7 @@ async function sessionView(id) {
         `}
       </div>
 
-      ${taskAnalyses.length > 0 ? `
-        <!-- Active Session Task Analysis & Chaining Step-by-Step Scorer -->
-        <div style="background:#f0fdfa;border:2px solid #5eead4;border-radius:16px;padding:16px 18px;margin-bottom:18px">
-          <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div>
-              <span style="font-size:0.98rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">📋 TASK ANALYSIS & CHAINING PROGRAMS (${taskAnalyses.length} Active in This Session)</span>
-              <div style="font-size:0.78rem;color:#475569;margin-top:2px">Tap prompt level per step (I = Independent, V = Verbal, G = Gestural, M = Model, P = Physical, INC = Incorrect, NA = N/A), then click <b>✓ Log Step-by-Step Run</b>.</div>
-            </div>
-            ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
-              <button type="button" class="sec" style="padding:6px 12px;font-size:0.76rem;background:#fff;border-color:#0d7a68;color:#0d7a68;font-weight:700" onclick="act.openCreateTaModal(${client.id})">
-                + Add Task Analysis
-              </button>
-            ` : ''}
-          </div>
-          <div style="display:grid;gap:14px">
-            ${taskAnalyses.map((ta) => {
-              const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
-              const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
-              return `
-                <div style="background:#ffffff;border:1.5px solid #8abec4;border-radius:14px;padding:14px 16px">
-                  <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
-                    <div>
-                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                        <span style="font-size:1.02rem;font-weight:800;color:#0f172a">${esc(ta.title)}</span>
-                        <span class="badge p" style="font-size:0.7rem">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
-                        <span class="tag approved" style="font-size:0.7rem">${ta.steps.length} Steps</span>
-                      </div>
-                      <div style="font-family:var(--font-mono);font-size:0.76rem;color:#475569;margin-top:3px">
-                        Latest Run: <b>${latestRun ? `${latestRun.indepPct}% (${esc(latestRun.numDenom || `${latestRun.indepCount}/${ta.steps.length}`)})` : 'No runs logged yet'}</b> · Total Runs: <b>${(ta.history || []).length}</b>
-                      </div>
-                    </div>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                      ${!ended && (ta.history || []).length > 0 ? `
-                        <button type="button" class="sec" style="padding:7px 12px;font-size:0.78rem;border-color:#64748b;color:#1e293b;font-weight:700" onclick="act.undoLastTaRun(${ta.id}, ${JSON.stringify(ta.title).replace(/"/g, '&quot;')})">
-                          ↩ Undo Last Run
-                        </button>
-                      ` : ''}
-                      <button type="button" class="ok" style="padding:8px 16px;font-size:0.84rem;font-weight:800" onclick="act.submitTaRun(${ta.id}, ${ta.steps.length}, ${s.id})" ${ended ? 'disabled' : ''}>
-                        ✓ Log Step-by-Step Run
-                      </button>
-                    </div>
-                  </div>
-                  <div style="display:grid;gap:6px">
-                    ${ta.steps.map((stepName, sIdx) => {
-                      const curCode = draftArr[sIdx] || 'I';
-                      return `
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:#f8fafc;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1">
-                          <div style="font-size:0.84rem;font-weight:600;color:#0f172a;flex:1;min-width:200px">
-                            <span style="font-family:var(--font-mono);color:#0f4c5c;font-weight:800;margin-right:6px">Step ${sIdx + 1}:</span>
-                            ${esc(stepName)}
-                          </div>
-                          <div style="display:flex;gap:4px;flex-wrap:wrap">
-                            ${['I', 'V', 'G', 'M', 'P', 'INC', 'NA'].map((code) => `
-                              <button type="button" class="${curCode === code ? (code === 'I' ? 'ok' : code === 'INC' ? 'bad' : 'btn-v') : 'sec'}"
-                                style="padding:4px 9px;font-size:0.74rem;min-height:28px;font-weight:800"
-                                onclick="act.setTaDraftStep(${ta.id}, ${sIdx}, '${code}', ${ta.steps.length})" ${ended ? 'disabled' : ''}>
-                                ${PROMPT_SHORT_LABELS[code] || code}
-                              </button>
-                            `).join('')}
-                          </div>
-                        </div>
-                      `;
-                    }).join('')}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      ` : ''}
+      ${renderInSessionTaskAnalysesBlock()}
 
       <!-- Section 3: 3. SESSION TOOLS -->
       <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -6272,6 +6277,8 @@ async function sessionView(id) {
       </details>
     ` : ''}
   `}
+
+  ${renderInSessionTaskAnalysesBlock()}
 
   ${renderSessionTimelineAndTraceabilityCard()}
 
@@ -9776,7 +9783,7 @@ function renderModal() {
         <div class="row">
           <div>
             <label>Primary Measurement Method</label>
-            <select id="new_g_mtype">
+            <select id="new_g_mtype" onchange="const bx=document.getElementById('new_g_ta_box'); if(bx) bx.style.display=this.value==='task_analysis'?'block':'none';">
               ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join('')}
             </select>
           </div>
@@ -9787,6 +9794,13 @@ function renderModal() {
               ${SMART_MEASUREMENT_OPTIONS.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join('')}
             </select>
           </div>
+        </div>
+
+        <div id="new_g_ta_box" style="display:none;background:#f0fdfa;border:1.5px solid #5eead4;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+          <div class="flex-between" style="align-items:center;margin-bottom:4px">
+            <label style="margin:0;color:#0f4c5c;font-weight:800">📋 Task Analysis Steps (One step per line — automatically active in Live Sessions)</label>
+          </div>
+          <textarea id="new_g_ta_steps" rows="4" placeholder="1. Attend to reading material&#10;2. Begin reading first word&#10;3. Decode unfamiliar words&#10;4. Answer comprehension questions"></textarea>
         </div>
 
         <div class="row">
@@ -11376,9 +11390,11 @@ const act = {
     const measurement_type = val('new_g_mtype') || 'percentage_of_opportunities';
     const secondary_measurement = val('new_g_sec_mtype') || '';
     const configured_prompts = val('new_g_prompts') || 'I,V,G';
+    const task_analysis_steps = val('new_g_ta_steps').split('\n').map(s => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
     await api('POST', `/api/clients/${cid}/goals`, {
       title, baseline, target, domain, prompt_strategy, scoring_rule, mastery_sessions,
-      operational_definition, onset_criteria, offset_criteria, examples, non_examples, measurement_type, secondary_measurement, configured_prompts
+      operational_definition, onset_criteria, offset_criteria, examples, non_examples, measurement_type, secondary_measurement, configured_prompts,
+      task_analysis_steps
     });
     activeModal = null;
     render();
@@ -11576,6 +11592,8 @@ const act = {
     setIf('new_g_examples', (res.operationalDefinition?.examples || []).join('; '));
     setIf('new_g_non', (res.operationalDefinition?.nonExamples || []).join('; '));
     setIf('new_g_mtype', res.measurementPlan?.primaryKey || 'percentage_of_opportunities');
+    const taBx = document.getElementById('new_g_ta_box');
+    if (taBx) taBx.style.display = (val('new_g_mtype') === 'task_analysis') ? 'block' : 'none';
     setIf('new_g_sec_mtype', res.measurementPlan?.secondaryKey || '');
     if (res.masteryRecommendation?.suggestedTargetPct) setIf('new_g_target', res.masteryRecommendation.suggestedTargetPct);
     if (res.masteryRecommendation?.suggestedSessions) setIf('new_g_sess', res.masteryRecommendation.suggestedSessions);

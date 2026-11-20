@@ -132,7 +132,7 @@ h4 {
    ============================================================================ */
 .layout {
   display: grid;
-  grid-template-columns: 268px 1fr;
+  grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -686,6 +686,8 @@ main {
   padding: 24px 32px;
   max-width: 1400px;
   width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   margin: 0 auto;
 }
 
@@ -725,6 +727,8 @@ main {
   border-radius: var(--radius-lg);
   padding: 20px 22px;
   margin-bottom: 18px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   border: 1px solid #cce3e3;
   border-top: 3px solid #0d9488;
   box-shadow: var(--shadow-sm);
@@ -2328,7 +2332,7 @@ tbody tr:hover td {
 
 @media (max-width: 960px) {
   .layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   nav:not(.site-nav),
   nav {

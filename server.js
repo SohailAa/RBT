@@ -1484,7 +1484,7 @@ function buildAuthCookies(tok, refreshToken) {
   return [tokCookie, fbtCookie];
 }
 
-const EBA_SERVER_BUILD = '20261120_8';
+const EBA_SERVER_BUILD = '20261120_9';
 let cloudHydrated = false;
 let lastCloudPullAtMs = 0;
 
@@ -3638,9 +3638,19 @@ route('POST', '/api/clients/:id/goals', (u, b, p) => {
     +p.id, b.title, +b.baseline || 0, +b.target || 80, domain, promptStrategy, scoringRule, masterySessions, opDef, onsetCrit, offsetCrit, examples, nonExamples, measType, secMeas, dataFieldsJson, linkedFindingId, approvedBy, approvedAt, cfgPrompts || 'I,V,G'
   );
   const gid = Number(r.lastInsertRowid);
+  let linkedTaId = null;
+  const rawTaSteps = Array.isArray(b.task_analysis_steps)
+    ? b.task_analysis_steps.map((s) => String(s).trim()).filter(Boolean)
+    : String(b.task_analysis_steps || '').split('\n').map((s) => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+  if (rawTaSteps.length > 0) {
+    const tr = run('INSERT INTO task_analyses(client_id,title,chaining_type,steps_json,logs_json,status) VALUES(?,?,?,?,?,?)',
+      +p.id, b.title, b.chaining_type || 'Total-Task Presentation', JSON.stringify(rawTaSteps), '[]', 'active');
+    linkedTaId = Number(tr.lastInsertRowid);
+    logAudit(u, { client_id: +p.id, entity_type: 'task_analysis', entity_id: linkedTaId, action: 'CREATE_TASK_ANALYSIS', details: `Created linked Task Analysis "${b.title}" (${rawTaSteps.length} steps) from Skill Target #${gid}` });
+  }
   logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: gid, action: 'CREATE_GOAL', details: `Created goal "${b.title}" (Measure: ${measType}, Target: ${+b.target || 80}% across ${masterySessions} sessions, Prompts: ${cfgPrompts || 'I,V,G'})` });
   const g = get('SELECT * FROM goals WHERE id=?', gid);
-  return { id: gid, goal: g ? goalProgress(g) : null };
+  return { id: gid, linked_task_analysis_id: linkedTaId, goal: g ? goalProgress(g) : null };
 });
 route('GET', '/api/goals/:id', (u, b, p) => {
   const g = get('SELECT * FROM goals WHERE id=?', +p.id);

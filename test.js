@@ -1435,6 +1435,19 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      taDelRes.s === 200 && taDelRes.j.deleted === true,
      'Task Analysis Lifecycle: Supports linking to Skill Targets, live Session step-by-step scoring, run undo, editing, and deletion');
 
+  // Verify Creating a Skill Target with measurement_type === 'task_analysis' and task_analysis_steps auto-creates a linked Task Analysis active in sessions
+  const goalWithTaRes = await b('POST', `/api/clients/${shinavierCid}/goals`, {
+    title: 'Independent Handwashing Routine',
+    domain: 'Adaptive / Daily Living',
+    measurement_type: 'task_analysis',
+    task_analysis_steps: ['Turn on faucet', 'Wet hands', 'Apply soap', 'Rinse and dry hands']
+  });
+  const sessWithGoalTa = await b('GET', `/api/sessions/777?client_id=${shinavierCid}`);
+  ok(goalWithTaRes.s === 200 &&
+     goalWithTaRes.j.linked_task_analysis_id > 0 &&
+     sessWithGoalTa.j.taskAnalyses.some((ta) => Number(ta.id) === Number(goalWithTaRes.j.linked_task_analysis_id) && ta.steps.length === 4),
+     'Skill Target -> Task Analysis Linking: Creating a Skill Target with Task Analysis steps automatically creates a live-session Task Analysis program');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);
