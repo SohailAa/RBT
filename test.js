@@ -1408,6 +1408,33 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
      afterBreakUndoView.j.breaksCount === 0 && !afterBreakUndoView.j.breakActive,
      'Data Collection Undo: Universal POST /api/sessions/:id/undo reverses the most recent session action (including accidental Break/Pause/Behavior/Trial clicks)');
 
+  // Verify Task Analysis -> Skill Target Linking, Active Session Display, Edit, Undo Run & Delete
+  const linkedTaRes = await b('POST', `/api/clients/${shinavierCid}/task-analysis`, {
+    title: 'Reading Comprehension & Answering WH Questions',
+    chaining_type: 'Total-Task Presentation',
+    steps: ['Attend to passage', 'Begin reading', 'Decode words', 'Answer WH question'],
+    also_create_goal: true
+  });
+  const linkedTaId = linkedTaRes.j.id;
+  const sessWithTa = await b('GET', `/api/sessions/777?client_id=${shinavierCid}`);
+  const taLogRes = await b('POST', `/api/task-analysis/${linkedTaId}/log`, {
+    session_id: 777,
+    stepResults: ['I', 'I', 'V', 'I']
+  });
+  const taUndoRes = await b('DELETE', `/api/task-analysis/${linkedTaId}/log/last`);
+  const taEditRes = await b('PUT', `/api/task-analysis/${linkedTaId}`, {
+    title: 'Reading Passage & WH Questions (Revised)',
+    steps: ['Attend to passage', 'Read aloud', 'Answer WH question']
+  });
+  const taDelRes = await b('DELETE', `/api/task-analysis/${linkedTaId}`);
+  ok(linkedTaRes.s === 200 && linkedTaRes.j.linked_goal_id > 0 &&
+     sessWithTa.j.taskAnalyses.some((ta) => Number(ta.id) === Number(linkedTaId)) &&
+     taLogRes.s === 200 && taLogRes.j.numDenom === '3/4' &&
+     taUndoRes.s === 200 && taUndoRes.j.undone &&
+     taEditRes.s === 200 && taEditRes.j.steps.length === 3 &&
+     taDelRes.s === 200 && taDelRes.j.deleted === true,
+     'Task Analysis Lifecycle: Supports linking to Skill Targets, live Session step-by-step scoring, run undo, editing, and deletion');
+
   server.close();
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED (Consolidated Clinical Record, Build Spec & Durriya Anwar Checklist Verified)');
   process.exit(fails ? 1 : 0);

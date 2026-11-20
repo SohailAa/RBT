@@ -1633,7 +1633,7 @@ const GOAL_STATUS_META = {
 const fmtT = (s) => s ? new Date(s.length === 16 ? s : s).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 const getInitials = (n) => (n || '').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'EBA';
 
-const EBA_CLIENT_BUILD = '20261120_7';
+const EBA_CLIENT_BUILD = '20261120_8';
 const FIREBASE_VAULT_STORAGE_KEY = 'eba_firebase_cloud_vault_v1';
 let knownSidebarClients = [
   { id: 1, name: 'Eleanor Carter' },
@@ -3807,6 +3807,7 @@ async function clientView(id) {
           ${taskAnalyses.map((ta) => {
             const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
             const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
+            const alreadyLinkedToGoal = goals.some((g) => String(g.title || '').trim().toLowerCase() === String(ta.title || '').trim().toLowerCase());
             return `
               <div style="background:var(--slate-50);border:1.5px solid var(--slate-200);border-radius:var(--radius-lg);padding:18px">
                 <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
@@ -3815,13 +3816,24 @@ async function clientView(id) {
                       <h4 style="margin:0;font-size:1.08rem;color:var(--slate-900)">${esc(ta.title)}</h4>
                       <span class="badge p">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
                       <span class="tag approved">${ta.steps.length} Steps · Target ${ta.target_pct || 80}%</span>
+                      <span class="badge tan" title="Automatically displayed in Section 2 of every live session for this client">✓ Active in Live Sessions</span>
                     </div>
                     <div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--slate-600);margin-top:4px">
                       Latest Run: <b>${latestRun ? `${latestRun.indepPct}% (${esc(latestRun.numDenom || `${latestRun.indepCount}/${ta.steps.length}`)}) on ${esc(latestRun.date)}` : 'No runs logged yet'}</b>
                       · Total Logged Runs: <b>${(ta.history || []).length}</b>
                     </div>
                   </div>
-                  <button class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="act.submitTaRun(${ta.id})">✓ Log Step-by-Step Run</button>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    ${!alreadyLinkedToGoal ? `
+                      <button type="button" class="sec" style="padding:6px 11px;font-size:0.78rem;border-color:#0d7a68;color:#0d7a68;font-weight:700" onclick="act.addTaskAnalysisAsSkillGoal(${ta.id}, ${c.id})">
+                        🎯 Also Add to Skill Targets
+                      </button>
+                    ` : `<span class="tag approved" style="font-size:0.72rem">✓ Linked to Skill Targets</span>`}
+                    <button type="button" class="ok" style="padding:7px 14px;font-size:0.82rem" onclick="act.submitTaRun(${ta.id}, ${ta.steps.length})">✓ Log Step-by-Step Run</button>
+                    ${(ta.history || []).length > 0 ? `<button type="button" class="sec" style="padding:6px 10px;font-size:0.76rem" onclick="act.undoLastTaRun(${ta.id}, ${JSON.stringify(ta.title).replace(/"/g, '&quot;')})">↩ Undo Run</button>` : ''}
+                    <button type="button" class="sec" style="padding:6px 10px;font-size:0.76rem" onclick="act.openEditTaModal(${c.id}, ${ta.id})">✏️ Edit</button>
+                    <button type="button" class="sec" style="padding:6px 10px;font-size:0.76rem;color:#b91c47;border-color:#fca5a5" onclick="act.deleteTaskAnalysis(${ta.id}, ${JSON.stringify(ta.title).replace(/"/g, '&quot;')})">🗑️ Delete</button>
+                  </div>
                 </div>
 
                 <div style="display:grid;gap:8px;margin-top:10px">
@@ -5596,6 +5608,77 @@ async function sessionView(id) {
           </div>
         `}
       </div>
+
+      ${taskAnalyses.length > 0 ? `
+        <!-- Active Session Task Analysis & Chaining Step-by-Step Scorer -->
+        <div style="background:#f0fdfa;border:2px solid #5eead4;border-radius:16px;padding:16px 18px;margin-bottom:18px">
+          <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:12px">
+            <div>
+              <span style="font-size:0.98rem;font-weight:900;color:#0f4c5c;letter-spacing:0.01em">📋 TASK ANALYSIS & CHAINING PROGRAMS (${taskAnalyses.length} Active in This Session)</span>
+              <div style="font-size:0.78rem;color:#475569;margin-top:2px">Tap prompt level per step (I = Independent, V = Verbal, G = Gestural, M = Model, P = Physical, INC = Incorrect, NA = N/A), then click <b>✓ Log Step-by-Step Run</b>.</div>
+            </div>
+            ${['BCBA', 'OWNER', 'ADMIN'].includes(me.role) ? `
+              <button type="button" class="sec" style="padding:6px 12px;font-size:0.76rem;background:#fff;border-color:#0d7a68;color:#0d7a68;font-weight:700" onclick="act.openCreateTaModal(${client.id})">
+                + Add Task Analysis
+              </button>
+            ` : ''}
+          </div>
+          <div style="display:grid;gap:14px">
+            ${taskAnalyses.map((ta) => {
+              const latestRun = ta.history && ta.history.length ? ta.history[ta.history.length - 1] : null;
+              const draftArr = taDraftSteps[ta.id] || ta.steps.map((st, idx) => (latestRun && latestRun.results && latestRun.results[idx]) ? latestRun.results[idx].status : 'I');
+              return `
+                <div style="background:#ffffff;border:1.5px solid #8abec4;border-radius:14px;padding:14px 16px">
+                  <div class="flex-between" style="flex-wrap:wrap;gap:10px;margin-bottom:10px">
+                    <div>
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <span style="font-size:1.02rem;font-weight:800;color:#0f172a">${esc(ta.title)}</span>
+                        <span class="badge p" style="font-size:0.7rem">${esc(ta.chaining_type || 'Total-Task Presentation')}</span>
+                        <span class="tag approved" style="font-size:0.7rem">${ta.steps.length} Steps</span>
+                      </div>
+                      <div style="font-family:var(--font-mono);font-size:0.76rem;color:#475569;margin-top:3px">
+                        Latest Run: <b>${latestRun ? `${latestRun.indepPct}% (${esc(latestRun.numDenom || `${latestRun.indepCount}/${ta.steps.length}`)})` : 'No runs logged yet'}</b> · Total Runs: <b>${(ta.history || []).length}</b>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      ${!ended && (ta.history || []).length > 0 ? `
+                        <button type="button" class="sec" style="padding:7px 12px;font-size:0.78rem;border-color:#64748b;color:#1e293b;font-weight:700" onclick="act.undoLastTaRun(${ta.id}, ${JSON.stringify(ta.title).replace(/"/g, '&quot;')})">
+                          ↩ Undo Last Run
+                        </button>
+                      ` : ''}
+                      <button type="button" class="ok" style="padding:8px 16px;font-size:0.84rem;font-weight:800" onclick="act.submitTaRun(${ta.id}, ${ta.steps.length}, ${s.id})" ${ended ? 'disabled' : ''}>
+                        ✓ Log Step-by-Step Run
+                      </button>
+                    </div>
+                  </div>
+                  <div style="display:grid;gap:6px">
+                    ${ta.steps.map((stepName, sIdx) => {
+                      const curCode = draftArr[sIdx] || 'I';
+                      return `
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:#f8fafc;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1">
+                          <div style="font-size:0.84rem;font-weight:600;color:#0f172a;flex:1;min-width:200px">
+                            <span style="font-family:var(--font-mono);color:#0f4c5c;font-weight:800;margin-right:6px">Step ${sIdx + 1}:</span>
+                            ${esc(stepName)}
+                          </div>
+                          <div style="display:flex;gap:4px;flex-wrap:wrap">
+                            ${['I', 'V', 'G', 'M', 'P', 'INC', 'NA'].map((code) => `
+                              <button type="button" class="${curCode === code ? (code === 'I' ? 'ok' : code === 'INC' ? 'bad' : 'btn-v') : 'sec'}"
+                                style="padding:4px 9px;font-size:0.74rem;min-height:28px;font-weight:800"
+                                onclick="act.setTaDraftStep(${ta.id}, ${sIdx}, '${code}', ${ta.steps.length})" ${ended ? 'disabled' : ''}>
+                                ${PROMPT_SHORT_LABELS[code] || code}
+                              </button>
+                            `).join('')}
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Section 3: 3. SESSION TOOLS -->
       <div style="background:#dff1f3;border:2px solid #7fb7be;border-radius:14px;padding:10px 18px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -9279,39 +9362,67 @@ function renderModal() {
   }
   if (activeModal.type === 'create_ta') {
     const cid = activeModal.clientId;
+    const editTa = activeModal.taskAnalysis || null;
+    const isEdit = Boolean(editTa);
+    const curTitle = isEdit ? (editTa.title || '') : '';
+    const curChain = isEdit ? (editTa.chaining_type || 'Total-Task Presentation') : 'Total-Task Presentation';
+    const curSteps = isEdit && Array.isArray(editTa.steps)
+      ? editTa.steps.map((st, idx) => `${idx + 1}. ${st}`).join('\n')
+      : '';
     return `
     <div class="modal-bg" onclick="if(event.target===this)act.closeModal()">
-      <div class="modal-card" style="max-width:600px;width:95%">
-        <div class="flex-between">
+      <div class="modal-card modal-flex" style="max-width:660px;width:95%">
+        <div class="modal-fixed-head">
           <div>
-            <span class="badge p">Task Analysis & Chaining (Build Spec §6)</span>
-            <h3 style="margin:4px 0 0">Create Multi-Step Task Analysis</h3>
+            <span class="badge p">Task Analysis & Chaining (Active in Live Sessions)</span>
+            <h3 style="margin:3px 0 0">${isEdit ? 'Edit Multi-Step Task Analysis' : 'Create Multi-Step Task Analysis'}</h3>
           </div>
-          <button class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <div>
-            <label>Routine / Skill Title</label>
-            <input id="ta_title" value=" Independent Backpack Unpacking Routine (5-Step)">
-          </div>
-          <div>
-            <label>Chaining Method</label>
-            <select id="ta_chain">
-              <option value="Forward Chaining">Forward Chaining</option>
-              <option value="Backward Chaining">Backward Chaining</option>
-              <option value="Total-Task Presentation" selected>Total-Task Presentation</option>
-            </select>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="ok" style="padding:7px 14px;font-size:0.82rem;font-weight:800" onclick="act.submitCreateTaModal(${cid}, ${isEdit ? editTa.id : 'null'})">
+              ✓ ${isEdit ? 'Save Task Analysis' : 'Create Task Analysis'}
+            </button>
+            <button type="button" class="sec" style="padding:4px 10px" onclick="act.closeModal()">✕</button>
           </div>
         </div>
-        <label>Task Analysis Steps (One step per line, in sequential order)</label>
-        <textarea id="ta_steps" rows="5">1. Walk to cubby hook
-2. Unzip main backpack compartment
-3. Place lunchbox on counter
-4. Place communication folder in bin
-5. Hang backpack on hook</textarea>
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-          <button class="sec" onclick="act.closeModal()">Cancel</button>
-          <button class="ok" onclick="act.submitCreateTaModal(${cid})">✓ Create Task Analysis</button>
+        <div class="modal-scroll-body">
+          <div class="row">
+            <div>
+              <label>Routine / Skill Title</label>
+              <input id="ta_title" value="${esc(curTitle)}" placeholder="e.g. Reading Comprehension & Answering WH Questions">
+            </div>
+            <div>
+              <label>Chaining Method</label>
+              <select id="ta_chain">
+                <option value="Forward Chaining" ${curChain === 'Forward Chaining' ? 'selected' : ''}>Forward Chaining</option>
+                <option value="Backward Chaining" ${curChain === 'Backward Chaining' ? 'selected' : ''}>Backward Chaining</option>
+                <option value="Total-Task Presentation" ${curChain === 'Total-Task Presentation' ? 'selected' : ''}>Total-Task Presentation</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex-between" style="align-items:center;margin-bottom:4px">
+            <label style="margin:0">Task Analysis Steps (One step per line, in sequential order)</label>
+            ${!isEdit ? `
+              <button type="button" class="sec" style="padding:3px 9px;font-size:0.72rem" onclick="document.getElementById('ta_title').value=document.getElementById('ta_title').value||'Independent Reading Passage & WH Questions';document.getElementById('ta_steps').value='1. Attend to reading material\\n2. Begin reading first sentence\\n3. Decode unfamiliar words\\n4. Read through passage\\n5. Attend to WH question\\n6. Locate answer in passage\\n7. State response or ask for help'">
+                ✨ Fill Sample Steps
+              </button>
+            ` : ''}
+          </div>
+          <textarea id="ta_steps" rows="7" placeholder="1. Attend to material&#10;2. Begin reading&#10;3. Decode words&#10;4. Answer comprehension questions...">${esc(curSteps)}</textarea>
+          ${!isEdit ? `
+            <label style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;background:#ecfdf5;border:1.5px solid #34d399;border-radius:10px;cursor:pointer;font-size:0.84rem;color:#065f46;font-weight:700">
+              <input id="ta_also_goal" type="checkbox" checked style="width:auto;margin:0;accent-color:#0d7a68">
+              Also link as a tracked Skill Acquisition Goal (appears in both Skill Goals AND Live Sessions)
+            </label>
+          ` : ''}
+        </div>
+        <div class="modal-fixed-foot">
+          <span style="font-size:0.76rem;color:#0f4c5c;font-weight:700">Automatically included in every live session for this client</span>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="sec" onclick="act.closeModal()">Cancel</button>
+            <button type="button" class="ok" style="padding:9px 18px;font-weight:800" onclick="act.submitCreateTaModal(${cid}, ${isEdit ? editTa.id : 'null'})">
+              ✓ ${isEdit ? 'Save Task Analysis' : 'Create Task Analysis'}
+            </button>
+          </div>
         </div>
       </div>
     </div>`;
@@ -11013,26 +11124,89 @@ const act = {
     }
     render();
   }),
-  openCreateTaModal: (cid) => { activeModal = { type: 'create_ta', clientId: cid }; render(); },
-  submitCreateTaModal: safe(async (cid) => {
+  openCreateTaModal: (cid) => { activeModal = { type: 'create_ta', clientId: cid, taskAnalysis: null }; render(); },
+  openEditTaModal: safe(async (cid, taId) => {
+    const cData = await api('GET', `/api/clients/${cid}`);
+    const ta = (cData.taskAnalyses || []).find((x) => Number(x.id) === Number(taId));
+    if (!ta) return alert('Task analysis not found');
+    activeModal = { type: 'create_ta', clientId: cid, taskAnalysis: ta };
+    render();
+  }),
+  submitCreateTaModal: safe(async (cid, taId = null) => {
+    const title = val('ta_title').trim();
+    if (!title) return alert('Please enter a Routine / Skill Title for this Task Analysis.');
     const steps = val('ta_steps').split('\n').map(s => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
-    await api('POST', `/api/clients/${cid}/task-analysis`, {
-      title: val('ta_title'),
-      chaining_type: val('ta_chain'),
-      steps
-    });
+    if (!steps.length) return alert('Please enter at least one step (one step per line).');
+    if (taId) {
+      await api('PUT', `/api/task-analysis/${taId}`, {
+        title,
+        chaining_type: val('ta_chain'),
+        steps
+      });
+    } else {
+      const alsoGoalEl = document.getElementById('ta_also_goal');
+      await api('POST', `/api/clients/${cid}/task-analysis`, {
+        title,
+        chaining_type: val('ta_chain'),
+        steps,
+        also_create_goal: Boolean(alsoGoalEl && alsoGoalEl.checked)
+      });
+    }
     activeModal = null;
     render();
   }),
+  deleteTaskAnalysis: safe(async (taId, title = '') => {
+    if (!confirm(`Delete Task Analysis "${title}"?`)) return;
+    await api('DELETE', `/api/task-analysis/${taId}`);
+    render();
+  }),
+  addTaskAnalysisAsSkillGoal: safe(async (taId, cid) => {
+    const cData = await api('GET', `/api/clients/${cid}`);
+    const ta = (cData.taskAnalyses || []).find((x) => Number(x.id) === Number(taId));
+    if (!ta) return alert('Task analysis not found');
+    const stepSummary = (ta.steps || []).map((st, idx) => `${idx + 1}. ${st}`).join(' → ');
+    await api('POST', `/api/clients/${cid}/goals`, {
+      title: ta.title,
+      baseline: 20,
+      target: 80,
+      domain: 'Daily Living / Adaptive Skills',
+      prompt_strategy: ta.chaining_type || 'Total-Task Presentation',
+      scoring_rule: 'independent_only',
+      mastery_sessions: 3,
+      operational_definition: `Task Analysis (${ta.chaining_type || 'Total-Task Presentation'}, ${(ta.steps || []).length} steps): ${stepSummary}`,
+      onset_criteria: 'Begins when clinician delivers initial cue for Step 1.',
+      offset_criteria: `Ends when learner completes Step ${(ta.steps || []).length} independently or chain concludes.`,
+      examples: `Completing all ${(ta.steps || []).length} task analysis steps independently in sequential order.`,
+      non_examples: 'Steps requiring verbal, gestural, model, or physical prompts are scored separately.',
+      measurement_type: 'task_analysis',
+      secondary_measurement: 'percentage_of_opportunities',
+      configured_prompts: 'I,V,G'
+    });
+    alert(`✓ Linked "${ta.title}" to Skill Acquisition Targets (active in both Skill Targets & Live Sessions)!`);
+    render();
+  }),
   setTaDraftStep: (taId, stepIdx, code, totalSteps) => {
-    if (!taDraftSteps[taId]) taDraftSteps[taId] = Array.from({ length: totalSteps }, () => 'I');
+    if (!taDraftSteps[taId] || taDraftSteps[taId].length !== totalSteps) {
+      taDraftSteps[taId] = Array.from({ length: totalSteps }, () => 'I');
+    }
     taDraftSteps[taId][stepIdx] = code;
     render();
   },
-  submitTaRun: safe(async (taId) => {
-    const codes = taDraftSteps[taId] || ['I', 'I', 'I', 'I', 'I', 'I'];
+  submitTaRun: safe(async (taId, totalSteps = 6, sid = null) => {
+    const len = Math.max(1, Number(totalSteps) || 6);
+    const codes = (taDraftSteps[taId] && taDraftSteps[taId].length === len)
+      ? taDraftSteps[taId]
+      : Array.from({ length: len }, () => 'I');
     const results = codes.map((c, idx) => ({ step: `Step ${idx + 1}`, status: c }));
-    await api('POST', `/api/task-analysis/${taId}/log`, { results });
+    const res = await api('POST', `/api/task-analysis/${taId}/log`, { results, stepResults: codes, session_id: sid || null });
+    lastUndoFeedbackMsg = `✓ Logged Task Analysis run: ${res.numDenom || ''} (${res.pct ?? 100}% Independent)`;
+    render();
+  }),
+  undoLastTaRun: safe(async (taId, title = '') => {
+    const res = await api('DELETE', `/api/task-analysis/${taId}/log/last`);
+    if (res && res.undone) {
+      lastUndoFeedbackMsg = `✓ Undid last Task Analysis run for ${title || 'Task Analysis'} (${res.undone.numDenom || ''})`;
+    }
     render();
   }),
   openAuditModal: safe(async (cid) => {

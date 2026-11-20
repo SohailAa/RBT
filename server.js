@@ -1484,7 +1484,7 @@ function buildAuthCookies(tok, refreshToken) {
   return [tokCookie, fbtCookie];
 }
 
-const EBA_SERVER_BUILD = '20261120_7';
+const EBA_SERVER_BUILD = '20261120_8';
 let cloudHydrated = false;
 let lastCloudPullAtMs = 0;
 
@@ -4821,13 +4821,59 @@ route('PUT', '/api/session-events/:id', (u, b, p) => {
 route('POST', '/api/clients/:id/task-analysis', (u, b, p) => {
   clientOr403(u, p.id);
   if (u.role === 'PARENT') bad(403, 'Not allowed');
-  if (!b.title) bad(400, 'Task analysis title required');
-  const steps = Array.isArray(b.steps) ? b.steps : String(b.steps || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  const titleClean = String(b.title || '').trim();
+  if (!titleClean) bad(400, 'Task analysis title required');
+  const steps = Array.isArray(b.steps)
+    ? b.steps.map((s) => String(s).trim()).filter(Boolean)
+    : String(b.steps || '').split('\n').map((s) => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+  const chainingType = b.chaining_type || 'Total-Task Presentation';
   const r = run('INSERT INTO task_analyses(client_id,title,chaining_type,steps_json,logs_json,status) VALUES(?,?,?,?,?,?)',
-    +p.id, b.title, b.chaining_type || 'Forward Chaining', JSON.stringify(steps), '[]', 'active');
+    +p.id, titleClean, chainingType, JSON.stringify(steps), '[]', 'active');
   const tid = Number(r.lastInsertRowid);
-  logAudit(u, { client_id: +p.id, entity_type: 'task_analysis', entity_id: tid, action: 'CREATE_TASK_ANALYSIS', details: `Created Task Analysis "${b.title}" (${steps.length} steps)` });
-  return { id: tid };
+  logAudit(u, { client_id: +p.id, entity_type: 'task_analysis', entity_id: tid, action: 'CREATE_TASK_ANALYSIS', details: `Created Task Analysis "${titleClean}" (${steps.length} steps)` });
+
+  let linkedGoalId = null;
+  if (b.also_create_goal) {
+    const stepSummary = steps.map((st, idx) => `${idx + 1}. ${st}`).join(' → ');
+    const gr = run(
+      'INSERT INTO goals(client_id,title,baseline,target,status,domain,prompt_strategy,scoring_rule,mastery_sessions,operational_definition,onset_criteria,offset_criteria,examples,non_examples,measurement_type,secondary_measurement,data_fields_json,linked_finding_id,approved_by,approved_at,configured_prompts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      +p.id, titleClean, 20, 80, 'active', b.domain || 'Daily Living / Adaptive Skills', chainingType, 'independent_only', 3,
+      `Task Analysis (${chainingType}, ${steps.length} steps): ${stepSummary}`,
+      'Begins when clinician delivers initial natural or instructional cue for Step 1.',
+      `Ends when learner completes Step ${steps.length} independently or clinician completes chain.`,
+      `Completing task analysis steps independently in sequential order (${steps.length} steps).`,
+      'Steps requiring verbal, gestural, model, or physical prompts are tracked separately.',
+      'task_analysis', 'percentage_of_opportunities', JSON.stringify(['Step #', 'Step Description', 'Prompt Level (I/V/G/M/P)', '% Independent Steps']),
+      null, `${u.name} (${u.role})`, new Date().toISOString(), 'I,V,G'
+    );
+    linkedGoalId = Number(gr.lastInsertRowid);
+    logAudit(u, { client_id: +p.id, entity_type: 'goal', entity_id: linkedGoalId, action: 'CREATE_GOAL', details: `Linked Task Analysis "${titleClean}" as active Skill Acquisition Goal #${linkedGoalId}` });
+  }
+  return { id: tid, linked_goal_id: linkedGoalId };
+});
+route('PUT', '/api/task-analysis/:id', (u, b, p) => {
+  const ta = get('SELECT * FROM task_analyses WHERE id=?', +p.id);
+  if (!ta) bad(404, 'Task analysis not found');
+  clientOr403(u, ta.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const titleClean = String(b.title !== undefined ? b.title : ta.title).trim();
+  if (!titleClean) bad(400, 'Task analysis title required');
+  const chainingType = b.chaining_type || ta.chaining_type || 'Total-Task Presentation';
+  const steps = b.steps !== undefined
+    ? (Array.isArray(b.steps) ? b.steps.map((s) => String(s).trim()).filter(Boolean) : String(b.steps || '').split('\n').map((s) => s.replace(/^\d+[\.\)]\s*/, '').trim()).filter(Boolean))
+    : (parse(ta.steps_json) || []);
+  run('UPDATE task_analyses SET title=?, chaining_type=?, steps_json=? WHERE id=?', titleClean, chainingType, JSON.stringify(steps), ta.id);
+  logAudit(u, { client_id: ta.client_id, entity_type: 'task_analysis', entity_id: ta.id, action: 'UPDATE_TASK_ANALYSIS', details: `Updated Task Analysis "${titleClean}" (${steps.length} steps)` });
+  return { ok: true, id: ta.id, title: titleClean, chaining_type: chainingType, steps };
+});
+route('DELETE', '/api/task-analysis/:id', (u, b, p) => {
+  const ta = get('SELECT * FROM task_analyses WHERE id=?', +p.id);
+  if (!ta) bad(404, 'Task analysis not found');
+  clientOr403(u, ta.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  run('DELETE FROM task_analyses WHERE id=?', ta.id);
+  logAudit(u, { client_id: ta.client_id, entity_type: 'task_analysis', entity_id: ta.id, action: 'DELETE_TASK_ANALYSIS', details: `Deleted Task Analysis "${ta.title}"` });
+  return { ok: true, deleted: true, id: ta.id };
 });
 route('POST', '/api/task-analysis/:id/log', (u, b, p) => {
   const ta = get('SELECT * FROM task_analyses WHERE id=?', +p.id);
@@ -4844,9 +4890,11 @@ route('POST', '/api/task-analysis/:id/log', (u, b, p) => {
   const totalSteps = steps.length || stepResults.length || 1;
   const indepSteps = stepResults.filter((x) => x === 'I').length;
   const pct = Math.round((indepSteps / totalSteps) * 100);
+  const nowIso = new Date().toISOString();
   const entry = {
-    date: b.date || new Date().toISOString().slice(0, 10),
-    ts: new Date().toISOString(),
+    date: b.date || nowIso.slice(0, 10),
+    ts: nowIso,
+    session_id: b.session_id ? +b.session_id : null,
     staff: u.name,
     indepSteps,
     indepCount: indepSteps,
@@ -4860,8 +4908,27 @@ route('POST', '/api/task-analysis/:id/log', (u, b, p) => {
   };
   logs.push(entry);
   run('UPDATE task_analyses SET logs_json=? WHERE id=?', JSON.stringify(logs), ta.id);
-  logAudit(u, { client_id: ta.client_id, entity_type: 'task_analysis', entity_id: ta.id, action: 'LOG_TASK_ANALYSIS', details: `Logged Task Analysis "${ta.title}": ${entry.numDenom} (${pct}%) independent` });
+  if (b.session_id) {
+    run('INSERT INTO session_events(session_id,client_id,user_id,event_type,label,start_ts,end_ts,duration_sec,observed_at,recorded_at,notes,original_value_json,edit_history_json,meta_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      +b.session_id, ta.client_id, u.id, 'TRIAL_EVENT', `Task Analysis: ${ta.title} — ${entry.numDenom} (${pct}% Independent)`,
+      nowIso, nowIso, entry.durationSec, nowIso, nowIso, '', JSON.stringify(entry), '[]',
+      JSON.stringify({ source_table: 'task_analyses', source_id: ta.id, run_ts: nowIso }));
+  }
+  logAudit(u, { client_id: ta.client_id, session_id: b.session_id ? +b.session_id : null, entity_type: 'task_analysis', entity_id: ta.id, action: 'LOG_TASK_ANALYSIS', details: `Logged Task Analysis "${ta.title}": ${entry.numDenom} (${pct}%) independent` });
   return { ok: true, entry, ...entry };
+});
+route('DELETE', '/api/task-analysis/:id/log/last', (u, b, p) => {
+  const ta = get('SELECT * FROM task_analyses WHERE id=?', +p.id);
+  if (!ta) bad(404, 'Task analysis not found');
+  clientOr403(u, ta.client_id);
+  if (u.role === 'PARENT') bad(403, 'Not allowed');
+  const logs = parse(ta.logs_json) || [];
+  const undone = logs.length ? logs.pop() : null;
+  if (undone) {
+    run('UPDATE task_analyses SET logs_json=? WHERE id=?', JSON.stringify(logs), ta.id);
+    logAudit(u, { client_id: ta.client_id, session_id: undone.session_id || null, entity_type: 'task_analysis', entity_id: ta.id, action: 'UNDO_TASK_ANALYSIS_RUN', details: `Undid Task Analysis run for "${ta.title}" (${undone.numDenom || ''})` });
+  }
+  return { ok: true, undone };
 });
 
 // ABC Data collection (with extended contextual fields & automatic observed/recorded timestamps)
